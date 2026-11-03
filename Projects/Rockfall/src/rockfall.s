@@ -122,14 +122,38 @@ SMODE   = $AA            ; star colour: 0 white, 1 violet, 2 green (cycles)
 BROW    = 74             ; banner top row (10 rows: 3x5 font doubled)
 BANCOL  = 16             ; banner first byte column
 
+; ---- high-score table: one 256-byte page, ready to be written to a disk
+; sector later with wrsect ($080B). 5 entries x 8 bytes, best first:
+;   +0..2 initials (high-bit ASCII), +3 score lo (BCD), +4 score hi, +5 level (BCD), +6..7 0
+; +$28 "RF" + version byte 1 (validates a table loaded from disk); rest 0.
+HS      = $1B00
+HSN     = 5
+HSMAGIC = HS+$28
+TROW    = $AB            ; text row of the table header
+HILITE  = $AC            ; entry to show in inverse ($FF none)
+RANK    = $AD            ; game-over rank 0-4, $FF = didn't qualify
+LPOS    = $AE            ; initials entry: letter 0-2
+JOYOK   = $AF            ; joystick seen centred at entry start
+ENTER   = $B0            ; 1 while entering initials
+BUTN0   = $C061
+PREAD   = $FB1E          ; monitor paddle read: X = paddle, Y = 0-255
+
         .segment "CODE"
 boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         cld
         ldx #$FF
         txs
-        lda #0
-        sta HISCORE
-        sta HISCORE+1
+        ldx #0                   ; high-score table: defaults, rest of page 0
+@hs:    lda #0
+        cpx #hsdef_end-hsdef
+        bcs @hz
+        lda hsdef,x
+@hz:    sta HS,x
+        inx
+        bne @hs
+        lda #$FF
+        sta HILITE
+        jsr sethi
         lda #$A5
         sta SEED
         lda #0
@@ -168,17 +192,9 @@ title:  sta TXTSET
         ldx #14
         ldy #9
         jsr print
-        jsr setstr2
-        .addr s_hi
-        ldx #18
-        ldy #13
-        jsr print
-        ldx #18
-        ldy #23
-        lda HISCORE+1
-        jsr prbcd
-        lda HISCORE
-        jsr prbcd
+        lda #16
+        sta TROW
+        jsr drawtable
         bit KBDSTRB
         jsr intro                ; play tune
 @wait:  inc SEED                 ; seed RNG from time until key
@@ -279,19 +295,9 @@ gameover:
         jsr render               ; same final frame on the other page too
         jsr flip
         jsr crash
-        ; update high score
-        lda SCORE+1
-        cmp HISCORE+1
-        bcc @nohi
-        bne @hi
-        lda SCORE
-        cmp HISCORE
-        bcc @nohi
-@hi:    lda SCORE
-        sta HISCORE
-        lda SCORE+1
-        sta HISCORE+1
-@nohi:  jsr status
+        jsr hsinsert             ; RANK, HILITE; table updated (initials AAA)
+        jsr sethi
+        jsr status
         ; show page 1 with the text window (text page 1 at $0400 is free)
         jsr clrtext
         jsr tstatus
@@ -314,6 +320,12 @@ gameover:
         dex
         bne @p
         bit KBDSTRB
+        lda RANK
+        bmi @tb
+        jsr initials
+@tb:    lda #0
+        sta ENTER
+        jsr goscreen
 @k:     inc SEED
         lda KBD
         bpl @k
@@ -322,6 +334,293 @@ gameover:
         bne @ng
         jmp title
 @ng:    jmp newgame
+
+; ================= high scores =================
+; HISCORE (HUD) = top entry
+sethi:  lda HS+3
+        sta HISCORE
+        lda HS+4
+        sta HISCORE+1
+        rts
+
+; find SCORE's rank (first entry it beats), insert it there with level and
+; initials "AAA". RANK = HILITE = rank or $FF.
+hsinsert:
+        ldx #0
+        ldy #0
+@c:     lda SCORE+1
+        cmp HS+4,y
+        bcc @nx
+        bne @got
+        lda SCORE
+        cmp HS+3,y
+        beq @nx
+        bcs @got
+@nx:    tya
+        clc
+        adc #8
+        tay
+        inx
+        cpx #HSN
+        bne @c
+        ldx #$FF
+        stx RANK
+        stx HILITE
+        rts
+@got:   stx RANK
+        stx HILITE
+        sty TMP                  ; entry offset
+        ldx #HSN*8-9             ; move entries rank..3 down one slot
+@mv:    cpx TMP
+        bcc @w
+        lda HS,x
+        sta HS+8,x
+        dex
+        bpl @mv
+@w:     ldy TMP
+        lda #$C1
+        sta HS,y
+        sta HS+1,y
+        sta HS+2,y
+        lda SCORE
+        sta HS+3,y
+        lda SCORE+1
+        sta HS+4,y
+        lda LEVEL
+        sta HS+5,y
+        lda #0
+        sta HS+6,y
+        sta HS+7,y
+        rts
+
+; table at text row TROW: header, then rows TROW+2.. "1. AAA  0250  LV03"
+; (cols 11-28); entry HILITE in inverse; while ENTER, letter LPOS flashes.
+drawtable:
+        jsr setstr2
+        .addr s_hshdr
+        ldx TROW
+        ldy #14
+        jsr print
+        lda #0
+        sta CNT
+@e:     lda CNT
+        clc
+        adc TROW
+        adc #2
+        tax                      ; text row
+        lda CNT
+        asl
+        asl
+        asl
+        sta OFS                  ; entry offset
+        lda textlo,x
+        sta DST
+        lda texthi,x
+        sta DST+1
+        ldy #11
+        lda CNT
+        clc
+        adc #$B1                 ; '1'..'5'
+        sta (DST),y
+        iny
+        lda #$AE                 ; '.'
+        sta (DST),y
+        ldy #14
+        ldx OFS
+@i:     lda HS,x
+        sta (DST),y
+        inx
+        iny
+        cpy #17
+        bne @i
+        ldy #19
+        lda HS+1,x               ; x = OFS+3: score hi
+        jsr bcd2
+        lda HS,x
+        jsr bcd2
+        ldy #25
+        lda #$CC                 ; 'L'
+        sta (DST),y
+        iny
+        lda #$D6                 ; 'V'
+        sta (DST),y
+        iny
+        lda HS+2,x               ; level
+        jsr bcd2
+        lda CNT
+        cmp HILITE
+        bne @nh
+        ldy #10                  ; inverse bar, cols 10-29
+@inv:   lda (DST),y
+        and #$3F
+        sta (DST),y
+        iny
+        cpy #30
+        bne @inv
+        lda ENTER
+        beq @nh
+        lda LPOS
+        clc
+        adc #14
+        tay
+        lda (DST),y
+        ora #$40                 ; flashing
+        sta (DST),y
+@nh:    inc CNT
+        lda CNT
+        cmp #HSN
+        beq @x
+        jmp @e
+@x:     rts
+; BCD A -> 2 digits at (DST),y
+bcd2:   pha
+        lsr
+        lsr
+        lsr
+        lsr
+        ora #$B0
+        sta (DST),y
+        iny
+        pla
+        and #$0F
+        ora #$B0
+        sta (DST),y
+        iny
+        rts
+
+; full text screen after game over: table (+ entry prompt while ENTER)
+goscreen:
+        jsr clrtext
+        sta TXTSET
+        sta LOWSCR
+        jsr setstr2
+        .addr s_over
+        ldx #1
+        ldy #8
+        jsr print
+        lda #5
+        sta TROW
+        jsr drawtable
+        jsr tstatus
+        lda ENTER
+        beq @a
+        jsr setstr2
+        .addr s_new
+        ldx #3
+        ldy #4
+        jsr print
+        jsr setstr2
+        .addr s_ihelp1
+        ldx #14
+        ldy #3
+        jsr print
+        jsr setstr2
+        .addr s_ihelp2
+        ldx #15
+        ldy #3
+        jsr print
+        rts
+@a:     jsr setstr2
+        .addr s_again
+        ldx #23
+        ldy #4
+        jmp print
+
+; initials entry for entry RANK: keys A-Z type a letter; left/down and
+; right/up (or joystick left/right) cycle; RETURN, space or button 0 confirm.
+initials:
+        lda #1
+        sta ENTER
+        lda #0
+        sta LPOS
+        sta JOYOK
+        ldx #0
+        jsr PREAD                ; no joystick reads 255: ignore the stick
+        cpy #48
+        bcc @rd
+        cpy #208
+        bcs @rd
+        inc JOYOK
+@rd:    jsr goscreen
+@in:    inc SEED
+        lda KBD
+        bmi @key
+        lda BUTN0
+        bmi @btn
+        lda JOYOK
+        beq @in
+        ldx #0
+        jsr PREAD
+        cpy #48
+        bcc @prev
+        cpy #208
+        bcs @next
+        bcc @in
+@btn:   lda BUTN0                ; wait for release
+        bmi @btn
+        bpl @ok
+@key:   bit KBDSTRB
+        and #$DF
+        cmp #$C1
+        bcc @ctl
+        cmp #$DB
+        bcs @ctl
+        jsr letptr
+        sta HS,y
+        jmp @ok
+@ctl:   cmp #$8D                 ; RETURN
+        beq @ok
+        cmp #$80                 ; space
+        beq @ok
+        cmp #$88                 ; left
+        beq @prev
+        cmp #$8A                 ; down
+        beq @prev
+        cmp #$95                 ; right
+        beq @next
+        cmp #$8B                 ; up
+        beq @next
+        bne @in
+@prev:  jsr letptr
+        lda HS,y
+        sec
+        sbc #1
+        cmp #$C1
+        bcs @st
+        lda #$DA
+        bne @st
+@next:  jsr letptr
+        lda HS,y
+        clc
+        adc #1
+        cmp #$DB
+        bcc @st
+        lda #$C1
+@st:    sta HS,y
+        jsr goscreen
+        lda JOYOK                ; stick auto-repeat ~0.3 s
+        beq @in
+        lda #$FF
+        jsr WAIT
+        lda #$FF
+        jsr WAIT
+        jmp @in
+@ok:    inc LPOS
+        lda LPOS
+        cmp #3
+        bcs @done
+        jmp @rd
+@done:  rts
+; Y = RANK*8+LPOS (keeps A)
+letptr: pha
+        lda RANK
+        asl
+        asl
+        asl
+        adc LPOS
+        tay
+        pla
+        rts
 
 ; ================= input =================
 input:  lda KBD
@@ -1505,7 +1804,15 @@ s_sub:    .byte "DODGE THE FALLING ROCKS!",0
 s_keys:   .byte "ARROWS OR J / L TO MOVE",0
 s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
-s_hi:     .byte "HI SCORE",0
+s_hshdr:  .byte "HIGH SCORES",0
+s_new:    .byte "NEW HIGH SCORE! ENTER YOUR INITIALS",0
+s_ihelp1: .byte "A-Z: TYPE  ARROWS/STICK: CHANGE",0
+s_ihelp2: .byte "RETURN/SPACE/BUTTON: OK",0
+hsdef:    .byte $C1,$B2,$C4,$50,$02,$04,0,0, $D2,$CF,$CD,$50,$01,$03,0,0, $C7,$D2,$CB,$00,$01,$02,0,0
+          .byte $C8,$C7,$D2,$50,$00,$02,0,0, $D3,$D0,$CB,$25,$00,$01,0,0
+          .res HSMAGIC-HS-(*-hsdef),0
+          .byte "RF",1
+hsdef_end:
 s_status: .byte "SCORE 0000  SPEED 00  LEVEL 00  HI 0000",0
 s_over:   .byte "*** G A M E   O V E R ***",0
 s_again:  .byte "ANY KEY: PLAY AGAIN   ESC: TITLE",0

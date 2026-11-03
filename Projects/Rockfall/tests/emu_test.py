@@ -119,10 +119,10 @@ px0=zp()['PX']
 for i in range(10): key('\x08')
 time.sleep(0.3); print('after 10x left: PX',px0,'->',zp()['PX'])
 # --- laser test: fire, then (paused) put rock 0 in the bolt's path and check +5 ---
-def alive():
+def alive():   # after game over: 'A' x3 fills initials if the score made the table, then 'A' restarts
     for t in range(20):
         if not zp()['DEAD']: return
-        time.sleep(3); key('A'); time.sleep(0.5)
+        time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.3)
 alive()
 for tries in range(6):
     q({'cmd':'keys','text':' '}); ok=False
@@ -194,7 +194,7 @@ while time.time()-t0<30:
     time.sleep(0.2)
     if i%8==0:
         z=zp()
-        if z['DEAD']: deaths+=1; time.sleep(3.5); key('A'); time.sleep(0.5); continue
+        if z['DEAD']: deaths+=1; alive(); time.sleep(0.5); continue
         n,_=check('soak %ds score %s'%(time.time()-t0,z['SCORE'])); tot+=n
 print('soak done: total mismatched bytes',tot,'deaths/restarts',deaths)
 print('after soak:',zp())
@@ -209,5 +209,5 @@ print('== text screen (page 1 text, mixed mode) ==\n'+'\n'.join(q({'cmd':'screen
 n,pgs=check('game over'); print('== page 1 at game over ==\n'+art(pgs[0],0,160))
 ld=peek(0x800,8); code=peek(0x6000,0x300); B=open(D+'/build/rockfall.bin','rb').read()
 print('loader at $0800 (count $03, ntracks %d) resident:'%ld[4],ld[:8].hex(),' game at $6000 matches image:',code==B[4096:4096+0x300],code[:4].hex())
-time.sleep(1); key('A'); time.sleep(1); print('restart:',zp()); check('after restart')
+time.sleep(1); alive(); time.sleep(1); print('restart:',zp()); check('after restart')
 q({'cmd':'quit'}); time.sleep(0.5); p.kill()

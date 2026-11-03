@@ -1,6 +1,5 @@
 new game: {'SPEED': 1, 'DODGE': 0, 'DEAD': 0, 'LEVEL': 1, 'SPDUPS': 0, 'LVLUP': 0, 'SMODE': 0, 'BACK': 0}
 PASS new game starts at LEVEL 1, SPDUPS 0, white stars
-  (died or timed out during step, retrying from a new game)
   step 1: SPEED 1->2 SPDUPS 0->1 LEVEL 01->01 LVLUP 0
   step 2: SPEED 2->3 SPDUPS 1->2 LEVEL 01->01 LVLUP 0
   step 3: SPEED 3->4 SPDUPS 2->0 LEVEL 01->02 LVLUP 1
@@ -9,16 +8,15 @@ PASS LEVEL 2 after 3 speed-ups (SPDUPS reset, star mode 1=violet)
 banner decoded page1='LEVEL 2 ' page2='LEVEL 2 '
 PASS LEVEL 2 banner on both HGR pages
 banner screenshot: /workspace/apple2-dev/Projects/Rockfall/tests/../tests/level_banner_plus.png
-banner visible ~2.00s (wall, --no-turbo)
+banner visible ~1.99s (wall, --no-turbo)
 PASS banner lasts ~1.5 s
 PASS banner erased from both pages after it ends
 PASS play continues after the banner
   capped step: SPEED 5->5 LEVEL 02->03 SMODE 2
 PASS level still advances with SPEED capped at 5 (LEVEL 3, star mode 2=green)
-stars respawned in level 3: 7 single-pixel (coloured), parities [1, 1, 1, 1, 1, 1, 1]
+stars respawned in level 3: 1 single-pixel (coloured), parities [1]
 PASS coloured stars have green (odd-x) parity
-  (died or timed out during step, retrying from a new game)
-level 9->10, banner 'L?VEL 10'
+level 9->10, banner 'LEVEL 10' {'SPEED': 5, 'DODGE': 0, 'DEAD': 0, 'LEVEL': 16, 'SPDUPS': 0, 'LVLUP': 1, 'SMODE': 1, 'BACK': 1}
 PASS BCD level 10 banner
 after game over + new game: {'SPEED': 1, 'DODGE': 0, 'DEAD': 0, 'LEVEL': 1, 'SPDUPS': 0, 'LVLUP': 0, 'SMODE': 0, 'BACK': 0}
 PASS new game resets LEVEL to 1

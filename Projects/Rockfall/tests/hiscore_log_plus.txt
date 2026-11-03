@@ -1,0 +1,126 @@
+table at $1B00: [('A2D', '0250', '04'), ('ROM', '0150', '03'), ('GRK', '0100', '02'), ('HGR', '0050', '02'), ('SPK', '0025', '01')]  magic b'RF\x01'
+PASS default table + magic at $1B00
+== title ==
+                                        
+                                        
+                                        
+                                        
+            R O C K F A L L             
+                                        
+                                        
+        DODGE THE FALLING ROCKS!        
+                                        
+                                        
+      ARROWS OR J / L TO MOVE           
+           SPACE OR A TO FIRE           
+                                        
+                                        
+         PRESS ANY KEY TO START         
+                                        
+              HIGH SCORES               
+                                        
+           1. A2D  0250  LV04           
+           2. ROM  0150  LV03           
+           3. GRK  0100  LV02           
+           4. HGR  0050  LV02           
+           5. SPK  0025  LV01           
+                                        
+PASS table shown on the title screen
+screenshot: /workspace/apple2-dev/Projects/Rockfall/tests/../tests/hiscore_title_plus.png
+HUD: ' SC 0000 SPD1 LV01 HI 0250'
+PASS HUD HI = top entry (0250)
+PASS qualifying score -> initials entry
+RANK 1
+PASS rank 2 for 0175
+== entry ==
+                                        
+        *** G A M E   O V E R ***       
+                                        
+    NEW HIGH SCORE! ENTER YOUR INITIALS 
+                                        
+              HIGH SCORES               
+                                        
+           1. A2D  0250  LV04           
+           2. AAA  0175  LV03           
+           3. ROM  0150  LV03           
+           4. GRK  0100  LV02           
+           5. HGR  0050  LV02           
+                                        
+                                        
+   A-Z: TYPE  ARROWS/STICK: CHANGE      
+   RETURN/SPACE/BUTTON: OK              
+                                        
+                                        
+                                        
+                                        
+                                        
+ SCORE 0175  SPEED 01  LEVEL 03  HI 0250
+                                        
+                                        
+screenshot: /workspace/apple2-dev/Projects/Rockfall/tests/../tests/hiscore_entry_plus.png
+PASS entry finished after 3 letters
+table: [('A2D', '0250', '04'), ('RCG', '0175', '03'), ('ROM', '0150', '03'), ('GRK', '0100', '02'), ('HGR', '0050', '02')]
+PASS inserted at rank 2 with initials RCG and level 3; SPK dropped
+== table after game over ==
+                                        
+        *** G A M E   O V E R ***       
+                                        
+                                        
+                                        
+              HIGH SCORES               
+                                        
+           1. A2D  0250  LV04           
+           2. RCG  0175  LV03           
+           3. ROM  0150  LV03           
+           4. GRK  0100  LV02           
+           5. HGR  0050  LV02           
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+ SCORE 0175  SPEED 01  LEVEL 03  HI 0250
+                                        
+    ANY KEY: PLAY AGAIN   ESC: TITLE    
+PASS table shown after game over
+PASS new entry row in inverse
+screenshot: /workspace/apple2-dev/Projects/Rockfall/tests/../tests/hiscore_table_plus.png
+PASS top score -> entry
+PASS entry done
+table: [('TOP', '0300', '05'), ('A2D', '0250', '04'), ('RCG', '0175', '03'), ('ROM', '0150', '03'), ('GRK', '0100', '02')]
+PASS new #1 inserted at top
+HUD: ' SC 0000 SPD1 LV01 HI 0300'
+PASS HUD HI follows the new top entry
+== non-qualifying ==
+                                        
+        *** G A M E   O V E R ***       
+                                        
+                                        
+                                        
+              HIGH SCORES               
+                                        
+           1. TOP  0300  LV05           
+           2. A2D  0250  LV04           
+           3. RCG  0175  LV03           
+           4. ROM  0150  LV03           
+           5. GRK  0100  LV02           
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+ SCORE 0010  SPEED 01  LEVEL 01  HI 0300
+                                        
+    ANY KEY: PLAY AGAIN   ESC: TITLE    
+PASS non-qualifying score skips entry
+PASS table unchanged
+PASS ESC -> title shows updated table
+RESULT: PASS

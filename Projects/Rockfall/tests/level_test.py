@@ -51,9 +51,9 @@ def png(mem,path):
             px[x,y]=col
     im.resize((560,384),Image.NEAREST).save(path)
 def alive():
-    for t in range(10):
+    for t in range(20):
         if not st()['DEAD']: return
-        time.sleep(3); key('A'); time.sleep(0.8)
+        time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def step(setup=()):
     """force one speed-up step (after applying setup pokes); returns (state before, state after)"""
     for attempt in range(5):
@@ -117,9 +117,15 @@ single=[(c,mk) for i,(c,mk) in enumerate(zip(cols,msk)) if bin(mk).count('1')==1
 par=[(c*7+mk.bit_length()-1)%2 for c,mk in single]
 print('stars respawned in level 3: %d single-pixel (coloured), parities %s'%(len(single),par)); ok(single and all(x==1 for x in par) if st()['SMODE']==2 else True,'coloured stars have green (odd-x) parity')
 # --- level 10 banner shows two digits; game over resets to 1 ---
-z0,z=step([(0x61,5),(0xA8,2),(0xA7,9)]); time.sleep(0.3); q({'cmd':'pause'}); zz=st(); t=[banner_text(peek(0x2000,0x2000))]; q({'cmd':'resume'})
-print('level 9->%02X, banner %r'%(z['LEVEL'] if z else -1,t[0])); ok(z and z['LEVEL']==0x10 and like(t[0],'LEVEL 10'),'BCD level 10 banner')
-time.sleep(2); poke(0x67,[1]); time.sleep(4); key('A'); time.sleep(1)
+for tries in range(4):   # a crash on the level-up frame ends the game before the banner: retry
+    z0,z=step([(0x61,5),(0xA8,2),(0xA7,9)])
+    t0=time.time()
+    while not st()['LVLUP'] and time.time()-t0<2: time.sleep(0.01)
+    time.sleep(0.3); q({'cmd':'pause'}); zz=st(); t=[banner_text(peek(0x2000,0x2000))]; q({'cmd':'resume'})
+    if not zz['DEAD']: break
+    print('  (crashed on the level-up frame, retrying)')
+print('level 9->%02X, banner %r'%(z['LEVEL'] if z else -1,t[0]),zz); ok(z and z['LEVEL']==0x10 and like(t[0],'LEVEL 10'),'BCD level 10 banner')
+time.sleep(2); poke(0x67,[1]); time.sleep(1); alive(); time.sleep(1)
 z=st(); print('after game over + new game:',z); ok(z['LEVEL']==1 and z['SPDUPS']==0 and z['SMODE']==0,'new game resets LEVEL to 1')
 q({'cmd':'quit'})
 print('RESULT:','PASS' if not FAIL else 'FAIL %s'%FAIL)
