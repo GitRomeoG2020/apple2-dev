@@ -14,7 +14,9 @@ Score: +1 per rock dodged, +5 per rock shot. Speed goes up every 15 rocks (max 5
 - src/rockfall.s    game source (ca65)
 - src/font.s       tiny 3x5 hi-res font for the status line, made by tools/gen_font.py
 - src/sprites.s     ship (7 pre-shifted copies) + rock data, made by tools/gen_sprites.js
-- src/rockfall.cfg  linker config: the game sits at $0800-$17FF (track 0)
+- src/boot.s       stage-2 loader (track 0): reads the game from tracks 1-6 to $6000
+- src/rockfall.cfg  linker config: loader at $0800 (track 0), game at $6000-$BFFF (max 24K)
+- tests/loader_test.py pads the game image with a pattern to 20-24K, boots it and checks RAM byte for byte
 - build.ps1         Windows build (+ -Run to launch MAME)
 - disk/rockfall.dsk bootable 140K disk image
 - tools/            gen_sprites.js (node, only to change the art), gen_font.py, mkdisk.py, a2enc.js
@@ -30,22 +32,34 @@ Or by hand, from the MAME folder:
 (`apple2p` for a II+.)
 
 ## How it works
-- Boot: byte $0800 = $10 tells the Disk II boot ROM to load all 16 sectors of track 0
-  into $0800-$17FF, then it jumps to $0801. The image builders put physical sector p in its
-  DOS-order slot.
+- Boot (two stages, no DOS):
+  1. Byte $0800 = $03 tells the Disk II boot ROM to load physical sectors 0-2 of track 0
+     (src/boot.s) to $0800-$0AFF; it jumps to $0801 with X = slot*16.
+  2. The loader shows LOADING... (one * per track), then reads tracks 1..N with its own
+     6+2 GCR read code (DOS 3.3 style, cycle-safe read loops, 4+4 address field, data
+     checksum), taking sectors in whatever order they pass under the head, and stepping
+     the head with the four phase magnets (~19 ms per half-track, then settle). Then
+     JMP $6000 with X = slot*16. Byte $0804 = N (number of game tracks) is filled in by
+     the disk builders from the image size.
+  - Disk layout: build/rockfall.bin = 4K track-0 image + game image; 256-byte chunk i goes to
+    track i/16, PHYSICAL sector i%16 (mkdisk.py and build.ps1 then map physical to
+    DOS-order slots in the .dsk). Both builders produce byte-identical disks.
+  - The loader stays resident at $0800-$0CFF (text page 2, unused) with a jump table for
+    the game: $0805 seek (A = track), $0808 rdsect, $080B wrsect (placeholder for saving
+    high scores later: needs prenibblize + a 32-cycle write loop via $C08F/$C08D).
 - Graphics: full-screen hi-res, double-buffered on HGR page 1 ($2000) and page 2 ($4000).
   Each frame is drawn on the hidden page, then $C054/$C055 flips it into view, so there is no flicker.
   For every page the game remembers what it last drew there (ship, rocks, bolt, stars at $1900-$1ABF);
   next time it XOR-erases exactly that and draws the new state. The field is rows 0-159; SCORE / SPD / HI / HEAT
   are drawn on both pages at rows 172-176 with a small hi-res font (mixed text mode is off during play,
-  because text page 2 lives at $0800, where the game code is). The game-over screen switches to page 1
+  because text page 2 at $0800 holds the resident loader). The game-over screen switches to page 1
   with the 4 text lines (text page 1 at $0400 is free). Sprites use XOR, so drawing the same thing again erases it. Rocks sit on byte columns. The ship
   uses pre-shifted copies so it moves 2 px at a time.
 - Stars: 36 small white dots (2 pixels each) fall behind the rocks. Half of them move 1 row
   every 2 frames and half every 4, which gives a parallax look. A star that reaches row 156
   comes back at the top in a new random spot. Stars are XORed like everything else, so a rock
   or the ship passing over one never leaves a mark. They don't count for collisions. Star
-  tables sit in RAM at $1800-$18FF, outside the 4K disk image.
+  tables sit in RAM at $1800-$18FF, below the HGR pages.
 - Laser: one bolt at a time, 12 rows long, flying up 12 rows per frame from the ship's nose.
   A rock is hit if it overlaps the bolt's rows and the bolt's x is inside the rock. Hit = rock
   gone (it respawns at the top later), +5 points, and a crackle.
@@ -57,4 +71,5 @@ Or by hand, from the MAME folder:
 - Sound: the $C030 speaker with timed loops. There's an intro tune on the title and a noise
   burst plus falling sweep on a crash, a falling-pitch pew when you fire, a crackle on a hit, and a
   ~31 ms two-tone buzz (1 kHz / 600 Hz) on overheat. tools/render_sfx.py renders all three to a WAV preview.
-- Memory: code+data $0800-$15DF (about 3.5K of the 4K track), tables $1800-$1ABF, HGR $2000-$5FFF.
+- Memory: text page 1 $0400-$07FF (title/game over), loader $0800-$0AFF + buffers $0B00-$0C6F,
+  tables $1800-$1ABF, HGR $2000-$5FFF, game code+data $6000-$6DDE (3.5K of 24K: up to $BFFF).

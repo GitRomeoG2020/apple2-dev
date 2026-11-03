@@ -1,9 +1,9 @@
 ; ROCKFALL - dodge the falling rocks.  Apple II+/IIe, 48K, 6502, ca65.
-; Self-booting: byte $0800 tells the Disk II boot ROM how many track-0
-; sectors to load ($0800-$17FF); the ROM then jumps to $0801.
+; Self-booting: the stage-2 loader in src/boot.s (track 0, $0800) reads
+; tracks 1+ to $6000 and jumps here with X = slot*16.
 ; Graphics are double-buffered on HGR pages 1 ($2000) and 2 ($4000) in
-; full-screen hi-res (no mixed text, because text page 2 at $0800 is where
-; this code lives). Score/speed/hi are drawn with a tiny hi-res font.
+; full-screen hi-res (no mixed text: text page 2 at $0800 holds the
+; resident loader). Score/speed/hi are drawn with a tiny hi-res font.
         .setcpu "6502"
 
 ; ---- hardware ----
@@ -57,7 +57,7 @@ RON     = $88
 FRAME   = $90            ; frame counter (star timing)
 NSTARS  = 36
 STARMAXY= 156            ; stars live in rows 0-156 (ground is 158-159)
-SCOL    = $1800          ; star tables (RAM above the 4K game image)
+SCOL    = $1800          ; star tables (RAM below HGR page 1)
 SMSK    = $1830
 SY      = $1860
 ; per-page copies of what was last drawn on each HGR page (index page*64+i)
@@ -112,8 +112,7 @@ OVH     = $A5            ; 1 = overheated (laser locked)
 LASTBAR = $A6            ; last bar fill drawn (px), $FF = redraw
 
         .segment "CODE"
-        .byte $10                ; boot ROM: load 16 sectors of track 0
-boot:   lda $C088,x              ; X = slot*16 from boot ROM: motor off
+boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         cld
         ldx #$FF
         txs
