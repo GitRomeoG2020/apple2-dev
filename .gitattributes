@@ -1,0 +1,4 @@
+*.dsk binary
+*.bin binary
+*.po binary
+*.ps1 text eol=crlf

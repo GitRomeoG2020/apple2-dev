@@ -1,0 +1,13 @@
+MAME/
+Tools/cc65/
+Tools/jre/
+Tools/AppleCommander/
+roms/
+*.rom
+*.o
+build/
+*.lst
+*.map
+cfg/
+nvram/
+results.txt
