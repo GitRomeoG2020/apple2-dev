@@ -1,6 +1,9 @@
 ; ROCKFALL - dodge the falling rocks.  Apple II+/IIe, 48K, 6502, ca65.
 ; Self-booting: byte $0800 tells the Disk II boot ROM how many track-0
 ; sectors to load ($0800-$17FF); the ROM then jumps to $0801.
+; Graphics are double-buffered on HGR pages 1 ($2000) and 2 ($4000) in
+; full-screen hi-res (no mixed text, because text page 2 at $0800 is where
+; this code lives). Score/speed/hi are drawn with a tiny hi-res font.
         .setcpu "6502"
 
 ; ---- hardware ----
@@ -9,18 +12,20 @@ KBDSTRB = $C010
 SPKR    = $C030
 TXTCLR  = $C050
 TXTSET  = $C051
+MIXCLR  = $C052
 MIXSET  = $C053
 LOWSCR  = $C054
+HISCR   = $C055
 HIRES   = $C057
 WAIT    = $FCA8          ; monitor delay routine (A = length)
 MACHID  = $FBB3          ; $06 on IIe/IIc
 
 ; ---- game constants ----
 NROCKS  = 5
-PLAYY   = 148            ; top row of ship (field is rows 0-159, text below)
+PLAYY   = 148            ; top row of ship (field is rows 0-159, status below)
 ROCKMAXY= 152            ; rock top row limit (rows y..y+7 must be < 160)
 PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
-FRAMEDLY= $44            ; WAIT value per frame (~13 ms)
+FRAMEDLY= $2F            ; WAIT value per frame (~6 ms; rendering takes the rest)
 
 ; ---- zero page ----
 SRC     = $50            ; blit source ptr
@@ -55,6 +60,42 @@ STARMAXY= 156            ; stars live in rows 0-156 (ground is 158-159)
 SCOL    = $1800          ; star tables (RAM above the 4K game image)
 SMSK    = $1830
 SY      = $1860
+; per-page copies of what was last drawn on each HGR page (index page*64+i)
+SV_SC   = $1900
+SV_SM   = $1980
+SV_SY   = $1A00
+SV_RON  = $1A80          ; rocks: page*8+i
+SV_RCOL = $1A90
+SV_RY   = $1AA0
+SV_PX   = $1AB0          ; ship: page
+SV_LON  = $1AB2          ; laser: page
+SV_LC   = $1AB4
+SV_LM1  = $1AB6
+SV_LM2  = $1AB8
+SV_LY   = $1ABA
+SV_VAL  = $1ABC          ; page holds a drawn frame
+; more zero page
+PGEOR   = $91            ; $00 = page 1, $60 = page 2 (hgrhi EOR)
+BACK    = $92            ; page being drawn (0/1); other one is shown
+FIRE    = $93            ; fire key pressed
+LON     = $94            ; laser bolt active
+LC      = $95            ; bolt byte column
+LM1     = $96            ; bolt mask in LC
+LM2     = $97            ; bolt mask in LC+1
+LY      = $98            ; bolt top row
+LX2     = $99            ; bolt x in 2-pixel units
+VALID   = $9A
+CNT     = $9B
+OFS     = $9C
+PR      = $9D            ; plot row / col / mask
+PC      = $9E
+PM      = $9F
+DC      = $A0            ; xlaser params
+DM1     = $A1
+DM2     = $A2
+DLY     = $A3
+LLEN    = 12             ; bolt length (rows) = rows moved per frame
+SROW    = 172            ; status line (hi-res font) top row
 
         .segment "CODE"
         .byte $10                ; boot ROM: load 16 sectors of track 0
@@ -94,8 +135,13 @@ title:  sta TXTSET
         ldy #6
         jsr print
         jsr setstr2
+        .addr s_fire
+        ldx #11
+        ldy #11
+        jsr print
+        jsr setstr2
         .addr s_press
-        ldx #13
+        ldx #14
         ldy #9
         jsr print
         jsr setstr2
@@ -120,13 +166,24 @@ title:  sta TXTSET
 
 ; ================= new game =================
 newgame:
-        jsr clrhgr
+        lda #0
+        sta SV_VAL               ; nothing drawn on either page yet
+        sta SV_VAL+1
+        sta DST
+        lda #$20                 ; clear both HGR pages
+        ldx #$40
+        jsr clrmem
         jsr clrtext
         sta TXTCLR
-        sta MIXSET
+        sta MIXCLR
         sta LOWSCR
         sta HIRES
-        ; ground line at row 158-159
+        lda #1
+        sta BACK                 ; draw page 2 first while page 1 shows
+        lda #0
+        sta LON
+        sta FIRE
+        ; ground line at row 158-159, on both pages
         ldx #158
         jsr hline
         ldx #159
@@ -156,15 +213,23 @@ newgame:
         jsr initstars
         lda #66
         sta PX
-        jsr drawship
+        ldy #1                   ; status labels, both pages
+        lda #<s_hstat
+        sta STR
+        lda #>s_hstat
+        sta STR+1
+        jsr hstr
         jsr status
 
 ; ================= main loop =================
 loop:   jsr input
         jsr moveship
         jsr rocks
+        jsr laser
         jsr stars
         jsr collide
+        jsr render
+        jsr flip
         lda DEAD
         bne gameover
         lda #FRAMEDLY
@@ -172,6 +237,8 @@ loop:   jsr input
         jmp loop
 
 gameover:
+        jsr render               ; same final frame on the other page too
+        jsr flip
         jsr crash
         ; update high score
         lda SCORE+1
@@ -186,6 +253,9 @@ gameover:
         lda SCORE+1
         sta HISCORE+1
 @nohi:  jsr status
+        ; show page 1 with the text window (text page 1 at $0400 is free)
+        jsr clrtext
+        jsr tstatus
         jsr setstr2
         .addr s_over
         ldx #22
@@ -196,6 +266,8 @@ gameover:
         ldx #23
         ldy #4
         jsr print
+        sta LOWSCR
+        sta MIXSET
         ; short pause so a held key doesn't skip the screen
         ldx #10
 @p:     lda #$FF
@@ -234,14 +306,16 @@ input:  lda KBD
         beq @l
         cmp #$CA                 ; J
         beq @l
-        cmp #$95 & $DF           ; right arrow ($95 -> $95 & $DF = $95)
+        cmp #$95                 ; right arrow
         beq @r
         cmp #$CC                 ; L
         beq @r
-        cmp #$A0 & $DF           ; space stops
+        cmp #$A0 & $DF           ; space fires
+        beq @f
+        cmp #$C1                 ; A fires
         bne @rts2
-        lda #0
-        sta DIR
+@f:     lda #1
+        sta FIRE
 @rts2:  rts
 @l:     lda #1
         bne @set
@@ -255,30 +329,21 @@ moveship:
         lda DIR
         beq @done
         lda PX
-        sta OLDPX
         ldx DIR
         cpx #1
         bne @right
         cmp #0
         beq @done
         dec PX
-        jmp @redraw
+        rts
 @right: cmp #PXMAX
         bcs @done
         inc PX
-@redraw:
-        lda PX
-        pha
-        lda OLDPX
-        sta PX
-        jsr drawship             ; XOR erase at old
-        pla
-        sta PX
-        jsr drawship             ; draw at new
 @done:  rts
 
+; A = ship x (2px units); XOR onto page PGEOR
 drawship:
-        ldx PX
+        tax
         ldy pmod7,x
         lda ship_shift_lo,y
         sta SRC
@@ -294,24 +359,17 @@ drawship:
         sta BH
         jmp blit
 
-; X = rock index
+; XOR a rock at BCOL/BY
 drawrock:
         lda #<rock
         sta SRC
         lda #>rock
         sta SRC+1
-        lda RCOL,x
-        sta BCOL
-        lda RY,x
-        sta BY
         lda #2
         sta BW
         lda #8
         sta BH
-        stx TMP
-        jsr blit
-        ldx TMP
-        rts
+        jmp blit
 
 rocks:  ldx #NROCKS-1
 @lp:    lda RON,x
@@ -328,41 +386,31 @@ rocks:  ldx #NROCKS-1
         sta RY,x
         lda #1
         sta RON,x
-        jsr drawrock
         jmp @next
-@move:  jsr drawrock             ; erase
-        lda RY,x
+@move:  lda RY,x
         clc
         adc SPEED
         sta RY,x
         cmp #ROCKMAXY+1
-        bcs @gone
-        jsr drawrock
-        jmp @next
-@gone:  lda #0
+        bcc @next
+        jsr killrock
+        jsr addscore
+@next:  dex
+        bpl @lp
+        rts
+
+; rock X off; respawn later (keeps X)
+killrock:
+        lda #0
         sta RON,x
         jsr rand
         and #31
         clc
         adc #1
         sta RWAIT,x
-        jsr addscore
-@next:  dex
-        bpl @lp
         rts
 
-addscore:
-        txa
-        pha
-        sed
-        lda SCORE
-        clc
-        adc #1
-        sta SCORE
-        lda SCORE+1
-        adc #0
-        sta SCORE+1
-        cld
+addscore:                        ; +1 for a dodged rock
         inc DODGE
         lda DODGE
         cmp #15                  ; speed up every 15 rocks dodged
@@ -373,9 +421,86 @@ addscore:
         cmp #5
         bcs @s
         inc SPEED
-@s:     jsr status
+@s:     lda #1
+; add BCD A to score, redraw status (keeps X)
+addpts: sed
+        clc
+        adc SCORE
+        sta SCORE
+        lda SCORE+1
+        adc #0
+        sta SCORE+1
+        cld
+        txa
+        pha
+        jsr status
         pla
         tax
+        rts
+
+; ================= laser =================
+laser:  lda LON
+        beq @idle
+        lda LY                   ; bolt flies up LLEN rows per frame
+        sec
+        sbc #LLEN
+        bcc @off
+        sta LY
+        jmp hits
+@off:   lda #0
+        sta LON
+@idle:  lda FIRE
+        beq @rts
+        lda #0
+        sta FIRE
+        lda PX                   ; nose = pixels 2*PX+6, 2*PX+7
+        clc
+        adc #3
+        sta LX2
+        tax
+        lda pdiv7,x
+        sta LC
+        ldy pmod7,x
+        lda lmask1,y
+        sta LM1
+        lda lmask2,y
+        sta LM2
+        lda #PLAYY-LLEN
+        sta LY
+        lda #1
+        sta LON
+        jsr zap
+        jmp hits
+@rts:   rts
+
+; bolt vs rocks: rows overlap and bolt x inside the rock's 7 units
+hits:   ldx #NROCKS-1
+@lp:    lda RON,x
+        beq @nx
+        lda RY,x
+        clc
+        adc #7
+        cmp LY                   ; rock bottom >= bolt top
+        bcc @nx
+        lda LY
+        clc
+        adc #LLEN-1
+        cmp RY,x                 ; bolt bottom >= rock top
+        bcc @nx
+        ldy RCOL,x
+        lda LX2
+        sec
+        sbc rockx2,y
+        bcc @nx
+        cmp #7
+        bcs @nx
+        jsr killrock             ; hit!
+        lda #0
+        sta LON
+        lda #5
+        jmp addpts
+@nx:    dex
+        bpl @lp
         rts
 
 ; bounding-box collision in 2-pixel units
@@ -405,8 +530,7 @@ collide:
         rts
 
 ; ================= starfield =================
-; Each star is a 2-pixel white dot (two adjacent bits of one byte), XORed
-; onto the screen like every other sprite, so overlaps always cancel out.
+; Each star is a 2-pixel white dot (two adjacent bits of one byte).
 ; Even-numbered stars fall 1 row every 2 frames, odd ones every 4 (parallax).
 initstars:
         ldx #NSTARS-1
@@ -417,7 +541,6 @@ initstars:
         sbc #STARMAXY+1
         bcs @m
 @ok:    sta SY,x
-        jsr xstar
         dex
         bpl @lp
         rts
@@ -440,18 +563,6 @@ newstar:
         sta SMSK,x
         rts
 
-; XOR star X onto the screen (keeps X)
-xstar:  ldy SY,x
-        lda hgrlo,y
-        sta DST
-        lda hgrhi,y
-        sta DST+1
-        ldy SCOL,x
-        lda (DST),y
-        eor SMSK,x
-        sta (DST),y
-        rts
-
 stars:  inc FRAME
         lda FRAME
         and #1
@@ -463,18 +574,196 @@ stars:  inc FRAME
         lda FRAME
         and #2
         bne @nx                  ; odd star: every 4th frame
-@mv:    jsr xstar                ; erase
-        inc SY,x
+@mv:    inc SY,x
         lda SY,x
         cmp #STARMAXY+1
-        bcc @dr
+        bcc @nx
         lda #0
         sta SY,x
         jsr newstar
-@dr:    jsr xstar                ; draw
 @nx:    dex
         bpl @lp
 @done:  rts
+
+; ================= double buffering =================
+; render: on back page, XOR-erase what was drawn there last time (saved per
+; page), XOR-draw the current state, and save it for that page.
+render: ldx BACK
+        lda pgeor,x
+        sta PGEOR
+        lda SV_VAL,x
+        sta VALID
+        txa
+        asl
+        asl
+        asl
+        sta OFS                  ; rocks: page*8
+        ; --- ship ---
+        lda VALID
+        beq @s1
+        lda SV_PX,x
+        jsr drawship
+@s1:    ldx BACK
+        lda PX
+        sta SV_PX,x
+        jsr drawship
+        ; --- laser bolt ---
+        ldx BACK
+        lda VALID
+        beq @l1
+        lda SV_LON,x
+        beq @l1
+        lda SV_LC,x
+        sta DC
+        lda SV_LM1,x
+        sta DM1
+        lda SV_LM2,x
+        sta DM2
+        lda SV_LY,x
+        sta DLY
+        jsr xlaser
+@l1:    ldx BACK
+        lda LON
+        sta SV_LON,x
+        beq @l2
+        lda LC
+        sta SV_LC,x
+        sta DC
+        lda LM1
+        sta SV_LM1,x
+        sta DM1
+        lda LM2
+        sta SV_LM2,x
+        sta DM2
+        lda LY
+        sta SV_LY,x
+        sta DLY
+        jsr xlaser
+@l2:    ; --- rocks ---
+        lda #NROCKS-1
+        sta CNT
+@rk:    lda CNT
+        clc
+        adc OFS
+        tay
+        lda VALID
+        beq @r1
+        lda SV_RON,y
+        beq @r1
+        lda SV_RCOL,y
+        sta BCOL
+        lda SV_RY,y
+        sta BY
+        jsr drawrock
+@r1:    lda CNT
+        tax
+        clc
+        adc OFS
+        tay
+        lda RON,x
+        sta SV_RON,y
+        beq @r2
+        lda RCOL,x
+        sta SV_RCOL,y
+        sta BCOL
+        lda RY,x
+        sta SV_RY,y
+        sta BY
+        jsr drawrock
+@r2:    dec CNT
+        bpl @rk
+        ; --- stars ---
+        lda BACK
+        asl
+        asl
+        asl
+        asl
+        asl
+        asl
+        sta OFS                  ; stars: page*64
+        lda #NSTARS-1
+        sta CNT
+@st:    lda CNT
+        clc
+        adc OFS
+        tay
+        lda VALID
+        beq @t1
+        lda SV_SY,y
+        sta PR
+        lda SV_SC,y
+        sta PC
+        lda SV_SM,y
+        sta PM
+        jsr plot
+@t1:    lda CNT
+        tax
+        clc
+        adc OFS
+        tay
+        lda SY,x
+        sta SV_SY,y
+        sta PR
+        lda SCOL,x
+        sta SV_SC,y
+        sta PC
+        lda SMSK,x
+        sta SV_SM,y
+        sta PM
+        jsr plot
+        dec CNT
+        bpl @st
+        ldx BACK
+        lda #1
+        sta SV_VAL,x
+        rts
+
+; show the page just drawn, draw the other one next
+flip:   lda BACK
+        bne @p2
+        sta LOWSCR
+        inc BACK
+        rts
+@p2:    sta HISCR
+        lda #0
+        sta BACK
+        rts
+
+; XOR mask PM at row PR, col PC
+plot:   ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        eor PGEOR
+        sta DST+1
+        ldy PC
+        lda (DST),y
+        eor PM
+        sta (DST),y
+        rts
+
+; XOR the laser bolt DC/DM1/DM2, rows DLY..DLY+LLEN-1
+xlaser: ldx DLY
+        lda #LLEN
+        sta BH
+@r:     lda hgrlo,x
+        sta DST
+        lda hgrhi,x
+        eor PGEOR
+        sta DST+1
+        ldy DC
+        lda (DST),y
+        eor DM1
+        sta (DST),y
+        lda DM2
+        beq @n
+        iny
+        eor (DST),y
+        sta (DST),y
+@n:     inx
+        dec BH
+        bne @r
+        rts
 
 ; ================= graphics =================
 ; XOR blit: SRC data, BW bytes wide, BH rows, at byte col BCOL, row BY
@@ -485,6 +774,7 @@ blit:   ldx BY
         sta DST
         lda hgrhi,x
         adc #0
+        eor PGEOR
         sta DST+1
         ldy #0
 @b:     lda (DST),y
@@ -504,7 +794,7 @@ blit:   ldx BY
         bne @row
         rts
 
-; solid line across row X
+; solid line across row X on both pages
 hline:  lda hgrlo,x
         sta DST
         lda hgrhi,x
@@ -514,12 +804,19 @@ hline:  lda hgrlo,x
 @l:     sta (DST),y
         dey
         bpl @l
+        lda DST+1
+        eor #$60
+        sta DST+1
+        ldy #39
+        lda #$7F
+@l2:    sta (DST),y
+        dey
+        bpl @l2
         rts
 
-clrhgr: lda #0
-        sta DST
-        ldx #$20
-        stx DST+1
+; zero X pages starting at page A (DST lo must be 0)
+clrmem: sta DST+1
+        lda #0
         tay
 @l:     sta (DST),y
         iny
@@ -528,6 +825,77 @@ clrhgr: lda #0
         dex
         bne @l
         rts
+
+; ---- hi-res status font (3x5, pixels doubled -> white) ----
+; glyph A at byte col Y, both pages; advances Y
+hchar:  sty PC
+        sta TMP
+        asl
+        asl
+        adc TMP                  ; *5
+        tax
+        lda #SROW
+        sta PR
+@r:     ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        sta DST+1
+        ldy PC
+        lda font,x
+        sta (DST),y
+        lda DST+1
+        eor #$60
+        sta DST+1
+        lda font,x
+        sta (DST),y
+        inx
+        inc PR
+        lda PR
+        cmp #SROW+5
+        bne @r
+        ldy PC
+        iny
+        rts
+
+; glyph string STR ($FF-terminated) at col Y
+hstr:   lda #0
+        sta CNT
+@l:     sty TMP+0
+        ldy CNT
+        lda (STR),y
+        cmp #$FF
+        beq @d
+        ldy TMP
+        jsr hchar
+        inc CNT
+        bne @l
+@d:     rts
+
+; BCD A at col Y (hi-res); advances Y by 2
+hbcd:   pha
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr hchar
+        pla
+        and #$0F
+        jmp hchar
+
+status: ldy #7
+        lda SCORE+1
+        jsr hbcd
+        lda SCORE
+        jsr hbcd
+        ldy #20
+        lda SPEED
+        jsr hbcd
+        ldy #28
+        lda HISCORE+1
+        jsr hbcd
+        lda HISCORE
+        jmp hbcd
 
 ; ================= text =================
 clrtext:
@@ -608,7 +976,9 @@ prbcd:  pha
         iny
         rts
 
-status: jsr setstr2
+; text-page status line (game over screen)
+tstatus:
+        jsr setstr2
         .addr s_status
         ldx #21
         ldy #1
@@ -626,8 +996,7 @@ status: jsr setstr2
         lda HISCORE+1
         jsr prbcd
         lda HISCORE
-        jsr prbcd
-        rts
+        jmp prbcd
 
 ; ================= misc =================
 rand:   lda SEED
@@ -682,6 +1051,21 @@ intro:  ldy #0
         jmp @nt
 @end:   lda #<SPKR
         sta tog
+        rts
+
+; short rising zap for the laser (~4 ms)
+zap:    lda #40
+        sta PER
+@z:     lda #6
+        sta DURL
+        lda #0
+        sta DURH
+        jsr tone
+        lda PER
+        sec
+        sbc #8
+        sta PER
+        bne @z
         rts
 
 crash:  lda #<SPKR
@@ -745,6 +1129,7 @@ tune:   NOTE 523,110
 s_title:  .byte "R O C K F A L L",0
 s_sub:    .byte "DODGE THE FALLING ROCKS!",0
 s_keys:   .byte "ARROWS OR J / L TO MOVE",0
+s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
 s_hi:     .byte "HI SCORE",0
 s_status: .byte "SCORE 0000   SPEED 00   HI 0000",0
@@ -752,12 +1137,17 @@ s_over:   .byte "*** G A M E   O V E R ***",0
 s_again:  .byte "ANY KEY: PLAY AGAIN   ESC: TITLE",0
 
 starmask: .byte $03,$06,$0C,$18,$30,$60
+pgeor:    .byte $00,$60
+lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
+lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
+; status labels as font glyph indices (0-9 digits, $11 blank)
+s_hstat:  .byte 5,10,0,16,12,17,0,0,0,0,17,17,17,5,15,12,12,11,17,0,0,17,17,17,13,14,17,0,0,0,0,$FF
 
 ; ship position tables: index = x in 2-pixel units
-pdiv7:  .repeat PXMAX+1, I
+pdiv7:  .repeat PXMAX+4, I
         .byte (I*2)/7
         .endrep
-pmod7:  .repeat PXMAX+1, I
+pmod7:  .repeat PXMAX+4, I
         .byte (I*2) .mod 7
         .endrep
 ; rock left edge in 2-pixel units per byte column
@@ -777,4 +1167,5 @@ texthi: .repeat 24, R
         .byte >($400 + (R .mod 8)*$80 + (R/8)*$28)
         .endrep
 
+        .include "font.s"
         .include "sprites.s"
