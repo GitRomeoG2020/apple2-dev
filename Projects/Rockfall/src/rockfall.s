@@ -469,7 +469,7 @@ laser:  lda LON
         sta LY
         lda #1
         sta LON
-        jsr zap
+        jsr pew
         jmp hits
 @rts:   rts
 
@@ -495,6 +495,7 @@ hits:   ldx #NROCKS-1
         cmp #7
         bcs @nx
         jsr killrock             ; hit!
+        jsr crackle
         lda #0
         sta LON
         lda #5
@@ -1053,19 +1054,56 @@ intro:  ldy #0
         sta tog
         rts
 
-; short rising zap for the laser (~4 ms)
-zap:    lda #40
+; ---------------------------------------------------------------
+; pew: laser fire sound, descending sweep ~3.5 kHz -> ~700 Hz, ~28 ms.
+; All timing at 1.023 MHz.  One half-period (speaker toggle to toggle):
+;   bit SPKR 4 + ldx 3 + delay (5*X-1) + frac/step update 22 = 5*X+28 cyc
+;   X=23  -> 143 cyc -> 3577 Hz;   X=140 -> 728 cyc -> 703 Hz
+; X (PER) grows by 1.80 (1 + 204/256) every half-period: 65 half-periods,
+; total ~28,700 cycles = ~28 ms (exact model: tools/render_sfx.py).
+PEWHI   = 23
+PEWLO   = 140
+pew:    lda #PEWHI
         sta PER
-@z:     lda #6
-        sta DURL
         lda #0
-        sta DURH
-        jsr tone
-        lda PER
-        sec
-        sbc #8
-        sta PER
-        bne @z
+        sta DURL                 ; fractional part of PER
+@hp:    bit SPKR                 ; 4
+        ldx PER                  ; 3
+@d:     dex                      ; 2 \ 5*X-1
+        bne @d                   ; 3 /
+        lda DURL                 ; 3
+        clc                      ; 2
+        adc #204                 ; 2
+        sta DURL                 ; 3
+        lda PER                  ; 3
+        adc #1                   ; 2
+        sta PER                  ; 3
+        cmp #PEWLO               ; 2
+        bcc @hp                  ; 3 (2 on exit)
+        rts
+
+; crackle: laser HIT sound, ~10 ms noise burst, distinct from the pew.
+; Delays come from this routine's own code bytes (deterministic "noise").
+; Per toggle: lda abs,y 4 + and 2 + tax 2 + inx 2 + (5*X-1) + bit 4
+;   + iny 2 + cpy 2 + bne 3 = 5*X+20, X=1..32 -> 25..180 cyc.
+; 96 toggles ~ 10 ms (max 17.3k cyc = 17 ms).  Preserves X.
+CRKN    = 96
+crackle:
+        txa
+        pha
+        ldy #0
+@c:     lda pew,y                ; 4 (5 if page cross)
+        and #$1F                 ; 2
+        tax                      ; 2
+        inx                      ; 2
+@d:     dex                      ; 2 \ 5*X-1
+        bne @d                   ; 3 /
+        bit SPKR                 ; 4
+        iny                      ; 2
+        cpy #CRKN                ; 2
+        bne @c                   ; 3
+        pla
+        tax
         rts
 
 crash:  lda #<SPKR
