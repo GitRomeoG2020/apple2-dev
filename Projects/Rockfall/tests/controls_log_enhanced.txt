@@ -1,0 +1,27 @@
+right arrow tap moved +63 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
+PASS right arrow tap moves the ship the right way
+PASS right arrow held: continuous movement
+  (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
+left arrow  tap moved -63 units; held 0.6s moved -34, after release coasted -30 units (0.52s), longest stall 0 samples
+PASS left arrow tap moves the ship the right way
+PASS left arrow held: continuous movement
+  (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
+L           tap moved +63 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
+PASS L tap moves the ship the right way
+PASS L held: continuous movement
+  (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
+J           tap moved -59 units; held 0.6s moved -34, after release coasted -30 units (0.52s), longest stall 0 samples
+PASS J tap moves the ship the right way
+PASS J held: continuous movement
+  (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
+PASS arrows move in opposite directions
+space: HEAT 0->18 LON 1
+PASS space fires (bolt + heat)
+A: HEAT 0->18 LON 1
+PASS A fires (bolt + heat)
+held space 3s: overheated after 11 samples, new bolts while locked 0
+PASS held space overheats; locked laser does not fire
+right arrow + space mixed 1s: moved +52
+PASS moving while firing
+PASS still alive
+RESULT: PASS

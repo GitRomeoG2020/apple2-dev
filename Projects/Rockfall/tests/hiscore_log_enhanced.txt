@@ -97,17 +97,17 @@ HUD: ' SC 0000 SPD1 LV01 HI 0300'
 PASS HUD HI follows the new top entry
 == non-qualifying ==
                                         
-        *** G A M E   O V E R ***       
                                         
                                         
                                         
-              HIGH SCORES               
                                         
-           1. TOP  0300  LV05           
-           2. A2D  0250  LV04           
-           3. RCG  0175  LV03           
-           4. ROM  0150  LV03           
-           5. GRK  0100  LV02           
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
                                         
                                         
                                         
@@ -118,7 +118,7 @@ PASS HUD HI follows the new top entry
                                         
                                         
  SCORE 0010  SPEED 01  LEVEL 01  HI 0300
-                                        
+        *** G A M E   O V E R ***       
     ANY KEY: PLAY AGAIN   ESC: TITLE    
 PASS non-qualifying score skips entry
 PASS table unchanged

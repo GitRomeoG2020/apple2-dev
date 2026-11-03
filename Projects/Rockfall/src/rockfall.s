@@ -25,6 +25,8 @@ NROCKS  = 5
 PLAYY   = 148            ; top row of ship (field is rows 0-159, status below)
 ROCKMAXY= 152            ; rock top row limit (rows y..y+7 must be < 160)
 PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
+HOLDNEW = 16             ; II+ (no key-down flag): frames a fresh arrow press moves
+HOLDREP = 6              ; II+: frames per auto-repeat of the same arrow (~150 ms)
 FRAMEDLY= $2F            ; WAIT value per frame (~6 ms; rendering takes the rest)
 
 ; ---- zero page ----
@@ -319,7 +321,16 @@ gameover:
         jsr WAIT
         dex
         bne @p
-        bit KBDSTRB
+        lda ISIIE                ; IIe: wait (max ~2 s) until a key held from play is
+        beq @fl                  ; released, so its auto-repeat can't hit the initials
+        ldx #12
+@up:    lda KBDSTRB
+        bpl @fl
+        lda #$FF
+        jsr WAIT
+        dex
+        bne @up
+@fl:    bit KBDSTRB
         lda RANK
         bmi @tb
         jsr initials
@@ -658,9 +669,12 @@ input:  lda KBD
 @l:     lda #1
         bne @set
 @r:     lda #2
-@set:   sta DIR
-        lda #12
-        sta HOLD
+@set:   ldx #HOLDNEW             ; II+: new direction moves HOLDNEW frames,
+        cmp DIR                  ; a repeat of the same key (host/MAME key
+        bne @h                   ; repeat) only HOLDREP, so release stops fast
+        ldx #HOLDREP
+@h:     sta DIR
+        stx HOLD
         rts
 
 moveship:

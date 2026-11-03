@@ -34,7 +34,7 @@ def banner_text(mem):
         g=tuple(mem[A(74+2*r)+c] for r in range(5)); g2=tuple(mem[A(75+2*r)+c] for r in range(5))
         out+=GL.get(g,'?') if g==g2 else '?'
     return out
-def like(t,want): return sum(a==b for a,b in zip(t,want))>=len(want)-1   # a frozen rock/star XORed over one glyph is OK
+def like(t,want): return sum(a==b for a,b in zip(t,want))>=len(want)-2   # a frozen rock (2 bytes wide) XORed over up to two glyphs is OK
 def png(mem,path):
     from PIL import Image
     im=Image.new('RGB',(280,192)); px=im.load()

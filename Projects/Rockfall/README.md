@@ -12,6 +12,8 @@ Score: +1 per rock dodged, +5 per rock shot. Speed goes up every 15 rocks (max 5
 Levels: every LEVELSPD=3 speed-up steps (steps keep counting after SPEED caps at 5) is a new level: a
 brief LEVEL N banner (~1.5 s, rising chime), then play continues. HUD shows LV. New stars change colour per
 level (white, violet, green, repeating). Constants/variables at the top of rockfall.s; tests/level_test.py.
+Controls: left/right arrows or J/L move; space or A fires (heat permitting). IIe: ship moves while the key is
+held and stops on release ($C010 key-down bit). II+: a press moves ~16 frames, key repeats extend it ~6 frames each.
 High scores: top 5 (initials, score, level) on the title screen and after game over; HUD HI = #1. A qualifying
 score asks for initials: type A-Z, or cycle with arrows/joystick; RETURN, space or button 0 confirms each letter.
 Table lives in its own page at $1B00 (5 x 8 bytes + "RF",1 at $1B28) so it can later go to a disk sector.
