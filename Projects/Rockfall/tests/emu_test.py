@@ -90,7 +90,7 @@ n,pgs=check('start')
 print('== page 1 ($2000) ==\n'+art(pgs[0])); print('== page 2 ($4000) ==\n'+art(pgs[1]))
 # status line decode (rows 172-176) identical on both pages
 st=[rows(pg)[172:177] for pg in pgs]; print('status area identical on both pages:',st[0]==st[1])
-F=peek(A_FONT,22*5); glyph={tuple(F[g*5:g*5+5]):'0123456789CDEHIPR SOAT'[g] for g in range(22)}
+F=peek(A_FONT,24*5); glyph={tuple(F[g*5:g*5+5]):'0123456789CDEHIPR SOATLV'[g] for g in range(24)}
 dec=lambda pg:''.join(glyph.get(tuple(rows(pg)[172+r][c] for r in range(5)),'?') for c in range(40))
 print('status decoded:',repr(dec(pgs[0])))
 print('== status rows 172-176 (page 1, 1 char = 1 px) ==\n'+art(pgs[0],172,177,1,1))

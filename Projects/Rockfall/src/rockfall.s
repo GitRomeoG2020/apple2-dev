@@ -111,6 +111,17 @@ HEAT    = $A4
 OVH     = $A5            ; 1 = overheated (laser locked)
 LASTBAR = $A6            ; last bar fill drawn (px), $FF = redraw
 
+; ---- levels -- tweak here ----
+; A speed-up step happens every 15 rocks dodged (SPEED itself caps at 5, but
+; steps keep counting). Every LEVELSPD steps = next level: brief banner.
+LEVELSPD= 3
+LEVEL   = $A7            ; current level, BCD (1..99)
+SPDUPS  = $A8            ; speed-up steps since this level began
+LVLUP   = $A9            ; 1 = show the level banner after this frame
+SMODE   = $AA            ; star colour: 0 white, 1 violet, 2 green (cycles)
+BROW    = 74             ; banner top row (10 rows: 3x5 font doubled)
+BANCOL  = 16             ; banner first byte column
+
         .segment "CODE"
 boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         cld
@@ -212,8 +223,12 @@ newgame:
         sta DIR
         sta HOLD
         sta DEAD
+        sta SPDUPS
+        sta LVLUP
+        sta SMODE
         lda #1
         sta SPEED
+        sta LEVEL
         ldx #NROCKS-1
 @ri:    lda #0
         sta RON,x
@@ -252,6 +267,10 @@ loop:   jsr input
         jsr heatbar
         lda DEAD
         bne gameover
+        lda LVLUP
+        beq @nolv
+        jsr banner
+@nolv:
         lda #FRAMEDLY
         jsr WAIT
         jmp loop
@@ -439,8 +458,29 @@ addscore:                        ; +1 for a dodged rock
         sta DODGE
         lda SPEED
         cmp #5
-        bcs @s
+        bcs @st
         inc SPEED
+@st:    inc SPDUPS               ; count the step even when SPEED is capped
+        lda SPDUPS
+        cmp #LEVELSPD
+        bcc @s
+        lda #0
+        sta SPDUPS
+        lda LEVEL
+        cmp #$99
+        beq @s
+        sed
+        clc
+        adc #1
+        cld
+        sta LEVEL
+        inc LVLUP                ; main loop shows the banner
+        inc SMODE                ; next star colour (new stars as they respawn)
+        lda SMODE
+        cmp #3
+        bcc @s
+        lda #0
+        sta SMODE
 @s:     lda #1
 ; add BCD A to score, redraw status (keeps X)
 addpts: sed
@@ -706,6 +746,8 @@ newstar:
         sbc #40
         bcs @m
 @ok:    sta SCOL,x
+        lda SMODE
+        bne @col
         jsr rand
         and #7
         cmp #6
@@ -713,6 +755,28 @@ newstar:
         sbc #3                   ; 6,7 -> 3,4
 @k:     tay
         lda starmask,y
+        sta SMSK,x
+        rts
+; coloured star: one pixel; screen x = 7*col+bit, x even = violet, odd = green
+@col:   jsr rand
+        and #7
+        cmp #7
+        bcc @b
+        lda #3
+@b:     sta TMP                  ; bit 0-6
+        lda SCOL,x
+        eor TMP
+        eor SMODE                ; want (col^bit)&1 == SMODE-1
+        and #1
+        bne @set
+        lda TMP
+        cmp #6
+        bcc @up
+        dec TMP
+        bcs @set
+@up:    inc TMP
+@set:   ldy TMP
+        lda bitmask,y
         sta SMSK,x
         rts
 
@@ -1036,19 +1100,115 @@ hbcd:   pha
         and #$0F
         jmp hchar
 
-status: ldy #7
+status: ldy #4
         lda SCORE+1
         jsr hbcd
         lda SCORE
         jsr hbcd
-        ldy #16
+        ldy #12
         lda SPEED
         jsr hchar
-        ldy #21
+        ldy #16
+        lda LEVEL
+        jsr hbcd
+        ldy #22
         lda HISCORE+1
         jsr hbcd
         lda HISCORE
         jmp hbcd
+
+; ---- level banner: "LEVEL N" XOR-drawn big (2x tall) on both pages ----
+banner: jsr bdraw
+        lda #<SPKR               ; rising 3-note chime
+        sta tog
+        ldy #2
+@n:     lda chper,y
+        sta PER
+        lda chlen,y
+        sta DURL
+        lda #0
+        sta DURH
+        tya
+        pha
+        jsr tone
+        pla
+        tay
+        dey
+        bpl @n
+        ldx #8                   ; ~1.5 s total
+@w:     lda #$FF
+        jsr WAIT
+        dex
+        bne @w
+        jsr bdraw                ; XOR again = erased
+        bit KBDSTRB
+        lda #0
+        sta LVLUP
+        sta DIR
+        sta FIRE
+        rts
+bdraw:  lda #<s_level
+        sta STR
+        lda #>s_level
+        sta STR+1
+        ldy #BANCOL
+        lda #0
+        sta CNT
+@l:     sty DLY
+        ldy CNT
+        lda (STR),y
+        cmp #$FF
+        beq @d
+        ldy DLY
+        jsr bchar
+        inc CNT
+        bne @l
+@d:     ldy DLY
+        lda LEVEL
+        cmp #$10
+        bcc @lo                  ; no leading zero
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr bchar
+        lda LEVEL
+@lo:    and #$0F
+; glyph A at byte col Y, rows BROW..BROW+9, XOR on both pages; advances Y
+bchar:  sty PC
+        sta TMP
+        asl
+        asl
+        adc TMP                  ; *5
+        tax
+        lda #BROW
+        sta PR
+@r:     ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        sta DST+1
+        ldy PC
+        lda (DST),y
+        eor font,x
+        sta (DST),y
+        lda DST+1
+        eor #$60
+        sta DST+1
+        lda (DST),y
+        eor font,x
+        sta (DST),y
+        inc PR
+        lda PR
+        and #1                   ; BROW even: next glyph row every 2 rows
+        bne @r
+        inx
+        lda PR
+        cmp #BROW+10
+        bne @r
+        ldy PC
+        iny
+        rts
 
 ; ================= text =================
 clrtext:
@@ -1142,10 +1302,13 @@ tstatus:
         jsr prbcd
         lda SCORE
         jsr prbcd
-        ldy #20
+        ldy #19
         lda SPEED
         jsr prbcd
-        ldy #28
+        ldy #29
+        lda LEVEL
+        jsr prbcd
+        ldy #36
         lda HISCORE+1
         jsr prbcd
         lda HISCORE
@@ -1343,7 +1506,7 @@ s_keys:   .byte "ARROWS OR J / L TO MOVE",0
 s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
 s_hi:     .byte "HI SCORE",0
-s_status: .byte "SCORE 0000   SPEED 00   HI 0000",0
+s_status: .byte "SCORE 0000  SPEED 00  LEVEL 00  HI 0000",0
 s_over:   .byte "*** G A M E   O V E R ***",0
 s_again:  .byte "ANY KEY: PLAY AGAIN   ESC: TITLE",0
 
@@ -1351,12 +1514,17 @@ starmask: .byte $03,$06,$0C,$18,$30,$60
 pgeor:    .byte $00,$60
 lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
 lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
-; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21)
-s_hstat:  .byte 18,10,19,16,12,17,0,0,0,0,17,18,15,11,17,0,17,13,14,17,0,0,0,0,17
+; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21 L22 V23)
+; "SC 0000 SPD0 LV00 HI 0000 " (cols 1-25), runs on into s_heat (cols 26-29)
+s_hstat:  .byte 18,10,17,0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,13,14,17,0,0,0,0
 s_heat:   .byte 13,12,20,21,$FF            ; HEAT
 s_hot:    .byte 13,19,21,17,$FF            ; HOT
+s_level:  .byte 22,12,23,12,22,17,$FF    ; "LEVEL "
+bitmask:  .byte $01,$02,$04,$08,$10,$20,$40
 fill7:    .byte $00,$01,$03,$07,$0F,$1F,$3F
 ovhper:   .byte OVHLO,OVHHI
+chper:    .byte 60,80,100                 ; chime (played last to first)
+chlen:    .byte 90,70,60
 ovhlen:   .byte 10,14                      ; half-cycles: lo ~8.5 ms, hi ~7.3 ms
 
 ; ship position tables: index = x in 2-pixel units

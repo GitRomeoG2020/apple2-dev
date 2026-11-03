@@ -9,6 +9,9 @@ Laser heat: every shot heats the laser (HEAT bar, bottom right). Fire slowly and
 overheats on the 5th shot: a warning buzz, the label turns to HOT, the bar blinks, and the laser is locked for ~1.2 s
 until it has cooled all the way down.
 Score: +1 per rock dodged, +5 per rock shot. Speed goes up every 15 rocks (max 5).
+Levels: every LEVELSPD=3 speed-up steps (steps keep counting after SPEED caps at 5) is a new level: a
+brief LEVEL N banner (~1.5 s, rising chime), then play continues. HUD shows LV. New stars change colour per
+level (white, violet, green, repeating). Constants/variables at the top of rockfall.s; tests/level_test.py.
 
 ## Files
 - src/rockfall.s    game source (ca65)
