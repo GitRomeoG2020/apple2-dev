@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>a2sprite - Apple II Sprite & Shape Editor</title>
+<style>
+:root{--bg:#1b1d23;--pn:#262932;--ac:#5fd35f;--tx:#e6e6e6;--mu:#9aa0ab}
+*{box-sizing:border-box}body{margin:0;font:14px Segoe UI,system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;align-items:center;gap:16px;padding:10px 16px;background:#111;border-bottom:2px solid var(--ac)}
+header h1{font-size:18px;margin:0;color:var(--ac);font-family:Consolas,monospace}
+.tabs button{background:none;border:0;color:var(--mu);font-size:15px;padding:6px 12px;cursor:pointer;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--tx);border-color:var(--ac)}
+main{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap}
+.panel{background:var(--pn);border-radius:8px;padding:12px}
+.side{width:290px;display:flex;flex-direction:column;gap:10px}
+label{display:block;color:var(--mu);font-size:12px;margin-top:6px}
+input[type=number]{width:64px}input,select,textarea{background:#14161b;color:var(--tx);border:1px solid #3a3f4b;border-radius:4px;padding:4px}
+button.b{background:#343946;color:var(--tx);border:1px solid #444b5a;border-radius:5px;padding:5px 10px;cursor:pointer;margin:2px}
+button.b:hover{border-color:var(--ac)}button.b.sel{background:var(--ac);color:#000}
+.sw{display:inline-block;width:28px;height:28px;border:2px solid #555;border-radius:4px;cursor:pointer;margin:2px;vertical-align:middle}
+.sw.sel{border-color:#fff;outline:2px solid var(--ac)}
+canvas{image-rendering:pixelated;background:#000;cursor:crosshair}
+textarea{width:100%;height:260px;font:12px Consolas,monospace}
+.warn{color:#ffb347;min-height:18px;font-size:12px}
+.hide{display:none}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.list div{padding:3px 6px;border-radius:4px;cursor:pointer}.list div.on{background:#3b4252}
+small{color:var(--mu)}
+</style></head><body>
+<header><h1>a2sprite</h1><div class="tabs"><button id="tabH" class="on">Hi-res sprites</button><button id="tabS">Applesoft shape tables</button></div>
+<div style="margin-left:auto" class="row"><button class="b" id="saveP">Save project</button><label class="b" style="margin:0;color:var(--tx)">Load project<input type="file" id="loadP" accept=".json" class="hide"></label></div></header>
+
+<!-- ============ HI-RES ============ -->
+<main id="pH">
+ <div class="side">
+  <div class="panel"><b>Sprites</b><div class="list" id="sList"></div>
+   <button class="b" id="sAdd">+ New</button><button class="b" id="sDup">Duplicate</button><button class="b" id="sDel">Delete</button>
+   <label>Name <input id="sName" style="width:150px"></label>
+   <div class="row"><label>Width (bytes) <input type="number" id="sW" min="1" max="40"></label><label>Height <input type="number" id="sHt" min="1" max="192"></label></div>
+   <small id="sInfo"></small></div>
+  <div class="panel"><b>Draw mode</b><div class="row"><button class="b sel" id="mColor">Color</button><button class="b" id="mBit">Raw bits</button><button class="b" id="mPal">Palette bit</button></div>
+   <div id="colors"></div><div class="warn" id="warn"></div>
+   <small>Color mode paints 2-pixel color cells (aligned to even screen columns, sprite assumed at an even byte column). Raw bits: left click sets, right click clears. Palette bit: click a byte to toggle its high bit.</small></div>
+  <div class="panel"><b>Tools</b><br><button class="b" id="clr">Clear</button><button class="b" id="flipH">Flip H</button><button class="b" id="flipV">Flip V</button><button class="b" id="undo">Undo</button>
+   <label>Import PNG (black=off, light=on; color → palette)<input type="file" id="png" accept="image/png,image/*"></label></div>
+ </div>
+ <div class="panel"><div class="row"><b>Editor</b><label class="row" style="margin:0">zoom <input type="range" id="zoom" min="6" max="28" value="16"></label>
+   <label class="row" style="margin:0"><input type="checkbox" id="grid" checked> grid</label></div>
+  <canvas id="ed"></canvas>
+  <div class="row" style="margin-top:8px"><div><small>NTSC color preview</small><br><canvas id="pvC"></canvas></div><div><small>Monochrome</small><br><canvas id="pvM"></canvas></div></div></div>
+ <div class="panel" style="flex:1;min-width:360px"><b>Export</b>
+  <div class="row"><label class="row" style="margin:0"><input type="checkbox" id="oMask"> mask data</label><label class="row" style="margin:0"><input type="checkbox" id="oShift"> 7 pre-shifted copies</label><label class="row" style="margin:0"><input type="checkbox" id="oAll"> all sprites</label></div>
+  <textarea id="asmOut" readonly></textarea>
+  <button class="b" id="cpyAsm">Copy</button><button class="b" id="dlAsm">Download .s</button><button class="b" id="dlBin">Download .bin</button></div>
+</main>
+
+<!-- ============ SHAPES ============ -->
+<main id="pS" class="hide">
+ <div class="side">
+  <div class="panel"><b>Shapes in table</b><div class="list" id="tList"></div>
+   <button class="b" id="tAdd">+ New</button><button class="b" id="tDel">Delete</button>
+   <label>Name <input id="tName" style="width:150px"></label></div>
+  <div class="panel"><b>Source</b><div class="row"><button class="b sel" id="smPix">Pixels → vectors</button><button class="b" id="smVec">Manual path</button></div>
+   <div id="pixHelp"><small>Paint pixels (left=on, right=off). Shift+click sets the origin (the DRAW AT point, red). Vectors are generated automatically.</small></div>
+   <div id="vecHelp" class="hide"><small>Arrow keys / buttons add a step from the cursor. Pen down plots the current point then moves. Shift+click sets the origin.</small>
+    <div class="row"><button class="b" data-d="0">↑</button><button class="b" data-d="3">←</button><button class="b" data-d="2">↓</button><button class="b" data-d="1">→</button>
+     <button class="b sel" id="pen">Pen down</button><button class="b" id="vUndo">Undo step</button><button class="b" id="vClr">Clear</button></div>
+    <label>Path (U R D L = plot+move, mU mR mD mL = move only)</label><textarea id="vTxt" style="height:80px"></textarea><button class="b" id="vApply">Apply text</button>
+    <button class="b" id="vFromPix">Convert pixels → path</button></div>
+   <small id="tInfo"></small></div>
+  <div class="panel"><b>Loader</b><label>Load address (decimal) <input type="number" id="tAddr" value="24576" style="width:90px"></label></div>
+ </div>
+ <div class="panel"><div class="row"><b>Shape editor</b><small>grid 32×32, origin red</small></div><canvas id="sed"></canvas>
+  <div><small>DRAW preview (decoded from encoded bytes, SCALE=1 ROT=0)</small><br><canvas id="spv"></canvas></div></div>
+ <div class="panel" style="flex:1;min-width:360px"><b>Export</b>
+  <div class="row"><button class="b sel" id="xA">ca65</button><button class="b" id="xB">Applesoft loader</button></div>
+  <textarea id="tOut" readonly></textarea>
+  <button class="b" id="cpyT">Copy</button><button class="b" id="dlT">Download .s / .bas</button><button class="b" id="dlTB">Download .bin</button></div>
+</main>
+
+<script>
+// ==== a2enc: Apple II encoders (shared by a2sprite.html and node tests) ====
+var A2 = (function(){
+  // Sprite model: {wb, h, px:[h][wb*7] 0/1, pal:[h][wb] 0/1}
+  function newSprite(wb,h){var s={wb:wb,h:h,px:[],pal:[]};for(var y=0;y<h;y++){s.px.push(new Array(wb*7).fill(0));s.pal.push(new Array(wb).fill(0));}return s;}
+  function resize(s,wb,h){var n=newSprite(wb,h);for(var y=0;y<Math.min(h,s.h);y++){for(var x=0;x<Math.min(wb*7,s.wb*7);x++)n.px[y][x]=s.px[y][x];for(var b=0;b<Math.min(wb,s.wb);b++)n.pal[y][b]=s.pal[y][b];}return n;}
+  // bit0 = leftmost pixel of the byte, bit7 = palette
+  function rowBytes(s,y){var o=[];for(var b=0;b<s.wb;b++){var v=s.pal[y][b]<<7;for(var i=0;i<7;i++)if(s.px[y][b*7+i])v|=1<<i;o.push(v);}return o;}
+  function spriteBytes(s){var o=[];for(var y=0;y<s.h;y++)o.push(rowBytes(s,y));return o;}
+  // AND-mask: clear sprite pixels; where a sprite byte has pixels its palette replaces the screen's (bit7=0), else keep (bit7=1)
+  function maskRow(r){return r.map(function(v){var bits=v&0x7f;return bits?(~bits&0x7f):0xff;});}
+  // Pre-shift a byte row right by s pixels (0..6) into wb+1 bytes. Bits carry across bytes;
+  // each output byte takes the palette of the source byte that contributes most of its set pixels.
+  function shiftRow(r,s){var n=r.length,out=[];for(var j=0;j<=n;j++){var v=0;for(var i=0;i<7;i++){var src=j*7+i-s;if(src<0)continue;var sb=Math.floor(src/7),si=src%7;if(sb<n&&(r[sb]>>si)&1)v|=1<<i;}
+    // palette: source byte contributing the most set bits; if none, the source of output pixel 0
+    var cnt={};for(var i2=0;i2<7;i2++){var sr2=j*7+i2-s;if(sr2<0)continue;var sb2=Math.floor(sr2/7);if(sb2<n&&(r[sb2]>>(sr2%7))&1)cnt[sb2]=(cnt[sb2]||0)+1;}
+    var p0=j*7-s,pb=p0<0?0:Math.min(Math.floor(p0/7),n-1),best=-1;for(var k in cnt)if(cnt[k]>best){best=cnt[k];pb=+k;}
+    v|=(r[pb]&0x80);out.push(v);}return out;}
+  function hex(v){return '$'+(v<16?'0':'')+v.toString(16).toUpperCase();}
+  function asmRows(lbl,rows,comment){var t='';if(comment)t+='; '+comment+'\n';t+=lbl+':\n';rows.forEach(function(r,i){t+='        .byte '+r.map(hex).join(',')+'   ; row '+i+'\n';});return t;}
+  function exportSpriteAsm(s,name,opt){opt=opt||{};var rows=spriteBytes(s);var t='; a2sprite export: '+name+'\n; size: '+s.wb+' bytes ('+(s.wb*7)+' px) x '+s.h+' rows, '+(s.wb*s.h)+' bytes\n; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)\n';
+    t+=name.toUpperCase()+'_W = '+s.wb+'\n'+name.toUpperCase()+'_H = '+s.h+'\n\n';
+    t+=asmRows(name,rows);
+    if(opt.mask)t+='\n'+asmRows(name+'_mask',rows.map(maskRow),'AND mask: screen = (screen AND mask) OR sprite');
+    if(opt.shifts){t+='\n; 7 pre-shifted copies, '+(s.wb+1)+' bytes per row\n'+name.toUpperCase()+'_SW = '+(s.wb+1)+'\n';
+      for(var k=0;k<7;k++){var sr=rows.map(function(r){return shiftRow(r,k);});t+='\n'+asmRows(name+'_s'+k,sr,'shift '+k);if(opt.mask)t+=asmRows(name+'_s'+k+'_mask',sr.map(maskRow));}
+      t+='\n'+name+'_shift_lo: .byte '+[0,1,2,3,4,5,6].map(function(k){return '<'+name+'_s'+k;}).join(',')+'\n'+name+'_shift_hi: .byte '+[0,1,2,3,4,5,6].map(function(k){return '>'+name+'_s'+k;}).join(',')+'\n';}
+    return t;}
+  function exportSpriteBin(s,opt){opt=opt||{};var rows=spriteBytes(s),o=[];rows.forEach(function(r){o.push.apply(o,r);});if(opt.mask)rows.forEach(function(r){o.push.apply(o,maskRow(r));});
+    if(opt.shifts)for(var k=0;k<7;k++){var sr=rows.map(function(r){return shiftRow(r,k);});sr.forEach(function(r){o.push.apply(o,r);});if(opt.mask)sr.forEach(function(r){o.push.apply(o,maskRow(r));});}return o;}
+  // NTSC artifact color approximation for one row of bytes, starting at screen byte column col0 (parity matters).
+  // returns array of color ids: 0 black,1 white,2 violet,3 green,4 blue,5 orange
+  function artifactRow(bytes,col0){col0=col0||0;var bits=[],pal=[];bytes.forEach(function(v){for(var i=0;i<7;i++){bits.push((v>>i)&1);pal.push(v>>7);}});var o=[];
+    for(var x=0;x<bits.length;x++){var on=bits[x],l=x>0&&bits[x-1],r=x<bits.length-1&&bits[x+1];var sx=col0*7+x;
+      if(on){if(l||r)o.push(1);else o.push(pal[x]?((sx&1)?5:4):((sx&1)?3:2));}
+      else{if(l&&r)o.push(1);else if(l||r){/* half-lit: fringe of neighbor color */var nx=l?x-1:x+1;o.push(0);}else o.push(0);}}return o;}
+  // Paint helper for color mode: color 0..5 at pixel x (pairs aligned to even screen columns). Returns conflict flag.
+  function paintColor(s,x,y,c){var x0=x&~1,conflict=false;var set=function(px,v){if(px>=0&&px<s.wb*7)s.px[y][px]=v;};
+    var pp=function(px,p){if(px<0||px>=s.wb*7)return;var b=Math.floor(px/7);if(s.pal[y][b]!==p){for(var i=0;i<7;i++)if(s.px[y][b*7+i]&&b*7+i!==x0&&b*7+i!==x0+1){conflict=true;break;}s.pal[y][b]=p;}};
+    if(c===0){set(x0,0);set(x0+1,0);}else if(c===1){set(x0,1);set(x0+1,1);}
+    else{var p=(c===4||c===5)?1:0;var odd=(c===3||c===5);var px=odd?x0+1:x0;set(x0,0);set(x0+1,0);set(px,1);pp(px,p);}
+    return conflict;}
+
+  // ===== Applesoft shape tables =====
+  // vector code: bit2 = plot, bits0-1 dir: 0 up,1 right,2 down,3 left. Plot happens at current point, then move.
+  var DIRS=[[0,-1],[1,0],[0,1],[-1,0]];
+  function packVectors(v){var out=[],i=0;
+    while(i<v.length){var A=v[i];
+      if(i+1<v.length){var B=v[i+1];var C=(i+2<v.length&&v[i+2]<4&&v[i+2]!==0)?v[i+2]:-1;
+        if(B!==0){if(C>0){out.push(A|B<<3|C<<6);i+=3;}else{out.push(A|B<<3);i+=2;}continue;}
+        if(C>0){out.push(A|C<<6);i+=3;continue;}}
+      if(A!==0){out.push(A);i+=1;continue;}
+      // lone "move up, no plot": encode as up, right(no plot), left(no plot) => net up
+      out.push(0x00|1<<3|3<<6);i+=1;}
+    out.push(0);return out;}
+  function buildTable(shapes){var n=shapes.length,bodies=shapes.map(packVectors),t=[n,0],off=2+2*n;bodies.forEach(function(b){t.push(off&255,off>>8);off+=b.length;});bodies.forEach(function(b){t.push.apply(t,b);});return t;}
+  // Decode / simulate DRAW at scale 1, rot 0 -> list of plotted points relative to origin
+  function simulate(table,num){var off=table[2*num]|table[2*num+1]<<8,x=0,y=0,pts=[];
+    function ex(c){if(c&4)pts.push([x,y]);x+=DIRS[c&3][0];y+=DIRS[c&3][1];}
+    for(var p=off;;p++){var b=table[p];if(b===0||b===undefined)break;ex(b&7);var r=b>>3;if(!r)continue;ex(r&7);r>>=3;if(!r)continue;ex(r&3);}return pts;}
+  // Convert pixel set (array of [x,y]) to vectors, starting from origin (ox,oy)
+  function pixelsToVectors(pts,ox,oy){var left=pts.map(function(p){return [p[0],p[1]];}),v=[],cx=ox,cy=oy;
+    function stepToward(tx,ty){if(tx>cx)return 1;if(tx<cx)return 3;if(ty>cy)return 2;if(ty<cy)return 0;return 1;}
+    function mv(d){cx+=DIRS[d][0];cy+=DIRS[d][1];}
+    function nearest(){var bi=0,bd=1e9;for(var i=0;i<left.length;i++){var d=Math.abs(left[i][0]-cx)+Math.abs(left[i][1]-cy);if(d<bd){bd=d;bi=i;}}return left.splice(bi,1)[0];}
+    var tgt=left.length?nearest():null;
+    while(tgt){while(cx!==tgt[0]||cy!==tgt[1]){var d=stepToward(tgt[0],tgt[1]);v.push(d);mv(d);}
+      var nxt=left.length?nearest():null;var d2=nxt?stepToward(nxt[0],nxt[1]):1;v.push(4|d2);mv(d2);tgt=nxt;}
+    return v;}
+  function vecToText(v){var n='URDL';return v.map(function(c){return (c&4?'':'m')+n[c&3];}).join(' ');}
+  function textToVec(t){return t.trim().split(/[\s,]+/).filter(Boolean).map(function(w){var m=/^(m?)([URDL])$/i.exec(w);if(!m)throw new Error('bad step: '+w);return (m[1]?0:4)|'URDL'.indexOf(m[2].toUpperCase());});}
+  function tableAsm(t,name,shapes){var s='; Applesoft shape table: '+name+', '+shapes+' shape(s), '+t.length+' bytes\n'+name+':\n';for(var i=0;i<t.length;i+=12)s+='        .byte '+t.slice(i,i+12).map(hex).join(',')+'\n';return s;}
+  function basicLoader(t,addr,n){addr=addr||24576;var lines=[],ln=10,d=t.slice();
+    lines.push(ln+' REM SHAPE TABLE LOADER ('+t.length+' BYTES AT '+addr+')');ln+=10;
+    lines.push(ln+' FOR I = 0 TO '+(t.length-1)+': READ B: POKE '+addr+' + I,B: NEXT');ln+=10;
+    lines.push(ln+' POKE 232,'+(addr&255)+': POKE 233,'+(addr>>8));ln+=10;
+    lines.push(ln+' HGR : HCOLOR= 3: SCALE= 1: ROT= 0');ln+=10;
+    lines.push(ln+' DRAW 1 AT 140,96');ln+=10;
+    lines.push(ln+' REM XDRAW 1 AT 140,96 ERASES IT AGAIN (XOR)');ln+=10;
+    lines.push(ln+' END');ln=1000;
+    for(var i=0;i<d.length;i+=16){lines.push(ln+' DATA '+d.slice(i,i+16).join(','));ln+=10;}
+    return lines.join('\n')+'\n';}
+  // HGR screen helpers
+  function hgrAddr(y){return 0x2000+(y&7)*0x400+((y>>3)&7)*0x80+(y>>6)*0x28;}
+  function decodeHgr(mem){var rows=[];for(var y=0;y<192;y++){var a=hgrAddr(y)-0x2000,r=[];for(var b=0;b<40;b++){var v=mem[a+b];for(var i=0;i<7;i++)r.push((v>>i)&1);}rows.push(r);}return rows;}
+  return {newSprite:newSprite,resize:resize,rowBytes:rowBytes,spriteBytes:spriteBytes,maskRow:maskRow,shiftRow:shiftRow,exportSpriteAsm:exportSpriteAsm,exportSpriteBin:exportSpriteBin,artifactRow:artifactRow,paintColor:paintColor,
+    packVectors:packVectors,buildTable:buildTable,simulate:simulate,pixelsToVectors:pixelsToVectors,vecToText:vecToText,textToVec:textToVec,tableAsm:tableAsm,basicLoader:basicLoader,hgrAddr:hgrAddr,decodeHgr:decodeHgr,hex:hex};
+})();
+if(typeof module!=='undefined')module.exports=A2;
+
+</script>
+<script>
+var $=function(i){return document.getElementById(i);};
+var COLS=['#000','#fff','#d03cff','#3cdc3c','#3c8cff','#ff7a1c'],CN=['Black','White','Violet','Green','Blue','Orange'];
+var P={sprites:[{name:'sprite1',s:A2.newSprite(2,8)}],cur:0,shapes:[{name:'shape1',mode:'pix',pix:[],vec:[],ox:16,oy:16}],scur:0,addr:24576};
+var mode='color',color=1,hist=[];
+function sp(){return P.sprites[P.cur];}
+function dl(name,data,type){var b=new Blob([data],{type:type||'application/octet-stream'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);}
+function ident(n){return (n||'x').replace(/[^A-Za-z0-9_]/g,'_').replace(/^([0-9])/,'_$1');}
+// --- colors
+COLS.forEach(function(c,i){var d=document.createElement('span');d.className='sw'+(i===1?' sel':'');d.style.background=c;d.title=CN[i];d.onclick=function(){color=i;document.querySelectorAll('.sw').forEach(function(e,j){e.classList.toggle('sel',j===i);});setMode('color');};$('colors').appendChild(d);});
+function setMode(m){mode=m;['Color','Bit','Pal'].forEach(function(k){$('m'+k).classList.toggle('sel',m===k.toLowerCase()||(m==='bit'&&k==='Bit'));});}
+$('mColor').onclick=function(){setMode('color');};$('mBit').onclick=function(){setMode('bit');};$('mPal').onclick=function(){setMode('pal');};
+function push(){hist.push(JSON.stringify(sp().s));if(hist.length>100)hist.shift();}
+$('undo').onclick=function(){if(hist.length){sp().s=JSON.parse(hist.pop());draw();}};
+// --- hires editor
+var ed=$('ed'),ex=ed.getContext('2d'),painting=0;
+function Z(){return +$('zoom').value;}
+function draw(){var s=sp().s,z=Z(),W=s.wb*7;ed.width=W*z;ed.height=s.h*z;
+  for(var y=0;y<s.h;y++){var ar=A2.artifactRow(A2.rowBytes(s,y),0);for(var x=0;x<W;x++){var b=Math.floor(x/7);ex.fillStyle=s.pal[y][b]?'#1c1f2a':'#101010';ex.fillRect(x*z,y*z,z,z);
+    if(s.px[y][x]){ex.fillStyle=ar[x]===1?'#fff':COLS[ar[x]];ex.fillRect(x*z+1,y*z+1,z-2,z-2);}}}
+  if($('grid').checked){ex.strokeStyle='#333';ex.lineWidth=1;for(var x=0;x<=W;x++){ex.strokeStyle=x%7===0?'#5fd35f':'#2c2c2c';ex.beginPath();ex.moveTo(x*z+.5,0);ex.lineTo(x*z+.5,s.h*z);ex.stroke();}
+   ex.strokeStyle='#2c2c2c';for(var y=0;y<=s.h;y++){ex.beginPath();ex.moveTo(0,y*z+.5);ex.lineTo(W*z,y*z+.5);ex.stroke();}}
+  // palette markers
+  for(var y=0;y<s.h;y++)for(var b=0;b<s.wb;b++)if(s.pal[y][b]){ex.fillStyle='#ff7a1c';ex.fillRect(b*7*z,y*z,3,3);}
+  preview();list();exportAsm();
+  $('sInfo').textContent=W+'×'+s.h+' px, '+(s.wb*s.h)+' bytes ('+((s.wb+1)*s.h*7)+' with shifts). Orange corner = palette bit set.';}
+function preview(){var s=sp().s,W=s.wb*7,k=3,c=$('pvC'),m=$('pvM');[c,m].forEach(function(cv){cv.width=W*k;cv.height=s.h*k*2;});var cx=c.getContext('2d'),mx=m.getContext('2d');
+  cx.fillStyle=mx.fillStyle='#000';cx.fillRect(0,0,c.width,c.height);mx.fillRect(0,0,m.width,m.height);
+  for(var y=0;y<s.h;y++){var r=A2.rowBytes(s,y),ar=A2.artifactRow(r,0);for(var x=0;x<W;x++){
+   if(ar[x]){var off=(r[Math.floor(x/7)]>>7)?k/2:0;cx.fillStyle=COLS[ar[x]];cx.fillRect(x*k+off,y*k*2,k,k*2);}
+   if(s.px[y][x]){mx.fillStyle='#7f7';mx.fillRect(x*k,y*k*2,k,k*2);}}}}
+function cell(e){var r=ed.getBoundingClientRect(),z=Z();return [Math.floor((e.clientX-r.left)/z),Math.floor((e.clientY-r.top)/z)];}
+function act(e,first){var s=sp().s,p=cell(e),x=p[0],y=p[1];if(x<0||y<0||x>=s.wb*7||y>=s.h)return;
+  if(mode==='bit'){s.px[y][x]=painting===2?0:1;}
+  else if(mode==='pal'){if(!first)return;var b=Math.floor(x/7);s.pal[y][b]^=1;}
+  else{var c=painting===2?0:color;var cf=A2.paintColor(s,x,y,c);$('warn').textContent=cf?'⚠ Palette conflict: byte '+Math.floor(x/7)+' row '+y+' already had pixels of the other palette; they changed color.':'';}
+  draw();}
+ed.oncontextmenu=function(e){e.preventDefault();};
+ed.onmousedown=function(e){push();painting=e.button===2?2:1;act(e,true);};
+ed.onmousemove=function(e){if(painting)act(e,false);};window.addEventListener('mouseup',function(){painting=0;});
+$('zoom').oninput=draw;$('grid').onchange=draw;
+function list(){var L=$('sList');L.innerHTML='';P.sprites.forEach(function(o,i){var d=document.createElement('div');d.textContent=o.name+' ('+o.s.wb+'×'+o.s.h+')';d.className=i===P.cur?'on':'';d.onclick=function(){P.cur=i;hist=[];sel();};L.appendChild(d);});}
+function sel(){$('sName').value=sp().name;$('sW').value=sp().s.wb;$('sHt').value=sp().s.h;draw();}
+$('sName').oninput=function(){sp().name=ident(this.value)||'sprite';list();exportAsm();};
+$('sW').onchange=$('sHt').onchange=function(){push();sp().s=A2.resize(sp().s,Math.max(1,Math.min(40,+$('sW').value)),Math.max(1,Math.min(192,+$('sHt').value)));draw();};
+$('sAdd').onclick=function(){P.sprites.push({name:'sprite'+(P.sprites.length+1),s:A2.newSprite(2,8)});P.cur=P.sprites.length-1;sel();};
+$('sDup').onclick=function(){P.sprites.push({name:sp().name+'_copy',s:JSON.parse(JSON.stringify(sp().s))});P.cur=P.sprites.length-1;sel();};
+$('sDel').onclick=function(){if(P.sprites.length>1){P.sprites.splice(P.cur,1);P.cur=0;sel();}};
+$('clr').onclick=function(){push();var s=sp().s;sp().s=A2.newSprite(s.wb,s.h);draw();};
+$('flipH').onclick=function(){push();sp().s.px.forEach(function(r){r.reverse();});sp().s.pal.forEach(function(r){r.reverse();});draw();};
+$('flipV').onclick=function(){push();sp().s.px.reverse();sp().s.pal.reverse();draw();};
+function opts(){return {mask:$('oMask').checked,shifts:$('oShift').checked};}
+function exportAsm(){var L=$('oAll').checked?P.sprites:[sp()];$('asmOut').value=L.map(function(o){return A2.exportSpriteAsm(o.s,o.name,opts());}).join('\n');}
+['oMask','oShift','oAll'].forEach(function(i){$(i).onchange=exportAsm;});
+$('cpyAsm').onclick=function(){navigator.clipboard.writeText($('asmOut').value);};
+$('dlAsm').onclick=function(){dl(($('oAll').checked?'sprites':sp().name)+'.s',$('asmOut').value,'text/plain');};
+$('dlBin').onclick=function(){var L=$('oAll').checked?P.sprites:[sp()],o=[];L.forEach(function(x){o=o.concat(A2.exportSpriteBin(x.s,opts()));});dl(($('oAll').checked?'sprites':sp().name)+'.bin',new Uint8Array(o));};
+$('png').onchange=function(){var f=this.files[0];if(!f)return;var img=new Image();img.onload=function(){var c=document.createElement('canvas');c.width=img.width;c.height=img.height;var g=c.getContext('2d');g.drawImage(img,0,0);var d=g.getImageData(0,0,img.width,img.height).data;
+  push();var wb=Math.min(40,Math.ceil(img.width/7)),h=Math.min(192,img.height),s=A2.newSprite(wb,h);
+  for(var y=0;y<h;y++)for(var x=0;x<Math.min(img.width,wb*7);x++){var i=(y*img.width+x)*4,R=d[i],G=d[i+1],B=d[i+2],A=d[i+3];if(A<128||R+G+B<200)continue;
+    var mx=Math.max(R,G,B),mn=Math.min(R,G,B);if(mx-mn<60){s.px[y][x]=1;continue;}
+    var c2=B>R&&B>G?4:(R>G&&R>B&&B>G?2:(G>R&&G>B?3:5));A2.paintColor(s,x,y,c2);}
+  sp().s=s;sel();};img.src=URL.createObjectURL(f);this.value='';};
+// --- tabs
+$('tabH').onclick=function(){$('pH').classList.remove('hide');$('pS').classList.add('hide');this.classList.add('on');$('tabS').classList.remove('on');};
+$('tabS').onclick=function(){$('pS').classList.remove('hide');$('pH').classList.add('hide');this.classList.add('on');$('tabH').classList.remove('on');sdraw();};
+// --- shapes
+var G=32,SZ=14,sed=$('sed'),sx=sed.getContext('2d'),pen=true,xmode='asm',spaint=0;sed.width=sed.height=G*SZ;
+function sh(){return P.shapes[P.scur];}
+function vecs(o){return o.mode==='pix'?A2.pixelsToVectors(o.pix,o.ox,o.oy):o.vec;}
+function table(){return A2.buildTable(P.shapes.map(vecs));}
+function sdraw(){var o=sh();sx.fillStyle='#000';sx.fillRect(0,0,sed.width,sed.height);
+  sx.strokeStyle='#222';for(var i=0;i<=G;i++){sx.beginPath();sx.moveTo(i*SZ+.5,0);sx.lineTo(i*SZ+.5,G*SZ);sx.stroke();sx.beginPath();sx.moveTo(0,i*SZ+.5);sx.lineTo(G*SZ,i*SZ+.5);sx.stroke();}
+  if(o.mode==='pix'){sx.fillStyle='#5fd35f';o.pix.forEach(function(p){sx.fillRect(p[0]*SZ+1,p[1]*SZ+1,SZ-2,SZ-2);});}
+  else{var x=o.ox,y=o.oy;sx.lineWidth=2;o.vec.forEach(function(c){var d=[[0,-1],[1,0],[0,1],[-1,0]][c&3];if(c&4){sx.fillStyle='#5fd35f';sx.fillRect(x*SZ+2,y*SZ+2,SZ-4,SZ-4);}
+     sx.strokeStyle=c&4?'#5fd35f88':'#888';sx.beginPath();sx.moveTo(x*SZ+SZ/2,y*SZ+SZ/2);x+=d[0];y+=d[1];sx.lineTo(x*SZ+SZ/2,y*SZ+SZ/2);sx.stroke();});
+   sx.strokeStyle='#ff0';sx.lineWidth=2;sx.strokeRect(x*SZ+1,y*SZ+1,SZ-2,SZ-2);sx.lineWidth=1;$('vTxt').value=A2.vecToText(o.vec);}
+  sx.strokeStyle='#f33';sx.lineWidth=2;sx.strokeRect(o.ox*SZ+3,o.oy*SZ+3,SZ-6,SZ-6);sx.lineWidth=1;
+  // preview from encoded bytes
+  var t=table(),pts=A2.simulate(t,P.scur+1),pv=$('spv'),k=4;pv.width=pv.height=G*k;var g=pv.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,pv.width,pv.height);g.fillStyle='#fff';
+  pts.forEach(function(p){g.fillRect((p[0]+o.ox)*k,(p[1]+o.oy)*k,k,k);});
+  var L=$('tList');L.innerHTML='';P.shapes.forEach(function(s,i){var d=document.createElement('div');d.textContent=(i+1)+': '+s.name;d.className=i===P.scur?'on':'';d.onclick=function(){P.scur=i;tsel();};L.appendChild(d);});
+  $('tInfo').textContent='This shape: '+vecs(o).length+' vectors, '+A2.packVectors(vecs(o)).length+' bytes. Table: '+t.length+' bytes, '+P.shapes.length+' shape(s).';
+  texp();}
+function texp(){var t=table();$('tOut').value=xmode==='asm'?A2.tableAsm(t,'shapes',P.shapes.length)+P.shapes.map(function(s,i){return '; shape '+(i+1)+' = '+s.name;}).join('\n')+'\n':A2.basicLoader(t,+$('tAddr').value);}
+function tsel(){var o=sh();$('tName').value=o.name;$('smPix').classList.toggle('sel',o.mode==='pix');$('smVec').classList.toggle('sel',o.mode==='vec');$('pixHelp').classList.toggle('hide',o.mode!=='pix');$('vecHelp').classList.toggle('hide',o.mode!=='vec');sdraw();}
+function scell(e){var r=sed.getBoundingClientRect();return [Math.floor((e.clientX-r.left)/SZ),Math.floor((e.clientY-r.top)/SZ)];}
+function sact(e){var o=sh(),p=scell(e);if(p[0]<0||p[1]<0||p[0]>=G||p[1]>=G)return;if(e.shiftKey){o.ox=p[0];o.oy=p[1];sdraw();return;}
+  if(o.mode!=='pix')return;var i=o.pix.findIndex(function(q){return q[0]===p[0]&&q[1]===p[1];});if(spaint===1&&i<0)o.pix.push(p);if(spaint===2&&i>=0)o.pix.splice(i,1);sdraw();}
+sed.oncontextmenu=function(e){e.preventDefault();};sed.onmousedown=function(e){spaint=e.button===2?2:1;sact(e);};sed.onmousemove=function(e){if(spaint&&!e.shiftKey)sact(e);};window.addEventListener('mouseup',function(){spaint=0;});
+$('smPix').onclick=function(){sh().mode='pix';tsel();};$('smVec').onclick=function(){sh().mode='vec';tsel();};
+function step(d){var o=sh();if(o.mode!=='vec')return;o.vec.push((pen?4:0)|d);sdraw();}
+document.querySelectorAll('[data-d]').forEach(function(b){b.onclick=function(){step(+b.dataset.d);};});
+document.addEventListener('keydown',function(e){if($('pS').classList.contains('hide')||e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT')return;var m={ArrowUp:0,ArrowRight:1,ArrowDown:2,ArrowLeft:3}[e.key];if(m!==undefined){e.preventDefault();step(m);}if(e.key===' '){e.preventDefault();$('pen').click();}});
+$('pen').onclick=function(){pen=!pen;this.textContent=pen?'Pen down':'Pen up (move)';this.classList.toggle('sel',pen);};
+$('vUndo').onclick=function(){sh().vec.pop();sdraw();};$('vClr').onclick=function(){sh().vec=[];sdraw();};
+$('vApply').onclick=function(){try{sh().vec=A2.textToVec($('vTxt').value);sdraw();}catch(err){alert(err.message);}};
+$('vFromPix').onclick=function(){var o=sh();o.vec=A2.pixelsToVectors(o.pix,o.ox,o.oy);sdraw();};
+$('tAdd').onclick=function(){P.shapes.push({name:'shape'+(P.shapes.length+1),mode:'pix',pix:[],vec:[],ox:16,oy:16});P.scur=P.shapes.length-1;tsel();};
+$('tDel').onclick=function(){if(P.shapes.length>1){P.shapes.splice(P.scur,1);P.scur=0;tsel();}};
+$('tName').oninput=function(){sh().name=this.value;sdraw();};
+$('xA').onclick=function(){xmode='asm';this.classList.add('sel');$('xB').classList.remove('sel');texp();};$('xB').onclick=function(){xmode='bas';this.classList.add('sel');$('xA').classList.remove('sel');texp();};
+$('tAddr').onchange=function(){P.addr=+this.value;texp();};
+$('cpyT').onclick=function(){navigator.clipboard.writeText($('tOut').value);};
+$('dlT').onclick=function(){dl(xmode==='asm'?'shapes.s':'shapes.bas',$('tOut').value.replace(/\n/g,'\r\n'),'text/plain');};
+$('dlTB').onclick=function(){dl('shapes.bin',new Uint8Array(table()));};
+// --- project
+$('saveP').onclick=function(){dl('a2sprite_project.json',JSON.stringify(P),'application/json');};
+$('loadP').onchange=function(){var f=this.files[0];if(!f)return;f.text().then(function(t){try{var q=JSON.parse(t);if(!q.sprites||!q.shapes)throw 0;P=q;P.cur=0;P.scur=0;$('tAddr').value=P.addr||24576;hist=[];sel();tsel();}catch(e){alert('Not an a2sprite project file');}});this.value='';};
+// demo content
+(function(){var s=sp().s;[[0,1,1,1,1,1,0],[1,0,0,0,0,0,1],[1,0,1,0,1,0,1],[1,0,0,0,0,0,1],[1,0,1,1,1,0,1],[1,0,0,0,0,0,1],[0,1,1,1,1,1,0]].forEach(function(r,y){r.forEach(function(v,x){s.px[y][x+3]=v;});});
+ var o=P.shapes[0];for(var i=0;i<5;i++){o.pix.push([14+i,14],[14+i,18]);}for(var i=1;i<4;i++){o.pix.push([14,14+i],[18,14+i]);}})();
+sel();tsel();
+</script></body></html>
