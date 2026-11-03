@@ -50,7 +50,7 @@ FA=ROD+int(re.search(r'^([0-9A-F]+)r 2 .*?\bfont:',L,re.M).group(1),16)
 time.sleep(6)
 F=peek(FA,24*5); GL={tuple(F[g*5:g*5+5]):'0123456789CDEHIPR SOATLV'[g] for g in range(24)}
 A=lambda y:(y&7)*0x400+((y>>3)&7)*0x80+(y>>6)*0x28
-def hud(): pg=peek(0x2000,0x2000); return ''.join(GL.get(tuple(pg[A(172+r)+c] for r in range(5)),'?') for c in range(26))
+def hud(): pg=peek(0x2000,0x2000); return ''.join(GL.get(tuple(pg[A(186+r)+c] for r in range(5)),'?') for c in range(26))
 def die(score,level=1):
     poke(0x63,[score&0xFF,score>>8]); poke(0xA7,[level]); poke(0x67,[1]); time.sleep(3.5)
 def wait_text(s,t=6):

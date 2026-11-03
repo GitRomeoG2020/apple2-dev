@@ -38,13 +38,13 @@ A_ROCK,A_SLO,A_SHI,A_FONT=lab('rock'),lab('ship_shift_lo'),lab('ship_shift_hi'),
 NST=36
 def expected(pg,sv):
     """Page pg rebuilt from what the game saved as drawn there: ground + XOR(ship, rocks, bolt, stars)."""
-    e=[[0]*40 for _ in range(160)]; e[158]=[0x7F]*40; e[159]=[0x7F]*40
+    e=[[0]*40 for _ in range(152)]   # play field rows 0-151 (landscape below)
     if not sv[0x2BC+pg]: return e
     def x(data,col,y,w,h):
         for r in range(h):
             for b in range(w): e[y+r][col+b]^=data[r*w+b]
     px=sv[0x2B0+pg]; k=(px*2)%7
-    x(peek(SL[k]|SH[k]<<8,24),(px*2)//7,148,3,8)
+    x(peek(SL[k]|SH[k]<<8,24),(px*2)//7,140,3,8)
     for i in range(5):
         if sv[0x280+pg*8+i]: x(RK,sv[0x290+pg*8+i],sv[0x2A0+pg*8+i],2,8)
     if sv[0x2B2+pg]:
@@ -66,8 +66,8 @@ def check1():
     res=[]
     for pg in (0,1):
         # back page may be mid-render; only the shown page (1-BACK) must match exactly, but check both
-        e=expected2(pg,sv); a=rows(pgs[pg],160)
-        res.append([(y,b,a[y][b],e[y][b]) for y in range(160) for b in range(40) if a[y][b]!=e[y][b]])
+        e=expected2(pg,sv); a=rows(pgs[pg],152)
+        res.append([(y,b,a[y][b],e[y][b]) for y in range(152) for b in range(40) if a[y][b]!=e[y][b]])
     return res,z,pgs
 def check(tag,tries=8):
     for t in range(tries):
@@ -89,12 +89,12 @@ for i in range(40): seen.add(zp()['BACK']); time.sleep(0.013)
 z=zp(); print('BACK values seen in 0.6s:',sorted(seen),' frames advanced:',(z['FRAME']-f0)&255,'in %.2fs'%(time.time()-t0))
 n,pgs=check('start')
 print('== page 1 ($2000) ==\n'+art(pgs[0])); print('== page 2 ($4000) ==\n'+art(pgs[1]))
-# status line decode (rows 172-176) identical on both pages
-st=[rows(pg)[172:177] for pg in pgs]; print('status area identical on both pages:',st[0]==st[1])
+# status line decode (rows 186-190) identical on both pages
+st=[rows(pg)[186:191] for pg in pgs]; print('status area identical on both pages:',st[0]==st[1])
 F=peek(A_FONT,24*5); glyph={tuple(F[g*5:g*5+5]):'0123456789CDEHIPR SOATLV'[g] for g in range(24)}
-dec=lambda pg:''.join(glyph.get(tuple(rows(pg)[172+r][c] for r in range(5)),'?') for c in range(40))
+dec=lambda pg:''.join(glyph.get(tuple(rows(pg)[186+r][c] for r in range(5)),'?') for c in range(40))
 print('status decoded:',repr(dec(pgs[0])))
-print('== status rows 172-176 (page 1, 1 char = 1 px) ==\n'+art(pgs[0],172,177,1,1))
+print('== status rows 186-190 (page 1, 1 char = 1 px) ==\n'+art(pgs[0],186,191,1,1))
 def barexp(fill):
     out=[]
     for r in range(5):
@@ -108,7 +108,7 @@ def barcheck(tag):
     q({'cmd':'pause'})
     try: z=zp(); pg=[page(0),page(1)]
     finally: q({'cmd':'resume'})
-    got=[[rows(m)[172+r][30:40] for r in range(5)] for m in pg]
+    got=[[rows(m)[186+r][30:40] for r in range(5)] for m in pg]
     want=(z['HEAT']-z['HEAT']//8)&0xFE
     ok=got[0]==got[1]==barexp(z['BAR'])
     print('[%s] HEAT=%d OVH=%d bar fill=%dpx (from HEAT %dpx) both pages match expected bytes: %s'%(tag,z['HEAT'],z['OVH'],z['BAR'],want,ok))
@@ -170,16 +170,16 @@ for i in range(40):
 bars=set()
 for i in range(12):
     ok,z,pg=barcheck('overheated %d'%i) if i<2 else (None,zp(),None); bars.add(z['BAR'])
-    if i==0: print('== status rows 172-176 while overheated (1 char = 1 px) ==\n'+art(pg[0],172,177,1,1)); print('decoded:',repr(dec(pg[0])))
+    if i==0: print('== status rows 186-190 while overheated (1 char = 1 px) ==\n'+art(pg[0],186,191,1,1)); print('decoded:',repr(dec(pg[0])))
     if not z['OVH']: break
     q({'cmd':'keys','text':' '}); time.sleep(0.05)
 print('bar fill values seen while overheated (blink):',sorted(bars))
 while zp()['OVH']: norocks(); time.sleep(0.05)
 time.sleep(0.1); z=zp(); print('cooled down: OVH',z['OVH'],'HEAT',z['HEAT'])
 _,_,pg=barcheck('after cooldown'); print('decoded:',repr(dec(pg[0])))
-print('== status rows 172-176 after cooldown ==\n'+art(pg[0],172,177,1,1))
+print('== status rows 186-190 after cooldown ==\n'+art(pg[0],186,191,1,1))
 q({'cmd':'keys','text':' '}); time.sleep(0.06); z=zp(); print('fire after cooldown -> HEAT %d LON %d (re-enabled: %s)'%(z['HEAT'],z['LON'],z['HEAT']>=10))
-_,_,pg=barcheck('one shot'); print('== status rows 172-176 after one shot ==\n'+art(pg[0],172,177,1,1))
+_,_,pg=barcheck('one shot'); print('== status rows 186-190 after one shot ==\n'+art(pg[0],186,191,1,1))
 # slow fire: 1 shot / 0.9 s for 6 s never overheats
 mx=0;o=0;t0=time.time()
 while time.time()-t0<6:

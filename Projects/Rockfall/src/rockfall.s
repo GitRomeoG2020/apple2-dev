@@ -22,8 +22,8 @@ MACHID  = $FBB3          ; $06 on IIe/IIc
 
 ; ---- game constants ----
 NROCKS  = 5
-PLAYY   = 148            ; top row of ship (field is rows 0-159, status below)
-ROCKMAXY= 152            ; rock top row limit (rows y..y+7 must be < 160)
+PLAYY   = 140            ; top row of ship (field is rows 0-151, landscape 152-183, status 186-190)
+ROCKMAXY= 144            ; rock top row limit (rows y..y+7 must be < LANDY): rocks vanish at the ground
 PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
 HOLDNEW = 16             ; II+ (no key-down flag): frames a fresh arrow press moves
 HOLDREP = 6              ; II+: frames per auto-repeat of the same arrow (~150 ms)
@@ -58,7 +58,7 @@ RWAIT   = $80
 RON     = $88
 FRAME   = $90            ; frame counter (star timing)
 NSTARS  = 36
-STARMAXY= 156            ; stars live in rows 0-156 (ground is 158-159)
+STARMAXY= 151            ; stars live in rows 0-151 (landscape strip starts at LANDY)
 SCOL    = $1800          ; star tables (RAM below HGR page 1)
 SMSK    = $1830
 SY      = $1860
@@ -97,7 +97,9 @@ DM1     = $A1
 DM2     = $A2
 DLY     = $A3
 LLEN    = 12             ; bolt length (rows) = rows moved per frame
-SROW    = 172            ; status line (hi-res font) top row
+SROW    = 186            ; status line (hi-res font) top row
+LANDY   = 152            ; landscape strip top row (LANDH rows, from land.inc)
+LANDN   = $B2            ; current landscape 0..NLAND-1 (cycles each level)
 
 ; ---- laser heat (Parsec-style overheat) -- tweak here ----
 ; HEAT rises by HEATSHOT per shot and falls by 1 every HEATCOOL frames (every
@@ -235,11 +237,9 @@ newgame:
         sta OVH
         lda #$FF
         sta LASTBAR
-        ; ground line at row 158-159, on both pages
-        ldx #158
-        jsr hline
-        ldx #159
-        jsr hline
+        lda #0                   ; landscape 1 on both pages
+        sta LANDN
+        jsr drawland
         lda #0
         sta SCORE
         sta SCORE+1
@@ -852,6 +852,13 @@ addscore:                        ; +1 for a dodged rock
         cld
         sta LEVEL
         inc LVLUP                ; main loop shows the banner
+        inc LANDN                ; next landscape (drawn during the banner)
+        lda LANDN
+        cmp #NLAND
+        bcc @ln
+        lda #0
+        sta LANDN
+@ln:
         inc SMODE                ; next star colour (new stars as they respawn)
         lda SMODE
         cmp #3
@@ -1496,6 +1503,7 @@ status: ldy #4
 
 ; ---- level banner: "LEVEL N" XOR-drawn big (2x tall) on both pages ----
 banner: jsr bdraw
+        jsr drawland             ; new scenery on both pages while the game is paused
         lda #<SPKR               ; rising 3-note chime
         sta tog
         ldy #2
@@ -1586,6 +1594,71 @@ bchar:  sty PC
         ldy PC
         iny
         rts
+
+; ---- landscape LANDN -> rows LANDY..LANDY+LANDH-1, both pages (RLE, see tools/gen_land.py)
+drawland:
+        ldx LANDN
+        lda landlo,x
+        sta SRC
+        lda landhi,x
+        sta SRC+1
+        lda #LANDY
+        sta PR
+        lda #0
+        sta PC
+@c:     jsr getb
+        tax
+        bmi @run
+        sta BW                   ; ctl+1 literals
+        inc BW
+@lit:   jsr getb
+        jsr putb
+        dec BW
+        bne @lit
+        beq @chk
+@run:   and #$7F
+        clc
+        adc #3
+        sta BW
+        jsr getb
+        sta TMP
+@r:     lda TMP
+        jsr putb
+        dec BW
+        bne @r
+@chk:   lda PR
+        cmp #LANDY+LANDH
+        bcc @c
+        rts
+getb:   ldy #0
+        lda (SRC),y
+        inc SRC
+        bne @x
+        inc SRC+1
+@x:     rts
+putb:   pha
+        ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        sta DST+1
+        ldy PC
+        pla
+        sta (DST),y
+        pha
+        lda DST+1
+        eor #$60
+        sta DST+1
+        pla
+        sta (DST),y
+        inc PC
+        lda PC
+        cmp #40
+        bcc @x
+        lda #0
+        sta PC
+        inc PR
+@x:     rts
 
 ; ================= text =================
 clrtext:
@@ -1939,3 +2012,4 @@ texthi: .repeat 24, R
 
         .include "font.s"
         .include "sprites.s"
+        .include "land.inc"
