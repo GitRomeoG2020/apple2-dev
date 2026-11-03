@@ -1,16 +1,16 @@
-right arrow tap moved +63 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
+right arrow tap moved +59 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
 PASS right arrow tap moves the ship the right way
 PASS right arrow held: continuous movement
   (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
-left arrow  tap moved -63 units; held 0.6s moved -34, after release coasted -30 units (0.52s), longest stall 0 samples
+left arrow  tap moved -63 units; held 0.6s moved -35, after release coasted -29 units (0.51s), longest stall 0 samples
 PASS left arrow tap moves the ship the right way
 PASS left arrow held: continuous movement
   (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
-L           tap moved +63 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
+L           tap moved +64 units; held 0.6s moved +34, after release coasted +30 units (0.52s), longest stall 0 samples
 PASS L tap moves the ship the right way
 PASS L held: continuous movement
   (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)
-J           tap moved -59 units; held 0.6s moved -34, after release coasted -30 units (0.52s), longest stall 0 samples
+J           tap moved -60 units; held 0.6s moved -34, after release coasted -30 units (0.52s), longest stall 0 samples
 PASS J tap moves the ship the right way
 PASS J held: continuous movement
   (IIe stop-on-release uses the $C010 any-key-down bit; bobbin keeps it set after a key, so it is not checked here)

@@ -1,0 +1,48 @@
+PASS fresh disk: default table on the title
+PASS qualifying score -> initials
+initials -> table screen in 1.24s (saw SAVING...: True)
+PASS save reported OK (SAVERR=0)
+disk image changed 1.0s after the table appeared (bobbin syncs at motor spin-down)
+sector T0 S15 on disk: [('A2D', '0250', '04'), ('RCG', '0175', '03'), ('ROM', '0150', '03'), ('GRK', '0100', '02'), ('HGR', '0050', '02')]
+table in RAM:         [('A2D', '0250', '04'), ('RCG', '0175', '03'), ('ROM', '0150', '03'), ('GRK', '0100', '02'), ('HGR', '0050', '02')]
+PASS T0/S15 bytes in the .dsk == $1B00 table, valid check bytes
+PASS saved entry #2 = RCG 0175 LV03
+PASS nothing outside T0/S15 changed (19 bytes differ, all in the sector)
+PASS game continues after the save
+== title after reboot ==
+            R O C K F A L L             
+        DODGE THE FALLING ROCKS!        
+      ARROWS OR J / L TO MOVE           
+           SPACE OR A TO FIRE           
+         PRESS ANY KEY TO START         
+              HIGH SCORES               
+           1. A2D  0250  LV04           
+           2. RCG  0175  LV03           
+           3. ROM  0150  LV03           
+           4. GRK  0100  LV02           
+           5. HGR  0050  LV02           
+PASS reboot: saved table loaded from disk
+PASS reboot: $1B00 == saved sector
+PASS second qualifying score
+PASS second entry done
+PASS second save persisted across reboot
+PASS bad check byte -> defaults
+PASS WP: initials entry
+PASS WP: no hang (table screen after 1.1s)
+== WP screen ==
+        *** G A M E   O V E R ***       
+              HIGH SCORES               
+           1. WPX  0300  LV04           
+           2. A2D  0250  LV04           
+           3. ROM  0150  LV03           
+           4. GRK  0100  LV02           
+           5. HGR  0050  LV02           
+    DISK WRITE PROTECTED - NOT SAVED    
+ SCORE 0300  SPEED 01  LEVEL 04  HI 0300
+    ANY KEY: PLAY AGAIN   ESC: TITLE    
+PASS WP: message shown, SAVERR=1
+PASS WP: scores kept in memory
+PASS WP: disk image unchanged
+PASS WP: next game starts
+PASS WP message cleared on a non-qualifying game over
+RESULT: PASS

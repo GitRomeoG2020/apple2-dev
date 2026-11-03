@@ -137,6 +137,10 @@ RANK    = $AD            ; game-over rank 0-4, $FF = didn't qualify
 LPOS    = $AE            ; initials entry: letter 0-2
 JOYOK   = $AF            ; joystick seen centred at entry start
 ENTER   = $B0            ; 1 while entering initials
+SAVERR  = $B1            ; last save: 0 ok/none, 1 write protected, 2 disk error
+WRSECT  = $080B          ; loader: write page A to track X, phys sector Y
+HSTRK   = 0              ; high scores on disk: track 0, physical sector 15
+HSSECT  = 15
 BUTN0   = $C061
 PREAD   = $FB1E          ; monitor paddle read: X = paddle, Y = 0-255
 
@@ -145,7 +149,9 @@ boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         cld
         ldx #$FF
         txs
-        ldx #0                   ; high-score table: defaults, rest of page 0
+        jsr hsvalid              ; loader read the saved table to $1B00
+        bcc @hk
+        ldx #0                   ; invalid: defaults, rest of page 0
 @hs:    lda #0
         cpx #hsdef_end-hsdef
         bcs @hz
@@ -153,7 +159,7 @@ boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
 @hz:    sta HS,x
         inx
         bne @hs
-        lda #$FF
+@hk:    lda #$FF
         sta HILITE
         jsr sethi
         lda #$A5
@@ -297,6 +303,8 @@ gameover:
         jsr render               ; same final frame on the other page too
         jsr flip
         jsr crash
+        lda #0
+        sta SAVERR
         jsr hsinsert             ; RANK, HILITE; table updated (initials AAA)
         jsr sethi
         jsr status
@@ -334,6 +342,7 @@ gameover:
         lda RANK
         bmi @tb
         jsr initials
+        jsr hssave
 @tb:    lda #0
         sta ENTER
         jsr goscreen
@@ -347,6 +356,49 @@ gameover:
 @ng:    jmp newgame
 
 ; ================= high scores =================
+; C=0 if the page at HS is a valid table ("RF", version 1, EOR $00-$2B = 0)
+hsvalid:lda HS+$28
+        cmp #'R'
+        bne @no
+        lda HS+$29
+        cmp #'F'
+        bne @no
+        lda HS+$2A
+        cmp #1
+        bne @no
+        lda #0
+        ldx #$2B
+@x:     eor HS,x
+        dex
+        bpl @x
+        cmp #0
+        bne @no
+        clc
+        rts
+@no:    sec
+        rts
+
+; write the table to disk (new check byte first); SAVERR = 0 / 1 WP / 2 error
+hssave: lda #0
+        ldx #$2A
+@x:     eor HS,x
+        dex
+        bpl @x
+        sta HS+$2B
+        jsr setstr2
+        .addr s_saving
+        ldx #19
+        ldy #15
+        jsr print
+        lda #>HS
+        ldx #HSTRK
+        ldy #HSSECT
+        jsr WRSECT
+        bcs @e
+        lda #0
+@e:     sta SAVERR
+        rts
+
 ; HISCORE (HUD) = top entry
 sethi:  lda HS+3
         sta HISCORE
@@ -531,7 +583,19 @@ goscreen:
         ldy #3
         jsr print
         rts
-@a:     jsr setstr2
+@a:     lda SAVERR
+        beq @a2
+        cmp #1
+        bne @a1
+        jsr setstr2
+        .addr s_wprot
+        jmp @a3
+@a1:    jsr setstr2
+        .addr s_derr
+@a3:    ldx #19
+        ldy #4
+        jsr print
+@a2:    jsr setstr2
         .addr s_again
         ldx #23
         ldy #4
@@ -1819,13 +1883,14 @@ s_keys:   .byte "ARROWS OR J / L TO MOVE",0
 s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
 s_hshdr:  .byte "HIGH SCORES",0
+s_saving: .byte "SAVING...",0
+s_wprot:  .byte "DISK WRITE PROTECTED - NOT SAVED",0
+s_derr:   .byte "DISK ERROR - SCORES NOT SAVED",0
 s_new:    .byte "NEW HIGH SCORE! ENTER YOUR INITIALS",0
 s_ihelp1: .byte "A-Z: TYPE  ARROWS/STICK: CHANGE",0
 s_ihelp2: .byte "RETURN/SPACE/BUTTON: OK",0
-hsdef:    .byte $C1,$B2,$C4,$50,$02,$04,0,0, $D2,$CF,$CD,$50,$01,$03,0,0, $C7,$D2,$CB,$00,$01,$02,0,0
-          .byte $C8,$C7,$D2,$50,$00,$02,0,0, $D3,$D0,$CB,$25,$00,$01,0,0
-          .res HSMAGIC-HS-(*-hsdef),0
-          .byte "RF",1
+hsdef:
+        .include "hsdef.inc"
 hsdef_end:
 s_status: .byte "SCORE 0000  SPEED 00  LEVEL 00  HI 0000",0
 s_over:   .byte "*** G A M E   O V E R ***",0

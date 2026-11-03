@@ -6,8 +6,9 @@ sys.path.insert(0,'/workspace/apple2/tests'); from sock import send
 MACH=sys.argv[1] if len(sys.argv)>1 else 'enhanced'
 D=os.path.dirname(os.path.abspath(__file__))+'/..'; SOCK='/tmp/rf_'+MACH+'.sock'
 if os.path.exists(SOCK): os.remove(SOCK)
+import shutil; DSK='/tmp/rf_%s_%s.dsk'%(os.path.basename(__file__)[:-3],MACH); shutil.copy(D+'/disk/rockfall.dsk',DSK)   # games may save scores: never touch the repo disk
 m,s=pty.openpty()
-p=subprocess.Popen(['/workspace/apple2/bin/bobbin-ai','--simple','--remain','--no-turbo','-m',MACH,'--disk',D+'/disk/rockfall.dsk','--control-socket',SOCK],stdin=s,stdout=s,stderr=s,start_new_session=True)
+p=subprocess.Popen(['/workspace/apple2/bin/bobbin-ai','--simple','--remain','--no-turbo','-m',MACH,'--disk',DSK,'--control-socket',SOCK],stdin=s,stdout=s,stderr=s,start_new_session=True)
 os.close(s)
 def q(o): return json.loads(send(json.dumps(o),SOCK))
 for i in range(50):

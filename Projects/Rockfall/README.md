@@ -16,7 +16,13 @@ Controls: left/right arrows or J/L move; space or A fires (heat permitting). IIe
 held and stops on release ($C010 key-down bit). II+: a press moves ~16 frames, key repeats extend it ~6 frames each.
 High scores: top 5 (initials, score, level) on the title screen and after game over; HUD HI = #1. A qualifying
 score asks for initials: type A-Z, or cycle with arrows/joystick; RETURN, space or button 0 confirms each letter.
-Table lives in its own page at $1B00 (5 x 8 bytes + "RF",1 at $1B28) so it can later go to a disk sector.
+Table lives in its own page at $1B00 (5 x 8 bytes, "RF",1 at $1B28, check byte $1B2B: EOR $00-$2B = 0;
+defaults in src/hsdef.inc). It is saved on the disk at track 0, physical sector 15 (.dsk offset $0F00):
+the loader reads it at boot, and after initials are entered the game calls the loader's wrsect ($080B:
+A=page, X=track, Y=phys sector; DOS 3.3-timed 6+2 write) - motor on ~1 s, then off. Write-protected or
+failed writes show a message and keep the scores in memory. Rebuilding the disk resets the scores.
+MAME: the .dsk must be writable. Play a copy (e.g. Disks\rockfall-play.dsk) so git pull doesn't conflict
+with the tracked disk/rockfall.dsk.
 
 ## Files
 - src/rockfall.s    game source (ca65)

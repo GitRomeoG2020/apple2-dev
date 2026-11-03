@@ -10,8 +10,13 @@
 ; disk builder from the image size.
 ; Entry points kept resident for the game (e.g. a future high-score save):
 ;   $0805 JMP seek    (A = track)        $0808 JMP rdsect (reads any sector of
-;   current track into page (PAGES),hdr in HSEC)  $080B JMP wrsect (TODO: write).
-; Loader RAM: $0800-$0AFF code/tables, $0B00-$0C55 nibble buffers.
+;   current track into page PAGE0+sector, hdr in HSEC)
+;   $080B JMP wrsect  (A = source page, X = track, Y = physical sector; motor on,
+;                      seek, write, motor off. C=0 ok, C=1: A=1 write-protected,
+;                      A=2 sector not found)
+; High scores: track HSTRK=0, physical sector HSSEC=15 (unused by the loader) is
+; read to $1B00 at boot; the game validates it (see src/hsdef.inc).
+; Loader RAM: $0800-$0BFF code/tables (4 sectors), $0C00-$0D6F nibble buffers.
         .setcpu "6502"
 WAIT    = $FCA8
 HOME    = $FC58
@@ -27,18 +32,23 @@ TMP     = $44
 LEFT    = $45            ; sectors still needed on this track
 PAGE0   = $46            ; dest page for sector 0 of this track
 CNT     = $47
-DONE    = $0C60          ; 16 flags
-NBUF1   = $0B00          ; 256 x 6-bit
-NBUF2   = $0C00          ; 86 x 2-bit
+WSEC    = $48
+WTEMP   = $49
+TRIES   = $4A
+DONE    = $0D60          ; 16 flags
+NBUF1   = $0C00          ; 256 x 6-bit (page aligned)
+NBUF2   = $0D00          ; 86 x 2-bit (page aligned: write timing relies on it)
+HSPAGE  = $1B00          ; high-score table page
+HSSEC   = 15
 GAME    = $6000
 
         .segment "BOOT"
-        .byte 3                  ; boot ROM: load physical sectors 0-2
+        .byte 4                  ; boot ROM: load physical sectors 0-3
         jmp start                ; $0801
 ntracks:.byte 0                  ; $0804 patched by disk builder
         jmp seek                 ; $0805
         jmp rdsect               ; $0808
-        jmp wrsect               ; $080B (placeholder)
+        jmp wrsect               ; $080B
 start:  cld
         stx SLOT
         jsr HOME
@@ -55,6 +65,26 @@ start:  cld
         lda $C08E,x              ; read mode
         lda #0
         sta CURPH                ; boot ROM left the head on track 0 (phase 0)
+        ; high-score sector (track 0, phys HSSEC) -> HSPAGE
+        sta TRK
+        ldy #15
+        lda #1
+@h0:    sta DONE,y
+        dey
+        bpl @h0
+        lda #0
+        sta DONE+HSSEC
+        lda #>HSPAGE-HSSEC
+        sta PAGE0
+        lda #64
+        sta TRIES
+@h1:    jsr rdsect
+        bcc @h2
+        dec TRIES
+        bne @h1
+        lda #0
+        sta HSPAGE+$28           ; unreadable: game uses its defaults
+@h2:
         lda #>GAME
         sta PAGE0
         lda #1
@@ -126,8 +156,155 @@ rdsect: ldx SLOT
 @err:   sec
         rts
 
-wrsect: sec                      ; TODO: write 6+2 (prenibble, Q7H, 32-cycle loop)
+;
+; ---- wrsect: write page A to track X, physical sector Y.
+wrsect: sta BUF+1
+        lda #0
+        sta BUF
+        stx TRK
+        sty WSEC
+        jsr prenib
+        ldx SLOT
+        stx slotabs
+        lda $C08A,x              ; drive 1
+        lda $C089,x              ; motor on
+        lda $C08E,x              ; read mode
+        ldy #3                   ; ~0.5 s spin-up
+@sp:    lda #$FF
+        jsr WAIT
+        dey
+        bne @sp
+        lda TRK
+        jsr seek                 ; X = SLOT
+        lda $C08D,x
+        lda $C08E,x              ; write-protect sense (bit 7)
+        bmi @wp
+        lda #48
+        sta TRIES
+@f:     jsr rdadr
+        bcs @nx
+        lda HTRK
+        cmp TRK
+        bne @nx
+        lda HSEC
+        cmp WSEC
+        bne @nx
+        jsr write16
+        bcs @wp
+        lda $C088,x              ; motor off
+        clc
         rts
+@nx:    dec TRIES
+        bne @f
+        lda #2
+        bne @out
+@wp:    lda #1
+@out:   ldy $C088,x              ; motor off (keeps A)
+        sec
+        rts
+
+; ---- prenib: (BUF) -> NBUF1 (6-bit) / NBUF2 (2-bit), standard 6+2 order
+; (inverse of postnib; NBUF2 = NBUF1+$100).
+prenib: ldx #$55
+        lda #0
+@c:     sta NBUF2,x
+        dex
+        bpl @c
+        tay
+        ldx #$AC
+        .byte $2C                ; BIT abs: skip ldx #$AA
+@p2:    ldx #$AA
+@p3:    dey
+        lda (BUF),y
+        lsr a
+        rol NBUF1+86,x
+        lsr a
+        rol NBUF1+86,x
+        sta NBUF1,y
+        inx
+        bne @p3
+        tya
+        bne @p2
+        rts
+
+; ---- write16: DOS 3.3 WRITE16 (cycle-exact; 32 cycles per nibble, 40 per sync).
+; X = slot*16. C=1 if write protected.  Don't touch the timing.
+write16:sec
+        lda $C08D,x
+        lda $C08E,x              ; sense write protect
+        bmi wexit
+        lda NBUF2
+        sta WTEMP
+        lda #$FF                 ; sync
+        sta $C08F,x              ; (5) write mode, 1st nibble
+        ora $C08C,x              ; (4)
+        pha                      ; (3)
+        pla                      ; (4)
+        nop                      ; (2)
+        ldy #4                   ; (2)
+wsync:  pha                      ; (3)
+        pla                      ; (4)
+        jsr wnibl7               ; (13,9,6)
+        dey                      ; (2)
+        bne wsync                ; (3)
+wsync_e:
+        lda #$D5
+        jsr wnibl9
+        lda #$AA
+        jsr wnibl9
+        lda #$AD
+        jsr wnibl9
+        tya                      ; A = 0
+        ldy #$56
+        bne wdata1               ; (3)
+wdata0: lda NBUF2,y              ; (4)
+wdata1: eor NBUF2-1,y            ; (5) crosses a page: needed for 32 cycles
+        tax                      ; (2)
+        lda nibl,x               ; (4)
+        ldx SLOT                 ; (3) zp
+        sta $C08D,x              ; (5)
+        lda $C08C,x              ; (4)
+        dey                      ; (2)
+        bne wdata0               ; (3)
+wdata0_e:
+        lda WTEMP                ; (3)
+        nop                      ; (2)
+wdata2: eor NBUF1,y              ; (4)
+        tax                      ; (2)
+        lda nibl,x               ; (4)
+        ldx slotabs              ; (4) absolute on purpose
+        sta $C08D,x              ; (5)
+        lda $C08C,x              ; (4)
+        lda NBUF1,y              ; (4)
+        iny                      ; (2)
+        bne wdata2               ; (3)
+wdata2_e:
+        tax
+        lda nibl,x
+        ldx SLOT
+        jsr wnibl                ; checksum
+        lda #$DE
+        jsr wnibl9
+        lda #$AA
+        jsr wnibl9
+        lda #$EB
+        jsr wnibl9
+        lda #$FF
+        jsr wnibl9
+        lda $C08E,x              ; out of write mode
+wexit:  lda $C08C,x              ; read mode
+        rts
+wnibl9: clc                      ; (2)
+wnibl7: pha                      ; (3)
+        pla                      ; (4)
+wnibl:  sta $C08D,x              ; (5)
+        ora $C08C,x              ; (4)
+        rts                      ; (6)
+        .assert >wsync = >wsync_e, error, "wsync branch crosses a page"
+        .assert >wdata0 = >wdata0_e, error, "wdata0 branch crosses a page"
+        .assert >wdata1 = >(wsync_e+14), error, "wdata1 branch crosses a page"
+        .assert >wdata2 = >wdata2_e, error, "wdata2 branch crosses a page"
+slotabs:.byte $60
 
 ; ---- rdadr: find D5 AA 96, read vol/trk/sec/chk (4+4). C=1 on bad checksum/timeout.
 rdadr:  lda #0
@@ -281,7 +458,16 @@ phx:    and #3
 
 msg:    .byte "LOADING...",0
 
-        .segment "DNIB"          ; at $0A96: 6+2 nibble -> 6-bit value
+        .segment "NIBL"          ; 6-bit -> disk nibble (64 bytes, one page)
+nibl:   .byte $96,$97,$9A,$9B,$9D,$9E,$9F,$A6,$A7,$AB,$AC,$AD,$AE,$AF,$B2,$B3
+        .byte $B4,$B5,$B6,$B7,$B9,$BA,$BB,$BC,$BD,$BE,$BF,$CB,$CD,$CE,$CF,$D3
+        .byte $D6,$D7,$D9,$DA,$DB,$DC,$DD,$DE,$DF,$E5,$E6,$E7,$E9,$EA,$EB,$EC
+        .byte $ED,$EE,$EF,$F2,$F3,$F4,$F5,$F6,$F7,$F9,$FA,$FB,$FC,$FD,$FE,$FF
+
+        .segment "HSSECT"        ; track 0 phys sector 15 = $1700 in the image
+        .include "hsdef.inc"
+
+        .segment "DNIB"          ; at $0B96: 6+2 nibble -> 6-bit value
 dnib:
         .byte $00,$01,$00,$00,$02,$03,$00,$04,$05,$06,$00,$00,$00,$00,$00,$00
         .byte $07,$08,$00,$00,$00,$09,$0A,$0B,$0C,$0D,$00,$00,$0E,$0F,$10,$11

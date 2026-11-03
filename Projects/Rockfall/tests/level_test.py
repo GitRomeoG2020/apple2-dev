@@ -9,8 +9,9 @@ MACH=sys.argv[1] if len(sys.argv)>1 else 'enhanced'
 D=os.path.dirname(os.path.abspath(__file__))+'/..'; SOCK='/tmp/rflv_'+MACH+'.sock'
 PNG=D+'/tests/level_banner_'+MACH+'.png'
 if os.path.exists(SOCK): os.remove(SOCK)
+import shutil; DSK='/tmp/rf_%s_%s.dsk'%(os.path.basename(__file__)[:-3],MACH); shutil.copy(D+'/disk/rockfall.dsk',DSK)   # games may save scores: never touch the repo disk
 m,s=pty.openpty()
-p=subprocess.Popen(['/workspace/apple2/bin/bobbin-ai','--simple','--remain','--no-turbo','-m',MACH,'--disk',D+'/disk/rockfall.dsk','--control-socket',SOCK],stdin=s,stdout=s,stderr=s,start_new_session=True)
+p=subprocess.Popen(['/workspace/apple2/bin/bobbin-ai','--simple','--remain','--no-turbo','-m',MACH,'--disk',DSK,'--control-socket',SOCK],stdin=s,stdout=s,stderr=s,start_new_session=True)
 os.close(s); q=lambda o:json.loads(send(json.dumps(o),SOCK))
 for i in range(50):
     try: q({'cmd':'ping'}); break
@@ -104,7 +105,8 @@ if seen is not None:
     dur=time.time()-t1+seen+0.3; print('banner visible ~%.2fs (wall, --no-turbo)'%dur); ok(1.0<dur+0.3<2.5,'banner lasts ~1.5 s')
     time.sleep(0.1); pg2=[peek(0x2000,0x2000),peek(0x4000,0x2000)]
     ok(all('L' not in banner_text(pg) and 'V' not in banner_text(pg) for pg in pg2),'banner erased from both pages after it ends')
-    ok(not st()['DEAD'],'play continues after the banner')
+    f0=peek(0x90,1)[0]; time.sleep(0.2); zz=st()   # frames advance (a frozen rock over the ship may end the game: still 'continued')
+    ok(peek(0x90,1)[0]!=f0 or zz['DEAD'],'play continues after the banner')
 else: ok(False,'banner seen')
 # --- steps past the SPEED cap still count: SPEED=5, SPDUPS=2 -> level 3 ---
 z0,z=step([(0x61,5),(0xA8,2),(0xA7,2),(0xAA,1)])

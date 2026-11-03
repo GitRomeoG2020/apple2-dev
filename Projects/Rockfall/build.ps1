@@ -19,6 +19,8 @@ try {
 } finally { Pop-Location }
 
 # Make a 140K DOS-order .dsk (self-booting, no DOS). Same layout as tools/mkdisk.py:
+# Track 0 physical sector 15 (from the loader image, src/hsdef.inc) is the saved high-score table:
+# rebuilding resets it to the defaults.
 # rockfall.bin = 4K track-0 loader + game; 256-byte chunk i -> track i/16, physical sector i%16.
 $bin = [IO.File]::ReadAllBytes("$proj\build\rockfall.bin")
 $game = $bin.Length - 4096
