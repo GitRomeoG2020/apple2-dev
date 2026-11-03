@@ -5,6 +5,9 @@ Dodge the falling rocks. Self-booting disk, no DOS. Apple IIe or II+, 48K.
 Controls: Left/Right arrows or J / L to move, Space or A to fire the laser.
 On a IIe the ship stops when you let go of the key; on a II+ it glides a few frames.
 Game over: any key plays again, Esc goes back to the title.
+Laser heat: every shot heats the laser (HEAT bar, bottom right). Fire slowly and it stays cool; hold fire and it
+overheats on the 5th shot: a warning buzz, the label turns to HOT, the bar blinks, and the laser is locked for ~1.2 s
+until it has cooled all the way down.
 Score: +1 per rock dodged, +5 per rock shot. Speed goes up every 15 rocks (max 5).
 
 ## Files
@@ -33,7 +36,7 @@ Or by hand, from the MAME folder:
 - Graphics: full-screen hi-res, double-buffered on HGR page 1 ($2000) and page 2 ($4000).
   Each frame is drawn on the hidden page, then $C054/$C055 flips it into view, so there is no flicker.
   For every page the game remembers what it last drew there (ship, rocks, bolt, stars at $1900-$1ABF);
-  next time it XOR-erases exactly that and draws the new state. The field is rows 0-159; SCORE / SPEED / HI
+  next time it XOR-erases exactly that and draws the new state. The field is rows 0-159; SCORE / SPD / HI / HEAT
   are drawn on both pages at rows 172-176 with a small hi-res font (mixed text mode is off during play,
   because text page 2 lives at $0800, where the game code is). The game-over screen switches to page 1
   with the 4 text lines (text page 1 at $0400 is free). Sprites use XOR, so drawing the same thing again erases it. Rocks sit on byte columns. The ship
@@ -45,8 +48,13 @@ Or by hand, from the MAME folder:
   tables sit in RAM at $1800-$18FF, outside the 4K disk image.
 - Laser: one bolt at a time, 12 rows long, flying up 12 rows per frame from the ship's nose.
   A rock is hit if it overlaps the bolt's rows and the bolt's x is inside the rock. Hit = rock
-  gone (it respawns at the top later), +5 points, and a ~4 ms zap.
+  gone (it respawns at the top later), +5 points, and a crackle.
+- Heat (Parsec-style): constants at the top of rockfall.s. HEATSHOT=18 per shot, HEATMAX=63,
+  cools 1 per HEATCOOL=2 frames (~20/s at ~40 fps), every frame while overheated. Reaching 63 locks the
+  laser until heat is back to HEATOK=0. Firing while locked only clicks. The bar (byte cols 31-38,
+  56 px = HEAT*7/8, even widths) is written straight to both pages, only when it changes.
 - Collision: a bounding box in 2-pixel units.
 - Sound: the $C030 speaker with timed loops. There's an intro tune on the title and a noise
-  burst plus falling sweep on a crash, and a short zap when you fire.
-- Memory: code+data $0800-$1471 (about 3.2K of the 4K track), tables $1800-$1ABF, HGR $2000-$5FFF.
+  burst plus falling sweep on a crash, a falling-pitch pew when you fire, a crackle on a hit, and a
+  ~31 ms two-tone buzz (1 kHz / 600 Hz) on overheat. tools/render_sfx.py renders all three to a WAV preview.
+- Memory: code+data $0800-$15DF (about 3.5K of the 4K track), tables $1800-$1ABF, HGR $2000-$5FFF.

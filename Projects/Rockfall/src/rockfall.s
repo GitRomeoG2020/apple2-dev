@@ -97,6 +97,20 @@ DLY     = $A3
 LLEN    = 12             ; bolt length (rows) = rows moved per frame
 SROW    = 172            ; status line (hi-res font) top row
 
+; ---- laser heat (Parsec-style overheat) -- tweak here ----
+; HEAT rises by HEATSHOT per shot and falls by 1 every HEATCOOL frames (every
+; frame while overheated). Reaching HEATMAX = OVERHEAT: the laser is locked
+; until HEAT is back to HEATOK. ~40 fps: 1 shot per ~0.9 s never heats up;
+; holding fire overheats on the 5th shot, then ~1.6 s lockout.
+HEATMAX = 63
+HEATSHOT= 18
+HEATCOOL= 2              ; power of 2
+HEATOK  = 0
+BARCOL  = 31             ; heat bar: byte cols 31-38 (56 px), caps at 30/39
+HEAT    = $A4
+OVH     = $A5            ; 1 = overheated (laser locked)
+LASTBAR = $A6            ; last bar fill drawn (px), $FF = redraw
+
         .segment "CODE"
         .byte $10                ; boot ROM: load 16 sectors of track 0
 boot:   lda $C088,x              ; X = slot*16 from boot ROM: motor off
@@ -183,6 +197,10 @@ newgame:
         lda #0
         sta LON
         sta FIRE
+        sta HEAT
+        sta OVH
+        lda #$FF
+        sta LASTBAR
         ; ground line at row 158-159, on both pages
         ldx #158
         jsr hline
@@ -220,16 +238,19 @@ newgame:
         sta STR+1
         jsr hstr
         jsr status
+        jsr heatbar
 
 ; ================= main loop =================
 loop:   jsr input
         jsr moveship
         jsr rocks
+        jsr heatcool
         jsr laser
         jsr stars
         jsr collide
         jsr render
         jsr flip
+        jsr heatbar
         lda DEAD
         bne gameover
         lda #FRAMEDLY
@@ -453,6 +474,18 @@ laser:  lda LON
         beq @rts
         lda #0
         sta FIRE
+        lda OVH
+        beq @cool
+        bit SPKR                 ; locked: just a soft click
+        rts
+@cool:  lda HEAT
+        clc
+        adc #HEATSHOT
+        cmp #HEATMAX
+        bcc @hs
+        lda #HEATMAX
+        inc OVH
+@hs:    sta HEAT
         lda PX                   ; nose = pixels 2*PX+6, 2*PX+7
         clc
         adc #3
@@ -470,8 +503,128 @@ laser:  lda LON
         lda #1
         sta LON
         jsr pew
-        jmp hits
+        lda OVH
+        beq @h
+        jsr ovhsnd
+        jsr hotlbl
+@h:     jmp hits
 @rts:   rts
+
+; cool the laser once per frame (called before laser)
+heatcool:
+        lda HEAT
+        beq @z
+        lda OVH
+        bne @dec                 ; locked: cool every frame
+        lda FRAME
+        and #HEATCOOL-1
+        bne @r
+@dec:   dec HEAT
+        lda HEAT
+        cmp #HEATOK+1
+        bcs @r
+@z:     lda OVH
+        beq @r
+        lda #0
+        sta OVH
+        sta HEAT
+        ; fall through: label back to HEAT
+        lda #<s_heat
+        ldx #>s_heat
+        bne lbl
+@r:     rts
+hotlbl: lda #<s_hot
+        ldx #>s_hot
+lbl:    sta STR
+        stx STR+1
+        ldy #26
+        jmp hstr
+
+; heat bar, both pages, rows SROW..SROW+4: caps + fill of HEAT*7/8 px.
+; Blinks (empty every other 8 frames) while overheated. Only redraws on change.
+heatbar:
+        lda HEAT
+        lsr
+        lsr
+        lsr
+        sta TMP
+        lda HEAT
+        sec
+        sbc TMP                  ; 0..56 px
+        and #$FE                 ; even widths: clean white, no color fringe
+        ldx OVH
+        beq @v
+        lda FRAME
+        and #8
+        beq @v0
+        lda #0
+        beq @v
+@v0:    lda #56
+@v:     cmp LASTBAR
+        beq @rts
+        sta LASTBAR
+        lda #SROW
+        sta PR
+@row:   ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        sta DST+1
+        lda LASTBAR
+        sta CNT                  ; px left to fill
+        ldy #BARCOL
+@b:     lda CNT
+        cmp #7
+        bcc @part
+        sbc #7
+        sta CNT
+        lda #$7F
+        bne @put
+@part:  tax
+        lda #0
+        sta CNT
+        lda fill7,x
+        ldx PR                   ; top/bottom rows: outline
+        cpx #SROW
+        beq @edge
+        cpx #SROW+4
+        bne @put
+@edge:  lda #$7F
+@put:   sta (DST),y
+        tax
+        lda DST+1
+        eor #$60
+        sta DST+1
+        txa
+        sta (DST),y
+        lda DST+1
+        eor #$60
+        sta DST+1
+        iny
+        cpy #BARCOL+8
+        bne @b
+        lda #$40                 ; end caps
+        ldy #BARCOL-1
+        jsr @cap
+        lda #$01
+        ldy #BARCOL+8
+        jsr @cap
+        inc PR
+        lda PR
+        cmp #SROW+5
+        bne @row
+@rts:   rts
+@cap:   sta (DST),y
+        tax
+        lda DST+1
+        eor #$60
+        sta DST+1
+        txa
+        sta (DST),y
+        lda DST+1
+        eor #$60
+        sta DST+1
+        rts
 
 ; bolt vs rocks: rows overlap and bolt x inside the rock's 7 units
 hits:   ldx #NROCKS-1
@@ -889,10 +1042,10 @@ status: ldy #7
         jsr hbcd
         lda SCORE
         jsr hbcd
-        ldy #20
+        ldy #16
         lda SPEED
-        jsr hbcd
-        ldy #28
+        jsr hchar
+        ldy #21
         lda HISCORE+1
         jsr hbcd
         lda HISCORE
@@ -1106,6 +1259,27 @@ crackle:
         tax
         rts
 
+; overheat warning: two-tone buzz hi/lo/hi/lo, ~1 kHz / ~600 Hz, ~32 ms
+OVHHI   = 96
+OVHLO   = 165
+ovhsnd: lda #<SPKR
+        sta tog
+        lda #3
+        sta CNT
+@t:     lda CNT
+        and #1
+        tax
+        lda ovhper,x
+        sta PER
+        lda ovhlen,x
+        sta DURL
+        lda #0
+        sta DURH
+        jsr tone
+        dec CNT
+        bpl @t
+        rts
+
 crash:  lda #<SPKR
         sta tog
         ; noise burst
@@ -1178,8 +1352,13 @@ starmask: .byte $03,$06,$0C,$18,$30,$60
 pgeor:    .byte $00,$60
 lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
 lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
-; status labels as font glyph indices (0-9 digits, $11 blank)
-s_hstat:  .byte 5,10,0,16,12,17,0,0,0,0,17,17,17,5,15,12,12,11,17,0,0,17,17,17,13,14,17,0,0,0,0,$FF
+; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21)
+s_hstat:  .byte 18,10,19,16,12,17,0,0,0,0,17,18,15,11,17,0,17,13,14,17,0,0,0,0,17
+s_heat:   .byte 13,12,20,21,$FF            ; HEAT
+s_hot:    .byte 13,19,21,17,$FF            ; HOT
+fill7:    .byte $00,$01,$03,$07,$0F,$1F,$3F
+ovhper:   .byte OVHLO,OVHHI
+ovhlen:   .byte 10,14                      ; half-cycles: lo ~8.5 ms, hi ~7.3 ms
 
 ; ship position tables: index = x in 2-pixel units
 pdiv7:  .repeat PXMAX+4, I

@@ -2,7 +2,10 @@
 """Cycle-accurate model of pew + crackle speaker toggles (1.023 MHz) -> WAV preview.
 Usage: render_sfx.py build/rockfall.bin out.wav"""
 import sys,wave,struct
-CLK=1023000; ORG=0x800; PEW=0x6DE  # pew offset in bin (from listing)
+CLK=1023000; ORG=0x800; import re,os
+_L=open(os.path.dirname(os.path.abspath(__file__))+'/../build/rockfall.lst').read()
+_off=lambda n:int(re.search(r'^([0-9A-F]+)r 1  [0-9A-F]{2} .*?\b'+n+r':',_L,re.M).group(1),16)
+PEW=_off('pew')  # pew offset in bin (from listing)
 binf=open(sys.argv[1],'rb').read()
 def pew():
     t=[];c=0;per=23;fr=0
@@ -18,11 +21,23 @@ def crackle():
         a=ORG+PEW+y; c+=4+(1 if (a&0xFF00)!=((ORG+PEW)&0xFF00) else 0)
         x=(binf[PEW+y]&0x1F)+1; c+=6+5*x-1+4; t.append(c); c+=7
     return t,c
-pt,pc=pew(); ct,cc=crackle()
+def tone(per,n):
+    # tone loop: lda SPKR 4, ldx 3, 5*per-1, then counter 21/22 cyc -> ~5*per+28 per half-cycle
+    t=[];c=0
+    for i in range(n): c+=4; t.append(c); c+=3+5*per-1+21
+    return t,c
+def ovh():
+    t=[];c=0
+    for per,n in ((96,14),(165,10),(96,14),(165,10)):
+        tt,cc=tone(per,n); t+=[c+x for x in tt]; c+=cc+40
+    return t,c
+pt,pc=pew(); ct,cc=crackle(); ot,oc=ovh()
+print('overheat: %d toggles, %.2f ms'%(len(ot),oc/CLK*1e3))
 print('pew: %d toggles, %d cyc = %.2f ms, first half-period %d cyc (%.0f Hz), last %d (%.0f Hz)'%(len(pt),pc,pc/CLK*1e3,pt[1]-pt[0],CLK/2/(pt[1]-pt[0]),pt[-1]-pt[-2],CLK/2/(pt[-1]-pt[-2])))
 print('crackle: %d toggles, %d cyc = %.2f ms'%(len(ct),cc,cc/CLK*1e3))
 SR=44100; seq=[(pt,pc),(None,int(0.3*CLK)),(ct,cc),(None,int(0.5*CLK))]*2
-seq+= [(pt,pc),(None,int(0.05*CLK)),(ct,cc),(None,int(0.3*CLK))]
+seq+= [(pt,pc),(None,int(0.05*CLK)),(ct,cc),(None,int(0.5*CLK))]
+seq+= [(pt,pc),(None,int(0.2*CLK))]*4+[(pt,pc),(ot,oc),(None,int(0.6*CLK))]+[(ot,oc),(None,int(0.3*CLK))]
 samples=[];lvl=1;
 for tg,n in seq:
     tg=set(tg or []); ns=int(n/CLK*SR); idx=sorted(tg); j=0
