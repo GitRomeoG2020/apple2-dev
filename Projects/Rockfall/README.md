@@ -105,6 +105,6 @@ is up, so the game speed stays the same.
 ## Title screen
 Attract mode: hi-res art (cratered orange/white ROCKFALL logo, flaming meteors, earth limb with a
 glowing atmosphere, a small ship) with a 4-line text window (tagline, controls, best score, flashing
-PRESS ANY KEY TO START) for ~8 s, then the text high-score view for ~5 s, repeating. Stars twinkle and
+PRESS ANY KEY TO START) for ~15 s (ARTT), then the text high-score view for ~5 s, repeating. Stars twinkle and
 a meteor streaks across now and then. Any key starts. Art: `tools/gen_title.py` -> `src/title.inc` (RLE).
 It animates on page 1 only (no page flipping): mixed mode on page 2 would show text page 2 = the loader at $0800.

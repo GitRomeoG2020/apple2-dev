@@ -141,7 +141,7 @@ SV_PV   = $1ACE
 ; ---- title / attract mode -- tweak here ----
 ; Art view (hi-res page 1, mixed: text rows 20-23) for ARTT ticks, then the text score view
 ; for SCORET ticks, repeat. One tick = WAIT TICKW (~11 ms) + animation.
-ARTT    = 700            ; ~8 s
+ARTT    = 1300           ; art view ticks, ~15 s
 SCORET  = 450            ; ~5 s
 TICKW   = $40
 TCL     = $C3            ; ticks left in this view

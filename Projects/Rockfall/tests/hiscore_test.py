@@ -62,7 +62,7 @@ def wait_text(s,t=6):
 # --- defaults ---
 tb,raw=table(); print('table at $1B00:',tb,' magic',raw[0x28:0x2B])
 ok(tb==[('A2D','0250','04'),('ROM','0150','03'),('GRK','0100','02'),('HGR','0050','02'),('SPK','0025','01')] and raw[0x28:0x2B]==b'RF\x01','default table + magic at $1B00')
-wait_text('R O C K F A L L',25); time.sleep(0.3); sc=screen(); print('== title (score view of the attract loop) ==\n'+sc)
+wait_text('R O C K F A L L',35); time.sleep(0.3); sc=screen(); print('== title (score view of the attract loop) ==\n'+sc)
 ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and '2. ROM  0150  LV03' in sc and '5. SPK  0025  LV01' in sc,'table shown on the title screen')
 textpng(D+'/tests/hiscore_title_'+MACH+'.png')
 key(' '); time.sleep(1.5); h=hud(); print('HUD:',repr(h)); ok('HI 0250' in h,'HUD HI = top entry (0250)')
@@ -85,6 +85,6 @@ key('A',1.5); h=hud(); print('HUD:',repr(h)); ok('HI 0300' in h,'HUD HI follows 
 die(0x10); time.sleep(1); sc=screen(); print('== non-qualifying ==\n'+sc)
 ok('ENTER YOUR INITIALS' not in sc and 'ANY KEY: PLAY AGAIN' in sc and peek(0xAD,1)[0]==0xFF,'non-qualifying score skips entry')
 tb2,_=table(); ok(tb2==tb,'table unchanged')
-key('\x1b',1); wait_text('R O C K F A L L',25); time.sleep(0.3); sc=screen(); ok('1. TOP  0300  LV05' in sc,'ESC -> title shows updated table')
+key('\x1b',1); wait_text('R O C K F A L L',35); time.sleep(0.3); sc=screen(); ok('1. TOP  0300  LV05' in sc,'ESC -> title shows updated table')
 q({'cmd':'quit'})
 print('RESULT:','PASS' if not FAIL else 'FAIL %s'%FAIL)

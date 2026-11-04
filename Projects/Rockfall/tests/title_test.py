@@ -85,7 +85,7 @@ print('changed bytes while animating: %d (twinkle stars %d, other %d)'%(len(seen
 ok(any(x in STARS for x in seen),'stars twinkle')
 ok(streak,'a meteor streak animates')
 # ---------- 2: alternation ----------
-ok(wait(lambda:view()==1,14),'switches to the score view')
+ok(wait(lambda:view()==1,24),'switches to the score view')
 time.sleep(0.3); sc=screen(); print('== score view ==\n'+'\n'.join(l for l in sc.split('\n') if l.strip()))
 ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and 'PRESS ANY KEY TO START' in sc and 'ARROWS' in sc,'score view: table, prompt and controls')
 

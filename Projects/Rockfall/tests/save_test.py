@@ -75,17 +75,17 @@ ok(all(15*256<=i<16*256 for i in diff),'nothing outside T0/S15 changed (%d bytes
 e.key('A',1.5); ok(not e.peek(0x67,1)[0],'game continues after the save')
 e.quit()
 # ---------- 2. reboot ----------
-e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',25); time.sleep(0.3); sc=e.screen(); print('== title after reboot ==\n'+'\n'.join(l for l in sc.split('\n') if l.strip()))
+e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',35); time.sleep(0.3); sc=e.screen(); print('== title after reboot ==\n'+'\n'.join(l for l in sc.split('\n') if l.strip()))
 ok('2. RCG  0175  LV03' in sc and '1. A2D  0250  LV04' in sc,'reboot: saved table loaded from disk')
 ok(table(e.peek(0x1B00,48))==table(sec),'reboot: $1B00 == saved sector')
 # second save on the same disk (new #1), then reboot again
 e.key(' ',1.5); e.die(0x400,6); ok(e.wait('ENTER YOUR INITIALS'),'second qualifying score'); time.sleep(0.3)
 e.key('T'); e.key('O'); e.key('P'); ok(e.wait('ANY KEY: PLAY AGAIN'),'second entry done'); time.sleep(2.5); e.quit()
-e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',25); time.sleep(0.3); sc=e.screen(); ok('1. TOP  0400  LV06' in sc and '3. RCG  0175  LV03' in sc,'second save persisted across reboot')
+e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',35); time.sleep(0.3); sc=e.screen(); ok('1. TOP  0400  LV06' in sc and '3. RCG  0175  LV03' in sc,'second save persisted across reboot')
 e.quit()
 # ---------- 3. corrupt sector -> defaults ----------
 b=bytearray(open(DSK,'rb').read()); b[15*256+3]^=0x11; open(DSK,'wb').write(b)
-e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',25); time.sleep(0.3); sc=e.screen(); ok('1. A2D  0250  LV04' in sc and 'TOP' not in sc,'bad check byte -> defaults')
+e=Emu(DSK); time.sleep(6); e.wait('R O C K F A L L',35); time.sleep(0.3); sc=e.screen(); ok('1. A2D  0250  LV04' in sc and 'TOP' not in sc,'bad check byte -> defaults')
 e.quit()
 # ---------- 4. write protected ----------
 DWP='/tmp/rf_wp_%s.dsk'%MACH; shutil.copy(D+'/disk/rockfall.dsk',DWP)
