@@ -138,6 +138,24 @@ SV_PC   = $1ACA
 SV_PY   = $1ACC
 SV_PV   = $1ACE
 
+; ---- title / attract mode -- tweak here ----
+; Art view (hi-res page 1, mixed: text rows 20-23) for ARTT ticks, then the text score view
+; for SCORET ticks, repeat. One tick = WAIT TICKW (~11 ms) + animation.
+ARTT    = 700            ; ~8 s
+SCORET  = 450            ; ~5 s
+TICKW   = $40
+TCL     = $C3            ; ticks left in this view
+TCH     = $C4
+MON     = $C5            ; streaking meteor active
+MCOL    = $C6
+MROW    = $C7
+MSTEP   = $C8
+MTIM    = $C9            ; ticks until the next streak
+MSUB    = $CA
+RLEEND  = $CC            ; RLE decoder: stop row
+RLEPG   = $CD            ; RLE decoder: 0 = page 1 only, else both pages
+TVIEW   = $CE            ; 0 = art view, 1 = score view (for tests)
+
 ; ---- laser heat (Parsec-style overheat) -- tweak here ----
 ; HEAT rises by HEATSHOT per shot and falls by 1 every HEATCOOL frames (every
 ; frame while overheated). Reaching HEATMAX = OVERHEAT: the laser is locked
@@ -210,8 +228,135 @@ boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         bne title
         inc ISIIE
 
-; ================= title screen =================
-title:  sta TXTSET
+; ================= title screen (attract mode) =================
+title:  lda #0
+        sta MON
+        sta RLEPG                ; title art -> HGR page 1 only
+        lda #<titleart
+        sta SRC
+        lda #>titleart
+        sta SRC+1
+        lda #0
+        sta PR
+        lda #TITLEH
+        sta RLEEND
+        jsr drawrle
+        lda #60
+        sta MTIM
+        jsr artview
+        bit KBDSTRB
+        jsr intro                ; play tune over the art
+@art:   jsr artview
+        lda #<ARTT
+        sta TCL
+        lda #>ARTT
+        sta TCH
+@al:    jsr tick
+        bcs @go
+        jsr animate
+        jsr tdec
+        bne @al
+        jsr mclear
+        jsr scoreview
+        lda #<SCORET
+        sta TCL
+        lda #>SCORET
+        sta TCH
+@sl:    jsr tick
+        bcs @go
+        jsr tdec
+        bne @sl
+        jmp @art
+@go:    bit KBDSTRB
+        jmp newgame
+
+; one tick: wait, stir the RNG; C=1 if a key is waiting
+tick:   inc SEED
+        bne @s
+        inc SEED
+@s:     lda #TICKW
+        jsr WAIT
+        lda KBD
+        asl
+        rts
+; TC-- ; Z=1 when it reaches 0
+tdec:   lda TCL
+        bne @l
+        dec TCH
+@l:     dec TCL
+        lda TCL
+        ora TCH
+        rts
+
+; hi-res art (page 1) + 4-line text window: tagline, controls, best score, flashing prompt
+artview:
+        lda #0
+        sta TVIEW
+        sta PGEOR
+        jsr clrtext
+        jsr setstr2
+        .addr s_twist
+        ldx #20
+        ldy #2
+        jsr print
+        jsr setstr2
+        .addr s_ctl
+        ldx #21
+        ldy #3
+        jsr print
+        jsr setstr2
+        .addr s_best
+        ldx #22
+        ldy #13
+        jsr print
+        ldx #22                  ; initials + score of #1
+        lda textlo,x
+        sta DST
+        lda texthi,x
+        sta DST+1
+        ldy #19
+        ldx #0
+@i:     lda HS,x
+        sta (DST),y
+        iny
+        inx
+        cpx #3
+        bne @i
+        iny
+        lda HS+4
+        jsr bcd2
+        lda HS+3
+        jsr bcd2
+        jsr setstr2
+        .addr s_press
+        ldx #23
+        ldy #9
+        jsr print
+        ldx #23                  ; prompt flashes
+        lda textlo,x
+        sta DST
+        lda texthi,x
+        sta DST+1
+        ldy #39
+@f:     lda (DST),y
+        cmp #$A0
+        beq @n
+        and #$3F
+        ora #$40
+        sta (DST),y
+@n:     dey
+        bpl @f
+        sta LOWSCR
+        sta HIRES
+        sta MIXSET
+        sta TXTCLR
+        rts
+
+; the old title text screen: name, controls, prompt and the high-score table
+scoreview:
+        lda #1
+        sta TVIEW
+        sta TXTSET
         sta LOWSCR
         jsr clrtext
         jsr setstr2
@@ -222,7 +367,7 @@ title:  sta TXTSET
         jsr setstr2
         .addr s_sub
         ldx #7
-        ldy #8
+        ldy #7
         jsr print
         jsr setstr2
         .addr s_keys
@@ -241,15 +386,84 @@ title:  sta TXTSET
         jsr print
         lda #16
         sta TROW
-        jsr drawtable
-        bit KBDSTRB
-        jsr intro                ; play tune
-@wait:  inc SEED                 ; seed RNG from time until key
-        bne @w2
-        inc SEED
-@w2:    lda KBD
-        bpl @wait
-        bit KBDSTRB
+        jmp drawtable
+
+; art-view animation: twinkling stars, a meteor streak now and then (XOR on page 1)
+animate:
+        jsr rand                 ; twinkle: toggle one star every ~4 ticks
+        and #3
+        bne @m
+        jsr rand
+        and #31
+        cmp #NTWINK
+        bcs @m
+        tax
+        lda twrow,x
+        sta PR
+        lda twcol,x
+        sta PC
+        lda twmsk,x
+        sta PM
+        jsr plot
+@m:     lda MON
+        bne @run
+        dec MTIM
+        bne @r
+        lda #1                   ; launch a streak
+        sta MON
+        jsr rand
+        and #15
+        sta MCOL
+        jsr rand
+        and #15
+        adc #2
+        sta MROW
+        lda #22
+        sta MSTEP
+        lda #0
+        sta MSUB
+        jmp xstreak
+@run:   inc MSUB
+        lda MSUB
+        and #1
+        bne @r
+        jsr xstreak              ; erase, move, redraw
+        inc MCOL
+        inc MROW
+        inc MROW
+        dec MSTEP
+        beq @end
+        jmp xstreak
+@end:   lda #0
+        sta MON
+        jsr rand
+        and #127
+        adc #140
+        sta MTIM
+@r:     rts
+; erase a streak left on screen (before leaving the art view)
+mclear: lda MON
+        beq @r
+        lda #0
+        sta MON
+        lda #60
+        sta MTIM
+        jmp xstreak
+@r:     rts
+xstreak:
+        lda #<streak
+        sta SRC
+        lda #>streak
+        sta SRC+1
+        lda MCOL
+        sta BCOL
+        lda MROW
+        sta BY
+        lda #3
+        sta BW
+        lda #6
+        sta BH
+        jmp blit
 
 ; ================= new game =================
 newgame:
@@ -1978,6 +2192,12 @@ drawland:
         sta SRC+1
         lda #LANDY
         sta PR
+        lda #LANDY+LANDH
+        sta RLEEND
+        lda #1
+        sta RLEPG
+; RLE stream at SRC -> rows PR..RLEEND-1 (page 1, or both if RLEPG)
+drawrle:
         lda #0
         sta PC
 @c:     jsr getb
@@ -2001,7 +2221,7 @@ drawland:
         dec BW
         bne @r
 @chk:   lda PR
-        cmp #LANDY+LANDH
+        cmp RLEEND
         bcc @c
         rts
 getb:   ldy #0
@@ -2019,13 +2239,15 @@ putb:   pha
         ldy PC
         pla
         sta (DST),y
+        ldx RLEPG
+        beq @one
         pha
         lda DST+1
         eor #$60
         sta DST+1
         pla
         sta (DST),y
-        inc PC
+@one:   inc PC
         lda PC
         cmp #40
         bcc @x
@@ -2345,7 +2567,10 @@ tune:   NOTE 523,110
         .byte 0
 
 s_title:  .byte "R O C K F A L L",0
-s_sub:    .byte "DODGE THE FALLING ROCKS!",0
+s_sub:    .byte "DODGE THE FALLING METEORS!",0
+s_twist:  .byte "THEY'RE NOT ROCKS. THEY'RE METEORS!",0
+s_ctl:    .byte "ARROWS OR J/L MOVE   SPACE OR A FIRE",0
+s_best:   .byte "BEST:",0
 s_keys:   .byte "ARROWS OR J / L TO MOVE",0
 s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
@@ -2435,3 +2660,4 @@ texthi: .repeat 24, R
         .include "sprites.s"
         .include "land.inc"
         .include "flyer.inc"
+        .include "title.inc"
