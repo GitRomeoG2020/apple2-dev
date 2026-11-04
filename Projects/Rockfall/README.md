@@ -108,7 +108,7 @@ Or by hand, from the MAME folder:
   laser until heat is back to HEATOK=0. Firing while locked only clicks. The bar (byte cols 31-38,
   56 px = HEAT*7/8, even widths) is written straight to both pages, only when it changes.
 - Collision: a bounding box in 2-pixel units.
-- Sound: the $C030 speaker with timed loops. There's an intro tune on the title and a noise
+- Sound: the $C030 speaker with timed loops. Two-voice dark title music (see Title music) and a noise
   burst plus falling sweep on a crash, a falling-pitch pew when you fire, a crackle on a hit, and a
   ~31 ms two-tone buzz (1 kHz / 600 Hz) on overheat. tools/render_sfx.py renders all three to a WAV preview.
 - Memory: text page 1 $0400-$07FF (title/game over), loader $0800-$0AFF + buffers $0B00-$0C6F,
