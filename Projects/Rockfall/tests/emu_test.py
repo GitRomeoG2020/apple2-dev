@@ -47,7 +47,7 @@ def expected(pg,sv):
     px=sv[0x2B0+pg]; k=(px*2)%7
     x(peek(SL[k]|SH[k]<<8,24),(px*2)//7,140,3,8)
     for i in range(5):
-        if sv[0x280+pg*8+i]: x(RK,sv[0x290+pg*8+i],sv[0x2A0+pg*8+i],2,8)
+        if sv[0x280+pg*8+i]: sp=sv[0x2D0+pg*8+i]; x(RSPR[sp],sv[0x290+pg*8+i],sv[0x2A0+pg*8+i],RW[sp],RH[sp])
     if sv[0x2B2+pg]:
         c,m1,m2,y=sv[0x2B4+pg],sv[0x2B6+pg],sv[0x2B8+pg],sv[0x2BA+pg]
         for r in range(12):
@@ -80,9 +80,10 @@ def check(tag,tries=8):
     return len(res[0])+len(res[1]),pgs
 def key(c): q({'cmd':'keys','text':c}); time.sleep(0.05)
 SL=SH=RK=None
+RW=[1,2,3,3]; RH=[6,8,14,14]; RSPR=None
 FONTB=None
 time.sleep(6)
-SL,SH,RK=peek(A_SLO,7),peek(A_SHI,7),peek(A_ROCK,16); FONTB=peek(A_FONT,24*5)
+SL,SH,RK=peek(A_SLO,7),peek(A_SHI,7),peek(A_ROCK,16); RSPR=[peek(lab(n),RW[i]*RH[i]) for i,n in enumerate(['pebble','rock','boulder','boulder_cracked'])]; FONTB=peek(A_FONT,24*5)
 print('== title screen ==\n'+'\n'.join(q({'cmd':'screen'})['lines']))
 key(' '); time.sleep(1.5)
 z=zp(); print('after start:',z)
@@ -136,7 +137,7 @@ for tries in range(6):
         q({'cmd':'resume'}); time.sleep(0.005)
     if ok: break
 lx2=peek(0x99,1)[0]; col=min(38,(lx2*2)//7); sc0=z['SCORE']
-q({'cmd':'poke','addr':0x70,'data':[col]}); q({'cmd':'poke','addr':0x78,'data':[z['LY']-30]}); q({'cmd':'poke','addr':0x88,'data':[1]})
+q({'cmd':'poke','addr':0xD0,'data':[1]}); q({'cmd':'poke','addr':0xD8,'data':[1]}); q({'cmd':'poke','addr':0x70,'data':[col]}); q({'cmd':'poke','addr':0x78,'data':[z['LY']-30]}); q({'cmd':'poke','addr':0x88,'data':[1]})   # a medium rock
 print('bolt in flight: LY=%d bolt x=%dpx; rock 0 placed at byte col %d row %d (fire attempts %d)'%(z['LY'],lx2*2,col,z['LY']-30,tries+1))
 q({'cmd':'resume'}); tr=[]
 for i in range(12): z=zp(); tr.append((z['LON'],z['LY'],z['RON'][0],z['RY'][0],z['SCORE'])); time.sleep(0.01)
@@ -206,7 +207,7 @@ print('after soak:',zp())
 alive(); q({'cmd':'pause'}); z=zp()
 want=max(0,(z['PX']*2+7)//7-1)
 q({'cmd':'poke','addr':0x5E,'data':[0]}); q({'cmd':'poke','addr':0x93,'data':[0,0]})
-q({'cmd':'poke','addr':0x70,'data':[want]}); q({'cmd':'poke','addr':0x78,'data':[140]}); q({'cmd':'poke','addr':0x88,'data':[1]})
+q({'cmd':'poke','addr':0xD0,'data':[1]}); q({'cmd':'poke','addr':0xD8,'data':[1]}); q({'cmd':'poke','addr':0x70,'data':[want]}); q({'cmd':'poke','addr':0x78,'data':[140]}); q({'cmd':'poke','addr':0x88,'data':[1]})
 q({'cmd':'resume'}); print('forcing rock 0 into column',want,'ship PX',z['PX'])
 time.sleep(4); z=zp(); print('after forced rock:',z)
 print('== text screen (page 1 text, mixed mode) ==\n'+'\n'.join(q({'cmd':'screen'})['lines'][20:24]))

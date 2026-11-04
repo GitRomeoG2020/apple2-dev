@@ -117,3 +117,15 @@ glowing atmosphere, a small ship) with a 4-line text window (tagline, controls, 
 PRESS ANY KEY TO START) for ~15 s (ARTT), then the text high-score view for ~5 s, repeating. Stars twinkle and
 a meteor streaks across now and then. Any key starts. Art: `tools/gen_title.py` -> `src/title.inc` (RLE).
 It animates on page 1 only (no page flipping): mixed mode on page 2 would show text page 2 = the loader at $0800.
+
+## Rock sizes
+| Size | Sprite | Speed | Laser | Points |
+|---|---|---|---|---|
+| Pebble | 1 byte x 6 rows | 1.5x SPD | 1 hit | +3 |
+| Rock | 2 bytes x 8 rows | 1x SPD | 1 hit | +5 |
+| Boulder | 3 bytes x 14 rows | 0.5x SPD | 2 hits (cracks on the 1st) | +15, burst + "15" |
+
+Spawn odds out of 16 (pebble/rock/boulder): L1 3/12/1, L2 4/10/2, L3 5/9/2, L4+ 5/8/3; at most 2 boulders at
+once (MAXLG). Tables `rsize`/`rsmall`/`rlarge`/`rpts`... at the end of `rockfall.s`; sprites in
+`tools/gen_sprites.js`. Frame pacing (`fdelay`, FDBASE) subtracts each object's drawing cost so the game
+speed is the same whatever is on screen.

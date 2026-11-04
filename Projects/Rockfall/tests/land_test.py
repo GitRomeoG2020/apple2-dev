@@ -91,13 +91,15 @@ alive(); poke(0x61,[5]); bad=0; samples=0; deaths=0; maxry=0; t0=time.time(); i=
 while time.time()-t0<40:
     key('\x08' if (i//5)%2 else '\x15'); key(' '); i+=1; time.sleep(0.03)
     z,pg=snap(); samples+=1
-    maxry=max([maxry]+[r for r,on in zip(z['RY'],z['RON']) if on])
-    for x in pg:
-        if strip(x)!=LAND[z['LANDN']]: bad+=1
+    sz=peek(0xD0,5); maxry=max([maxry]+[r+[6,8,14][k]-1 for r,on,k in zip(z['RY'],z['RON'],sz) if on])   # rock bottom row
+    if any(strip(x)!=LAND[z['LANDN']] for x in pg):
+        time.sleep(0.4); z,pg=snap()      # a level-up may be redrawing the strip right now: look again
+        for x in pg:
+            if strip(x)!=LAND[z['LANDN']]: bad+=1
     if z['DEAD']: deaths+=1; alive(); poke(0x61,[5])
-print('soak: %d samples, %d deaths, max rock top row %d, corrupted strips %d'%(samples,deaths,maxry,bad))
+print('soak: %d samples, %d deaths, max rock bottom row %d, corrupted strips %d'%(samples,deaths,maxry,bad))
 ok(bad==0 and samples>50,'rocks/stars/laser never touch the landscape during a 40 s soak (SPEED 5)')
-ok(maxry<=144,'rocks never drawn below row 151 (max top row %d)'%maxry)
+ok(maxry<=151,'rocks never drawn below row 151 (max bottom row %d)'%maxry)
 # --- new game resets ---
 alive(); poke(0xA7,[3]); poke(0xB2,[2]); time.sleep(0.1); poke(0x67,[1]); time.sleep(1); alive(); time.sleep(1)
 z,pg=snap(); print('after game over + new game:',z)

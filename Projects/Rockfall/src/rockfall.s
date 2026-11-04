@@ -23,12 +23,22 @@ MACHID  = $FBB3          ; $06 on IIe/IIc
 ; ---- game constants ----
 NROCKS  = 5
 PLAYY   = 140            ; top row of ship (field is rows 0-151, landscape 152-183, status 186-190)
-ROCKMAXY= 144            ; rock top row limit (rows y..y+7 must be < LANDY): rocks vanish at the ground
+; ---- rock sizes -- tweak here (tables rsize_* in RODATA) ----
+; 0 small pebble 1x6 bytes x rows, 1.5x SPEED, +3;  1 medium rock 2x8, 1x SPEED, +5;
+; 2 large boulder 3x14, 0.5x SPEED, 2 hits, +15.  Rocks vanish when their bottom would reach LANDY.
+RSIZE   = $D0            ; NROCKS bytes each
+RHP     = $D8            ; hits left
+RSUB    = $E0            ; half-row speed remainder
+MAXLG   = 2              ; at most this many boulders at once
+SV_RSP  = $1AD0          ; per page: sprite drawn (0 pebble, 1 rock, 2 boulder, 3 cracked)
 PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
 HOLDNEW = 16             ; II+ (no key-down flag): frames a fresh arrow press moves
 HOLDREP = 6              ; II+: frames per auto-repeat of the same arrow (~150 ms)
-FRAMEDLY= $2F            ; WAIT value per frame (~6 ms; rendering takes the rest)
-FLYDLY  = $22            ; WAIT while a bonus flyer is up (~3.2k cycles shorter)
+; frame pacing: after rendering, fdelay waits FDBASE ~100-cycle units minus the drawing cost of
+; what is on screen (rcost per rock size, FLYCOST for a flyer), so the frame time stays the same
+; whatever the rock mix. FDBASE: 5 medium rocks pace like the old game (~26.2k cycles/frame).
+FDBASE  = 126
+FLYCOST = 32
 
 ; ---- zero page ----
 SRC     = $50            ; blit source ptr
@@ -552,11 +562,7 @@ loop:   jsr input
         beq @nolv
         jsr banner
 @nolv:
-        lda #FRAMEDLY            ; a flyer costs ~3.2k cycles/frame to erase+draw:
-        ldx FON                  ; wait that much less so the game speed stays the same
-        beq @dl
-        lda #FLYDLY
-@dl:    jsr WAIT
+        jsr fdelay
         jmp loop
 
 gameover:
@@ -1035,27 +1041,96 @@ drawship:
         sta BH
         jmp blit
 
-; XOR a rock at BCOL/BY
+; XOR rock sprite A (0 pebble, 1 rock, 2 boulder, 3 cracked boulder) at BCOL/BY
 drawrock:
-        lda #<rock
+        tay
+        lda rsprlo,y
         sta SRC
-        lda #>rock
+        lda rsprhi,y
         sta SRC+1
-        lda #2
+        lda rspw,y
         sta BW
-        lda #8
+        lda rsph,y
         sta BH
         jmp blit
+
+; frame pacing (see FDBASE)
+fdelay: lda #FDBASE
+        ldx #NROCKS-1
+@r:     ldy RON,x
+        beq @n
+        ldy RSIZE,x
+        sec
+        sbc rcost,y
+        bcc @z
+@n:     dex
+        bpl @r
+        ldy FON
+        beq @w
+        sec
+        sbc #FLYCOST
+        bcc @z
+@w:     tax
+        beq @z
+@o:     ldy #19                  ; ~100 cycles
+@d:     dey
+        bne @d
+        dex
+        bne @o
+@z:     rts
+
+; pick a size for a new rock (keeps X): odds by level, at most MAXLG boulders
+pksize: lda LEVEL
+        cmp #4
+        bcc @b
+        lda #4
+@b:     tay
+        dey                      ; bucket 0-3
+        jsr rand
+        and #15
+        cmp rsmall,y
+        bcc @sm
+        cmp rlarge,y
+        bcs @lg
+@md:    lda #1
+        rts
+@sm:    lda #0
+        rts
+@lg:    stx TMP
+        lda #0
+        sta CNT
+        ldx #NROCKS-1
+@c:     lda RON,x
+        beq @c2
+        lda RSIZE,x
+        cmp #2
+        bne @c2
+        inc CNT
+@c2:    dex
+        bpl @c
+        ldx TMP
+        lda CNT
+        cmp #MAXLG
+        bcs @md
+        lda #2
+        rts
 
 rocks:  ldx #NROCKS-1
 @lp:    lda RON,x
         bne @move
         dec RWAIT,x
         bne @next
-        jsr rand                 ; spawn at random byte column 0-38
-@m:     cmp #39
+        jsr pksize
+        sta RSIZE,x
+        tay
+        lda rhp0,y
+        sta RHP,x
+        lda #0
+        sta RSUB,x
+        jsr rand                 ; random byte column that fits
+@m:     cmp rncol,y
         bcc @ok
-        sbc #39
+        sbc rncol,y
         jmp @m
 @ok:    sta RCOL,x
         lda #0
@@ -1063,11 +1138,25 @@ rocks:  ldx #NROCKS-1
         lda #1
         sta RON,x
         jmp @next
-@move:  lda RY,x
-        clc
+@move:  ldy RSIZE,x              ; speed in half-rows: 3/2/1 x SPEED
+        lda SPEED
+        cpy #2
+        beq @v
+        asl
+        cpy #1
+        beq @v
         adc SPEED
+@v:     clc
+        adc RSUB,x
+        pha
+        and #1
+        sta RSUB,x
+        pla
+        lsr
+        clc
+        adc RY,x
         sta RY,x
-        cmp #ROCKMAXY+1
+        cmp rmaxy1,y             ; bottom would reach the landscape: gone, dodged
         bcc @next
         jsr killrock
         jsr addscore
@@ -1316,52 +1405,113 @@ hits:   jsr flyhit
 @go:    ldx #NROCKS-1
 @lp:    lda RON,x
         beq @nx
+        ldy RSIZE,x
         lda RY,x
         clc
-        adc #7
-        cmp LY                   ; rock bottom >= bolt top
+        adc rsph,y
+        cmp LY                   ; rock bottom (RY+h-1) >= bolt top
         bcc @nx
+        beq @nx
         lda LY
         clc
         adc #LLEN-1
         cmp RY,x                 ; bolt bottom >= rock top
         bcc @nx
+        sty TMP
         ldy RCOL,x
         lda LX2
         sec
         sbc rockx2,y
         bcc @nx
-        cmp #7
+        ldy TMP
+        cmp rhitw,y              ; bolt inside the sprite's width
         bcs @nx
-        jsr killrock             ; hit!
-        jsr crackle
-        lda #0
+        lda #0                   ; hit!
         sta LON
-        lda #5
+        dec RHP,x
+        beq @kill
+        jmp crackle              ; boulder: cracked, needs one more
+@kill:  jsr killrock
+        cpy #2
+        beq @big
+        lda rpts,y
+        pha
+        jsr crackle
+        pla
+        jmp addpts
+@big:   lda RCOL,x               ; boulder: burst + "15" popup, big boom
+        cmp #37
+        bcc @c
+        lda #36
+@c:     sta PCL
+        lda RY,x
+        clc
+        adc #3
+        sta PY
+        lda #2
+        sta PV
+        lda #PTLEN
+        sta PT
+        lda #1
+        sta PK
+        jsr bigboom
+        lda #$15
         jmp addpts
 @nx:    dex
         bpl @lp
         rts
 
-; bounding-box collision in 2-pixel units
+; boulder explosion: two crackles and a low thud (~35 ms; keeps X)
+bigboom:
+        jsr crackle
+        jsr crackle
+        txa
+        pha
+        lda #<SPKR
+        sta tog
+        lda #220
+        sta PER
+        lda #14
+        sta DURL
+        lda #0
+        sta DURH
+        jsr tone
+        pla
+        tax
+        rts
+
+; bounding boxes in 2-pixel units / rows, per size
 collide:
         ldx #NROCKS-1
 @lp:    lda RON,x
         beq @next
+        ldy RSIZE,x
+        sty TMP
         lda RY,x
-        cmp #PLAYY-7             ; rock bottom (y+7) >= PLAYY ?
+        clc
+        adc rsph,y               ; RY+h > PLAYY: bottom reaches the ship
+        cmp #PLAYY+1
         bcc @next
-        cmp #PLAYY+8             ; rock top < PLAYY+8 ?
+        lda RY,x
+        cmp #PLAYY+8             ; top above the ship's bottom
         bcs @next
         ldy RCOL,x
+        lda rockx2,y
+        sta CNT                  ; rock left
         lda PX
+        clc
+        adc #6
         sec
-        sbc rockx2,y             ; dx = ship - rock
-        bcs @pos
-        eor #$FF
-        adc #1
-@pos:   cmp #6                   ; |dx| < 6 units (12 px) -> hit
-        bcs @next
+        sbc CNT                  ; PX+6 > left
+        bcc @next
+        beq @next
+        ldy TMP
+        lda CNT
+        clc
+        adc rcolw,y              ; PX < left + w
+        cmp PX
+        bcc @next
+        beq @next
         lda #1
         sta DEAD
         rts
@@ -1599,11 +1749,17 @@ drawpop:
         stx PC
         lda DPV
         beq @50
+        cmp #2
+        beq @15
         lda #1
         jsr xglyph
         lda #0
         jsr xglyph
         lda #0
+        jmp xglyph
+@15:    lda #1
+        jsr xglyph
+        lda #5
         jmp xglyph
 @50:    lda #5
         jsr xglyph
@@ -1785,6 +1941,7 @@ render: ldx BACK
         sta BCOL
         lda SV_RY,y
         sta BY
+        lda SV_RSP,y
         jsr drawrock
 @r1:    lda CNT
         tax
@@ -1800,6 +1957,13 @@ render: ldx BACK
         lda RY,x
         sta SV_RY,y
         sta BY
+        lda RSIZE,x              ; sprite: size, cracked boulder = 3
+        cmp #2
+        bne @id
+        lda #4
+        sec
+        sbc RHP,x
+@id:    sta SV_RSP,y
         jsr drawrock
 @r2:    dec CNT
         bpl @rk
@@ -2639,6 +2803,21 @@ pdiv7:  .repeat 160, I
 pmod7:  .repeat 160, I
         .byte (I*2) .mod 7
         .endrep
+; ---- rock sizes: 0 pebble, 1 rock, 2 boulder (3 = cracked boulder sprite) ----
+rsprlo: .byte <pebble,<rock,<boulder,<boulder_cracked
+rsprhi: .byte >pebble,>rock,>boulder,>boulder_cracked
+rspw:   .byte PEBBLE_W,ROCK_W,BOULDER_W,BOULDER_W
+rsph:   .byte PEBBLE_H,ROCK_H,BOULDER_H,BOULDER_H
+rmaxy1: .byte LANDY-PEBBLE_H+1,LANDY-ROCK_H+1,LANDY-BOULDER_H+1   ; RY >= this: gone
+rncol:  .byte 41-PEBBLE_W,41-ROCK_W,41-BOULDER_W                 ; spawn columns
+rhp0:   .byte 1,1,2                                               ; laser hits needed
+rpts:   .byte $03,$05,$15                                         ; points (BCD)
+rhitw:  .byte 3,7,11                                              ; laser hit width, 2-px units
+rcolw:  .byte 2,6,9                                               ; ship collision: PX < left+w
+rcost:  .byte 8,14,31                                             ; erase+draw cost, ~100-cycle units
+; spawn odds per level bucket (L1, L2, L3, L4+), out of 16: pebble if r < rsmall, boulder if r >= rlarge
+rsmall: .byte 3,4,5,5
+rlarge: .byte 15,14,14,13
 ; rock left edge in 2-pixel units per byte column
 rockx2: .repeat 40, I
         .byte (I*7)/2

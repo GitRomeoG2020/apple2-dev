@@ -114,3 +114,61 @@ rock:
         .byte $7E,$3B   ; row 5
         .byte $7C,$1F   ; row 6
         .byte $70,$07   ; row 7
+
+; a2sprite export: pebble
+; size: 1 bytes (7 px) x 6 rows, 6 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+PEBBLE_W = 1
+PEBBLE_H = 6
+
+pebble:
+        .byte $0E   ; row 0
+        .byte $1F   ; row 1
+        .byte $1B   ; row 2
+        .byte $1F   ; row 3
+        .byte $0E   ; row 4
+        .byte $04   ; row 5
+
+; a2sprite export: boulder
+; size: 3 bytes (21 px) x 14 rows, 42 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+BOULDER_W = 3
+BOULDER_H = 14
+
+boulder:
+        .byte $40,$7F,$01   ; row 0
+        .byte $78,$7F,$0F   ; row 1
+        .byte $7C,$7E,$1F   ; row 2
+        .byte $7E,$7F,$3C   ; row 3
+        .byte $4F,$7F,$7F   ; row 4
+        .byte $4F,$7F,$7F   ; row 5
+        .byte $7F,$5F,$7F   ; row 6
+        .byte $7F,$7F,$7F   ; row 7
+        .byte $7F,$7D,$73   ; row 8
+        .byte $7E,$7F,$33   ; row 9
+        .byte $3E,$7E,$3F   ; row 10
+        .byte $7C,$7F,$1F   ; row 11
+        .byte $70,$7F,$07   ; row 12
+        .byte $00,$7F,$00   ; row 13
+
+; a2sprite export: boulder_cracked
+; size: 3 bytes (21 px) x 14 rows, 42 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+BOULDER_CRACKED_W = 3
+BOULDER_CRACKED_H = 14
+
+boulder_cracked:
+        .byte $40,$77,$01   ; row 0
+        .byte $78,$77,$0F   ; row 1
+        .byte $7C,$7A,$1F   ; row 2
+        .byte $7E,$7B,$3C   ; row 3
+        .byte $4F,$75,$7F   ; row 4
+        .byte $4F,$6E,$7F   ; row 5
+        .byte $7F,$4F,$7F   ; row 6
+        .byte $7F,$77,$7F   ; row 7
+        .byte $7F,$59,$73   ; row 8
+        .byte $7E,$3B,$33   ; row 9
+        .byte $3E,$76,$3F   ; row 10
+        .byte $7C,$6F,$1F   ; row 11
+        .byte $70,$6F,$07   ; row 12
+        .byte $00,$77,$00   ; row 13

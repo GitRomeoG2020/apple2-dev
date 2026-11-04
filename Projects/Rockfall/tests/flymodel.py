@@ -18,6 +18,6 @@ def apply(e,sv,pg,FONT):
             for r in range(7):
                 for b in range(3): x(py+r,pc+b,gen_flyer.BURST_BYTES[r*3+b])
         else:
-            for i,g in enumerate([1,0,0] if pv else [5,0]):
+            for i,g in enumerate({0:[5,0],1:[1,0,0],2:[1,5]}[pv]):
                 for r in range(5): x(py+1+r,pc+i,FONT[g*5+r])
     return e
