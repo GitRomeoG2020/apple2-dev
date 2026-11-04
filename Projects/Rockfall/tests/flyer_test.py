@@ -59,7 +59,7 @@ def model(pg,sv):
     e=[[0]*40 for _ in range(152)]
     if not sv[0x2BC+pg]: return e
     px=sv[0x2B0+pg]; d=SHIP[(px*2)%7]
-    for r in range(8):
+    for r in range(8 if not flymodel.shield(sv,pg) else 0):
         for b in range(3): e[140+r][(px*2)//7+b]^=d[r*3+b]
     for i in range(36):
         j=pg*64+i; e[sv[0x200+j]][sv[0x100+j]]^=sv[0x180+j]
@@ -70,7 +70,7 @@ def mism(sv,pgs,y0=0,y1=152):
         e=model(pg,sv)
         for y in range(y0,y1): n+=sum(1 for b in range(40) if pgs[pg][A(y)+b]!=e[y][b])
     return n
-def matches(tries=10,y0=0,y1=152):
+def matches(tries=40,y0=0,y1=152):
     for t in range(tries):
         z,sv,pgs=snap()
         if sv[0x2B2] or sv[0x2B3]: time.sleep(0.03); continue      # bolt on screen: not modelled here

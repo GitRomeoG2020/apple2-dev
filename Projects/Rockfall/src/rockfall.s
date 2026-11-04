@@ -39,6 +39,45 @@ HOLDREP = 6              ; II+: frames per auto-repeat of the same arrow (~150 m
 ; whatever the rock mix. FDBASE: 5 medium rocks pace like the old game (~26.2k cycles/frame).
 FDBASE  = 126
 FLYCOST = 32
+CCOST   = 16             ; fdelay units: capsule, each side bolt, shield bubble
+BCOST   = 12
+LCOST   = 16             ; centre bolt in flight (draw/erase + hit tests)
+SCOST   = 16
+; ---- power-ups ----
+PTIME   = 200            ; power-up length in 2-frame ticks (~10 s)
+CAPH    = 9              ; capsule sprite rows (2 bytes wide)
+DROPB   = 86             ; boulder drop chance /256 (~1 in 3)
+DROPF   = 128            ; flyer hit drop chance /256 (1 in 2)
+PUT     = $E8            ; 3 timers: 0 shield, 1 cool, 2 spread (0 = off)
+CON     = $EB            ; capsule falling
+KCOL    = $EC            ; capsule byte column
+CY      = $ED            ; capsule top row
+CTYPE   = $EE            ; capsule type 0..2
+SON     = $EF            ; side bolts on (2: left, right)
+SX      = $F1            ; side bolt x (2-px units)
+SCB     = $F3            ; side bolt byte column
+SM1     = $F5            ; side bolt masks
+SM2     = $F7
+HX      = $F9            ; x of the bolt being hit-tested
+HB      = $FA            ; scratch index
+DCH     = $FB            ; drop chance / slot bar width
+DCL     = $FC            ; drop column
+DRW     = $FD            ; drop row
+PSC     = $FE            ; HUD slot column
+PSW     = $FF            ; HUD slot bar mask
+LST     = $1A70          ; HUD: type last drawn per slot ($FF empty)
+LSW     = $1A73          ; HUD: bar width last drawn per slot
+SLT     = $1A76          ; HUD: slot -> type (scratch)
+SV_SH   = $1AE0          ; per page: shield bubble drawn
+SV_SON  = $1AE2          ; side bolts: page*2+i
+SV_SCB  = $1AE6
+SV_SM1  = $1AEA
+SV_SM2  = $1AEE
+SV_SLY  = $1AF2          ; per page
+SV_CON  = $1AF4          ; capsule: per page
+SV_CC   = $1AF6
+SV_CY   = $1AF8
+SV_CS   = $1AFA
 
 ; ---- zero page ----
 SRC     = $50            ; blit source ptr
@@ -493,6 +532,12 @@ newgame:
         sta BACK                 ; draw page 2 first while page 1 shows
         lda #0
         sta LON
+        sta SON
+        sta SON+1
+        sta CON
+        sta PUT
+        sta PUT+1
+        sta PUT+2
         sta FIRE
         sta HEAT
         sta OVH
@@ -543,6 +588,11 @@ newgame:
         jsr hstr
         jsr status
         jsr heatbar
+        lda #$FE                 ; force the power-up slots to redraw (empty)
+        sta LST
+        sta LST+1
+        sta LST+2
+        jsr pwhud
 
 ; ================= main loop =================
 loop:   jsr input
@@ -550,12 +600,14 @@ loop:   jsr input
         jsr rocks
         jsr heatcool
         jsr flyer
+        jsr capsule
         jsr laser
         jsr stars
         jsr collide
         jsr render
         jsr flip
         jsr heatbar
+        jsr power
         lda DEAD
         bne gameover
         lda LVLUP
@@ -1070,7 +1122,32 @@ fdelay: lda #FDBASE
         sec
         sbc #FLYCOST
         bcc @z
-@w:     tax
+@w:     ldy LON
+        beq @c0
+        sec
+        sbc #LCOST
+        bcc @z
+@c0:    ldy CON
+        beq @c1
+        sec
+        sbc #CCOST
+        bcc @z
+@c1:    ldy SON
+        beq @c2
+        sec
+        sbc #BCOST
+        bcc @z
+@c2:    ldy SON+1
+        beq @c3
+        sec
+        sbc #BCOST
+        bcc @z
+@c3:    ldy PUT
+        beq @c4
+        sec
+        sbc #SCOST
+        bcc @z
+@c4:    tax
         beq @z
 @o:     ldy #19                  ; ~100 cycles
 @d:     dey
@@ -1233,8 +1310,10 @@ addpts: sed
 
 ; ================= laser =================
 laser:  lda LON
+        ora SON
+        ora SON+1
         beq @idle
-        lda LY                   ; bolt flies up LLEN rows per frame
+        lda LY                   ; bolts fly up LLEN rows per frame
         sec
         sbc #LLEN
         bcc @off
@@ -1242,6 +1321,8 @@ laser:  lda LON
         jmp hits
 @off:   lda #0
         sta LON
+        sta SON
+        sta SON+1
 @idle:  lda FIRE
         beq @rts
         lda #0
@@ -1250,7 +1331,9 @@ laser:  lda LON
         beq @cool
         bit SPKR                 ; locked: just a soft click
         rts
-@cool:  lda HEAT
+@cool:  lda PUT+1                ; COOL power-up: shots add no heat
+        bne @nh
+        lda HEAT
         clc
         adc #HEATSHOT
         cmp #HEATMAX
@@ -1258,7 +1341,7 @@ laser:  lda LON
         lda #HEATMAX
         inc OVH
 @hs:    sta HEAT
-        lda PX                   ; nose = pixels 2*PX+6, 2*PX+7
+@nh:    lda PX                   ; nose = pixels 2*PX+6, 2*PX+7
         clc
         adc #3
         sta LX2
@@ -1274,13 +1357,29 @@ laser:  lda LON
         sta LY
         lda #1
         sta LON
-        jsr pew
+        lda PUT+2                ; SPREAD: side bolts 10 px left and right
+        beq @ns
+        lda LX2
+        sec
+        sbc #5
+        bcc @nl
+        ldx #0
+        jsr sidebolt
+@nl:    lda LX2
+        clc
+        adc #5
+        cmp #139
+        bcs @ns
+        ldx #1
+        jsr sidebolt
+@ns:    jsr pew
         lda OVH
         beq @h
         jsr ovhsnd
         jsr hotlbl
 @h:     jmp hits
 @rts:   rts
+
 
 ; cool the laser once per frame (called before laser)
 heatcool:
@@ -1398,8 +1497,48 @@ heatbar:
         sta DST+1
         rts
 
-; bolt vs rocks: rows overlap and bolt x inside the rock's 7 units
-hits:   jsr flyhit
+; A = x (2-px units), X = side 0/1
+sidebolt:
+        sta SX,x
+        tay
+        lda pdiv7,y
+        sta SCB,x
+        lda pmod7,y
+        tay
+        lda lmask1,y
+        sta SM1,x
+        lda lmask2,y
+        sta SM2,x
+        lda #1
+        sta SON,x
+        rts
+
+; hit-test every bolt in flight (they share LY); a bolt that hits goes off
+hits:   lda LON
+        beq @s
+        lda LX2
+        sta HX
+        jsr hit1
+        bcc @s
+        lda #0
+        sta LON
+@s:     ldx #1
+@sl:    lda SON,x
+        beq @sn
+        lda SX,x
+        sta HX
+        stx HB
+        jsr hit1
+        ldx HB
+        bcc @sn
+        lda #0
+        sta SON,x
+@sn:    dex
+        bpl @sl
+        rts
+
+; one bolt at HX/LY vs flyer and rocks: C = 1 if it hit something
+hit1:   jsr flyhit
         bcc @go
         rts
 @go:    ldx #NROCKS-1
@@ -1419,18 +1558,18 @@ hits:   jsr flyhit
         bcc @nx
         sty TMP
         ldy RCOL,x
-        lda LX2
+        lda HX
         sec
         sbc rockx2,y
         bcc @nx
         ldy TMP
         cmp rhitw,y              ; bolt inside the sprite's width
         bcs @nx
-        lda #0                   ; hit!
-        sta LON
-        dec RHP,x
+        dec RHP,x                ; hit!
         beq @kill
-        jmp crackle              ; boulder: cracked, needs one more
+        jsr crackle              ; boulder: cracked, needs one more
+        sec
+        rts
 @kill:  jsr killrock
         cpy #2
         beq @big
@@ -1438,7 +1577,9 @@ hits:   jsr flyhit
         pha
         jsr crackle
         pla
-        jmp addpts
+        jsr addpts
+        sec
+        rts
 @big:   lda RCOL,x               ; boulder: burst + "15" popup, big boom
         cmp #37
         bcc @c
@@ -1454,11 +1595,21 @@ hits:   jsr flyhit
         sta PT
         lda #1
         sta PK
+        lda RCOL,x               ; maybe drop a capsule
+        sta DCL
+        lda RY,x
+        sta DRW
+        lda #DROPB
+        jsr trydrop
         jsr bigboom
         lda #$15
-        jmp addpts
+        jsr addpts
+        sec
+        rts
 @nx:    dex
-        bpl @lp
+        bmi @mz
+        jmp @lp
+@mz:    clc
         rts
 
 ; boulder explosion: two crackles and a low thud (~35 ms; keeps X)
@@ -1512,11 +1663,285 @@ collide:
         cmp PX
         bcc @next
         beq @next
-        lda #1
+        lda PUT                  ; SHIELD: absorbs the hit, rock is destroyed
+        beq @die
+        lda #0
+        sta PUT
+        jsr killrock
+        jmp shbreak
+@die:   lda #1
         sta DEAD
         rts
 @next:  dex
         bpl @lp
+        rts
+
+; ================= power-ups =================
+; ship or shielded ship: A = PX, Y = 1 for the shield bubble
+drawshp:
+        cpy #0
+        bne @b
+        jmp drawship
+@b:     clc
+        adc #12                  ; bubble left = ship left - 4 px
+        tax
+        lda #4
+        ldy #PLAYY-2
+        jmp drawfly
+
+; A = 1 if the shield bubble shows this frame (blinks in the last ~1 s); keeps X
+shon:   lda PUT
+        beq @r
+        cmp #25
+        bcs @y
+        lda FRAME
+        and #4
+        beq @y
+        lda #0
+        rts
+@y:     lda #1
+@r:     rts
+
+; XOR capsule sprite A (type*2 + glow) at BCOL/BY
+drawcap:
+        tay
+        lda caplo,y
+        sta SRC
+        lda caphi,y
+        sta SRC+1
+        lda #2
+        sta BW
+        lda #CAPH
+        sta BH
+        jmp blit
+
+; maybe drop a capsule at DCL/DRW, chance A/256 (one at a time); keeps X
+trydrop:
+        ldy CON
+        bne @no
+        sta DCH
+        jsr rand
+        eor FRAME                ; decorrelate from the spawn draws
+        cmp DCH
+        bcs @no
+        lda DCL
+        cmp #39
+        bcc @c
+        lda #38
+@c:     sta KCOL
+        lda DRW
+        cmp #LANDY-CAPH
+        bcs @no
+        sta CY
+@t:     jsr rand
+        and #3
+        cmp #3
+        beq @t
+        sta CTYPE
+        lda #1
+        sta CON
+@no:    rts
+
+; capsule falls 1 row/frame, vanishes at the landscape, collected by the ship
+capsule:
+        lda CON
+        beq @r
+        inc CY
+        lda CY
+        cmp #LANDY-CAPH+1
+        bcc @p
+        lda #0
+        sta CON
+        rts
+@p:     clc
+        adc #CAPH                ; capsule bottom+1 > ship top
+        cmp #PLAYY+1
+        bcc @r
+        lda CY
+        cmp #PLAYY+8             ; capsule top <= ship bottom
+        bcs @r
+        ldy KCOL
+        lda rockx2,y             ; capsule left, 2-px units (7 wide)
+        sta CNT
+        lda PX
+        clc
+        adc #7                   ; ship right edge
+        cmp CNT
+        bcc @r
+        beq @r
+        lda CNT
+        clc
+        adc #7
+        cmp PX
+        bcc @r
+        beq @r
+        lda #0                   ; collected
+        sta CON
+        ldx CTYPE
+        lda #PTIME               ; new or refreshed: full timer
+        sta PUT,x
+        cpx #1
+        bne @s
+        lda #0                   ; COOL: gauge empty
+        sta HEAT
+        sta OVH
+        lda #$FF
+        sta LASTBAR
+        jsr coollbl
+@s:     jmp pickup
+@r:     rts
+
+; once per frame: timers tick every 2nd frame (~10 s), then the HUD slots
+power:  lda FRAME
+        and #1
+        bne @hud
+        ldx #2
+@t:     lda PUT,x
+        beq @n
+        dec PUT,x
+        bne @n
+        stx HB                   ; expired
+        jsr pwdown
+        ldx HB
+        cpx #1
+        bne @n
+        jsr heatlbl
+        ldx HB
+@n:     dex
+        bpl @t
+@hud:   ; fall through
+
+; HUD: active power-ups packed left to right from col PWCOL, icon + bar
+pwhud:  ldx #0
+        ldy #0
+@c:     lda PUT,x
+        beq @cn
+        txa
+        sta SLT,y
+        iny
+@cn:    inx
+        cpx #3
+        bne @c
+@f:     cpy #3
+        beq @d
+        lda #$FF
+        sta SLT,y
+        iny
+        bne @f
+@d:     ldx #0
+@s:     stx HB
+        ldy SLT,x
+        lda #0
+        cpy #$FF
+        beq @w
+        lda PUT,y                ; bar 1..7 px
+        clc
+        adc #31
+        lsr
+        lsr
+        lsr
+        lsr
+        lsr
+@w:     sta DCH
+        cmp LSW,x
+        bne @dr
+        tya
+        cmp LST,x
+        beq @nx
+@dr:    tya
+        sta LST,x
+        lda DCH
+        sta LSW,x
+        jsr drawslot
+@nx:    ldx HB
+        inx
+        cpx #3
+        bne @s
+        rts
+
+; slot X: icon for type Y ($FF = blank) and a DCH-px bar, both pages
+drawslot:
+        lda slotcol,x
+        sta PSC
+        lda #17
+        cpy #$FF
+        beq @g
+        lda picon,y
+@g:     ldy PSC
+        jsr hchar
+        ldy DCH
+        lda barw,y
+        sta PSW
+        lda #SROW
+        sta PR
+@r:     ldy PR
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        sta DST+1
+        lda #0
+        cpy #SROW
+        beq @p
+        cpy #SROW+4
+        beq @p
+        lda PSW
+@p:     ldy PSC
+        iny
+        sta (DST),y
+        tax
+        lda DST+1
+        eor #$60
+        sta DST+1
+        txa
+        sta (DST),y
+        inc PR
+        lda PR
+        cmp #SROW+5
+        bne @r
+        rts
+
+coollbl:
+        lda #<s_cool
+        ldx #>s_cool
+        jmp lbl
+heatlbl:
+        lda #<s_heat
+        ldx #>s_heat
+        jmp lbl
+
+; sounds: (period, length) pairs at STR, 0 ends (setstr2 clobbers X)
+pickup: jsr setstr2
+        .addr sn_pick
+        jmp notes
+shbreak:
+        jsr crackle
+        jsr setstr2
+        .addr sn_break
+        jmp notes
+pwdown: jsr setstr2
+        .addr sn_down
+notes:  txa
+        pha
+        lda #<SPKR
+        sta tog
+        ldy #0
+@n:     lda (STR),y
+        beq @x
+        sta PER
+        iny
+        lda (STR),y
+        sta DURL
+        iny
+        lda #0
+        sta DURH
+        tya
+        pha
+        jsr tone
+        pla
+        tay
+        jmp @n
+@x:     pla
+        tax
         rts
 
 ; ================= bonus flyer =================
@@ -1626,7 +2051,7 @@ flyhit: lda FON
         adc #LLEN-1
         cmp FY                   ; bolt bottom >= flyer top
         bcc @no
-        lda LX2                  ; bolt x - flyer left, 2-px units
+        lda HX                   ; bolt x - flyer left, 2-px units
         clc
         adc #14
         sec
@@ -1636,7 +2061,6 @@ flyhit: lda FON
         bcs @no
         lda #0
         sta FON
-        sta LON
         lda FY
         sta PY
         ldx FX
@@ -1655,6 +2079,12 @@ flyhit: lda FON
         sta PT
         lda #1
         sta PK
+        lda PCL                  ; maybe drop a capsule
+        sta DCL
+        lda FY
+        sta DRW
+        lda #DROPF
+        jsr trydrop
         jsr bonus
         lda #$50
         jsr addpts
@@ -1669,6 +2099,7 @@ flyhit: lda FON
 
 ; XOR flyer sprite A (FS) at FX = X, row Y on page PGEOR, clipped at both edges
 drawfly:
+        pha
         sty BY
         asl
         asl
@@ -1688,7 +2119,9 @@ drawfly:
         sta BCOL
         lda #FLYW
         sta BW
-        lda #FLYH
+        pla
+        tay
+        lda flyh,y               ; rows per sprite id (4 = shield bubble: 10)
         sta BH
 ; XOR blit like blit, but BCOL may be negative/past 39: off-screen bytes skipped
 fblit:  lda #0
@@ -1888,12 +2321,17 @@ render: ldx BACK
         ; --- ship ---
         lda VALID
         beq @s1
+        ldy SV_SH,x
         lda SV_PX,x
-        jsr drawship
+        jsr drawshp
 @s1:    ldx BACK
         lda PX
         sta SV_PX,x
-        jsr drawship
+        jsr shon
+        sta SV_SH,x
+        tay
+        lda PX
+        jsr drawshp
         ; --- laser bolt ---
         ldx BACK
         lda VALID
@@ -1926,7 +2364,53 @@ render: ldx BACK
         sta SV_LY,x
         sta DLY
         jsr xlaser
-@l2:    ; --- rocks ---
+@l2:    ; --- spread side bolts (share LY) ---
+        lda #1
+        sta CNT
+@sb:    lda BACK
+        asl
+        ora CNT
+        tay
+        lda VALID
+        beq @b1
+        lda SV_SON,y
+        beq @b1
+        lda SV_SCB,y
+        sta DC
+        lda SV_SM1,y
+        sta DM1
+        lda SV_SM2,y
+        sta DM2
+        ldx BACK
+        lda SV_SLY,x
+        sta DLY
+        jsr xlaser
+@b1:    lda BACK
+        asl
+        ora CNT
+        tay
+        ldx CNT
+        lda SON,x
+        sta SV_SON,y
+        beq @b2
+        lda SCB,x
+        sta SV_SCB,y
+        sta DC
+        lda SM1,x
+        sta SV_SM1,y
+        sta DM1
+        lda SM2,x
+        sta SV_SM2,y
+        sta DM2
+        lda LY
+        sta DLY
+        jsr xlaser
+@b2:    dec CNT
+        bpl @sb
+        ldx BACK
+        lda LY
+        sta SV_SLY,x
+        ; --- rocks ---
         lda #NROCKS-1
         sta CNT
 @rk:    lda CNT
@@ -2024,7 +2508,39 @@ render: ldx BACK
         ldx PCL
         lda PK
         jsr drawpop
-@pb:
+@pb:    ; --- power-up capsule ---
+        ldx BACK
+        lda VALID
+        beq @ca
+        lda SV_CON,x
+        beq @ca
+        lda SV_CC,x
+        sta BCOL
+        lda SV_CY,x
+        sta BY
+        lda SV_CS,x
+        jsr drawcap
+@ca:    ldx BACK
+        lda CON
+        sta SV_CON,x
+        beq @cb
+        lda KCOL
+        sta SV_CC,x
+        sta BCOL
+        lda CY
+        sta SV_CY,x
+        sta BY
+        lda FRAME                ; glow: blink every 4 frames
+        lsr
+        lsr
+        and #1
+        sta TMP
+        lda CTYPE
+        asl
+        ora TMP
+        sta SV_CS,x
+        jsr drawcap
+@cb:
         ; --- stars ---
         lda BACK
         asl
@@ -2247,11 +2763,7 @@ status: ldy #4
         ldy #16
         lda LEVEL
         jsr hbcd
-        ldy #22
-        lda HISCORE+1
-        jsr hbcd
-        lda HISCORE
-        jmp hbcd
+        rts                      ; (cols 19-25: power-up slots, see pwhud)
 
 ; ---- level banner: "LEVEL N" XOR-drawn big (2x tall) on both pages ----
 banner: jsr bdraw
@@ -2758,8 +3270,9 @@ lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
 lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
 ; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21 L22 V23)
 ; "SC 0000 SPD0 LV00 HI 0000 " (cols 1-25), runs on into s_heat (cols 26-29)
-s_hstat:  .byte 18,10,17,0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,13,14,17,0,0,0,0
-s_heat:   .byte 13,12,20,21,$FF            ; HEAT
+s_hstat:  .byte 18,10,17,0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,17,17,17,17,17,17,17
+s_heat:   .byte 13,12,20,21,$FF            ; HEAT (s_hstat runs on into it)
+s_cool:   .byte 10,19,19,22,$FF            ; COOL
 s_hot:    .byte 13,19,21,17,$FF            ; HOT
 s_level:  .byte 22,12,23,12,22,17,$FF    ; "LEVEL "
 bitmask:  .byte $01,$02,$04,$08,$10,$20,$40
@@ -2773,6 +3286,26 @@ chlen:    .byte 90,70,60
 .macro BL f,ms
         .byte ms*f/500
 .endmacro
+.macro PN f,ms
+        .byte (500000/f-15)/5, ms*f/500
+.endmacro
+sn_pick:  PN 784,20                     ; pickup: rising G-D-G
+          PN 1175,20
+          PN 1568,40
+          .byte 0
+sn_break: PN 2000,15                    ; shield break: falling glass
+          PN 1200,20
+          PN 700,30
+          PN 400,40
+          .byte 0
+sn_down:  PN 660,30                     ; power-down blip
+          PN 440,40
+          .byte 0
+caplo:    .byte <cap_shield0,<cap_shield1,<cap_cool0,<cap_cool1,<cap_spread0,<cap_spread1
+caphi:    .byte >cap_shield0,>cap_shield1,>cap_cool0,>cap_cool1,>cap_spread0,>cap_spread1
+picon:    .byte 24,25,26                ; HUD icons: shield, snowflake, spread
+slotcol:  .byte 19,21,23                ; HUD slot icon cols (bar at +1)
+barw:     .byte $00,$01,$03,$07,$0F,$1F,$3F,$7F
 bnper:  BN 1047,15
         BN 1319,15
         BN 1568,15

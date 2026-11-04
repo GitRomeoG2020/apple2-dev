@@ -11,3 +11,4 @@ build/
 cfg/
 nvram/
 results.txt
+__pycache__/

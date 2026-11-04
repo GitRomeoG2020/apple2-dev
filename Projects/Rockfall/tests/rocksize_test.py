@@ -61,7 +61,8 @@ def model(pg,sv):
         for r in range(h):
             for b in range(w):
                 if 0<=y+r<152: e[y+r][col+b]^=d[r*w+b]
-    px=sv[0x2B0+pg]; x(SHIP[(px*2)%7],(px*2)//7,140,3,8)
+    px=sv[0x2B0+pg]
+    if not flymodel.shield(sv,pg): x(SHIP[(px*2)%7],(px*2)//7,140,3,8)
     for i in range(5):
         if sv[0x280+pg*8+i]: sp=sv[0x2D0+pg*8+i]; x(RSPR[sp],sv[0x290+pg*8+i],sv[0x2A0+pg*8+i],RW[sp],RH[sp])
     for i in range(36):

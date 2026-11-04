@@ -2,7 +2,8 @@
 
 Dodge the falling rocks. Self-booting disk, no DOS. Apple IIe or II+, 48K.
 
-Controls: Left/Right arrows or J / L to move, Space or A to fire the laser.
+Controls: Left/Right arrows or J / L to move, Space or A to fire the laser. Fly into a falling power-up
+capsule to collect it (SHIELD, COOL, SPREAD; see Power-ups below).
 On a IIe the ship stops when you let go of the key; on a II+ it glides a few frames.
 Game over: any key plays again, Esc goes back to the title.
 Laser heat: every shot heats the laser (HEAT bar, bottom right). Fire slowly and it stays cool; hold fire and it
@@ -14,7 +15,7 @@ brief LEVEL N banner (~1.5 s, rising chime), then play continues. HUD shows LV. 
 level (white, violet, green, repeating). Constants/variables at the top of rockfall.s; tests/level_test.py.
 Controls: left/right arrows or J/L move; space or A fires (heat permitting). IIe: ship moves while the key is
 held and stops on release ($C010 key-down bit). II+: a press moves ~16 frames, key repeats extend it ~6 frames each.
-High scores: top 5 (initials, score, level) on the title screen and after game over; HUD HI = #1. A qualifying
+High scores: top 5 (initials, score, level) on the title screen and after game over; the best score shows on the title screen (the HUD's old HI slot now shows active power-ups). A qualifying
 score asks for initials: type A-Z, or cycle with arrows/joystick; RETURN, space or button 0 confirms each letter.
 Table lives in its own page at $1B00 (5 x 8 bytes, "RF",1 at $1B28, check byte $1B2B: EOR $00-$2B = 0;
 defaults in src/hsdef.inc). It is saved on the disk at track 0, physical sector 15 (.dsk offset $0F00):
@@ -32,6 +33,22 @@ with the tracked disk/rockfall.dsk.
 ![Rockfall gameplay over the mountains landscape](screenshots/gameplay_mountains.png)
 
 *In game: level 1 over the mountains, with the parallax starfield, falling meteors and the HUD.*
+
+![A power-up capsule falling](screenshots/powerup_capsule.png)
+
+*A glowing SPREAD capsule falling: catch it with the ship before it reaches the ground.*
+
+![Shield bubble](screenshots/powerup_shield.png)
+
+*SHIELD: a dotted bubble around the ship absorbs one hit.*
+
+![Spread shot](screenshots/powerup_spread.png)
+
+*SPREAD: every shot fires three bolts.*
+
+![Stacked power-ups in the HUD](screenshots/powerup_hud.png)
+
+*All three power-ups active: icons with shrinking timer bars, packed side by side where HI used to be.*
 
 ## Files
 - src/rockfall.s    game source (ca65)
@@ -73,7 +90,7 @@ Or by hand, from the MAME folder:
 - Graphics: full-screen hi-res, double-buffered on HGR page 1 ($2000) and page 2 ($4000).
   Each frame is drawn on the hidden page, then $C054/$C055 flips it into view, so there is no flicker.
   For every page the game remembers what it last drew there (ship, rocks, bolt, stars at $1900-$1ABF);
-  next time it XOR-erases exactly that and draws the new state. The field is rows 0-159; SCORE / SPD / HI / HEAT
+  next time it XOR-erases exactly that and draws the new state. The field is rows 0-159; SCORE / SPD / LV / power-ups / HEAT
   are drawn on both pages at rows 172-176 with a small hi-res font (mixed text mode is off during play,
   because text page 2 at $0800 holds the resident loader). The game-over screen switches to page 1
   with the 4 text lines (text page 1 at $0400 is free). Sprites use XOR, so drawing the same thing again erases it. Rocks sit on byte columns. The ship
@@ -129,3 +146,21 @@ Spawn odds out of 16 (pebble/rock/boulder): L1 3/12/1, L2 4/10/2, L3 5/9/2, L4+ 
 once (MAXLG). Tables `rsize`/`rsmall`/`rlarge`/`rpts`... at the end of `rockfall.s`; sprites in
 `tools/gen_sprites.js`. Frame pacing (`fdelay`, FDBASE) subtracts each object's drawing cost so the game
 speed is the same whatever is on screen.
+
+## Power-ups
+A destroyed boulder drops a capsule about 1 in 3 times (DROPB=86/256), a shot-down flyer 1 in 2 (DROPF=128/256);
+one capsule at a time. Capsules (2 bytes x 9 rows, icon inside, blinking every 4 frames) fall 1 row per frame
+and vanish at the landscape line; touch one with the ship to collect it (pickup chime).
+
+| Power-up | Icon | Effect |
+|---|---|---|
+| SHIELD | shield | dotted bubble around the ship; absorbs one rock hit (the rock is destroyed, glass-break sound) |
+| COOL | snowflake | heat reset to 0 and shots add no heat; the gauge label reads COOL |
+| SPREAD | fan | each shot fires 3 bolts: centre + 10 px left and right; each bolt hits on its own |
+
+Each lasts PTIME=200 ticks of 2 frames (~10 s); collecting the same type again restarts its timer. The
+bubble blinks in the last ~1 s; expiry plays a two-note power-down blip. The level banner pauses the timers,
+a new game clears them. HUD: the active ones are packed left to right at byte cols 19/21/23 (3x5 icon + a
+7-px bar that shrinks with the timer), redrawn only when they change. Pacing: `fdelay` also subtracts the
+capsule (CCOST), each bolt in flight (LCOST centre, BCOST side) and the shield bubble (SCOST).
+tests/powerup_test.py covers drops, pickup, each effect, HUD stacking/expiry, refresh, banner pause, new game.

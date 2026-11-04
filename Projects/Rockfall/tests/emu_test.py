@@ -45,7 +45,7 @@ def expected(pg,sv):
         for r in range(h):
             for b in range(w): e[y+r][col+b]^=data[r*w+b]
     px=sv[0x2B0+pg]; k=(px*2)%7
-    x(peek(SL[k]|SH[k]<<8,24),(px*2)//7,140,3,8)
+    if not sv[0x2E0+pg]: x(peek(SL[k]|SH[k]<<8,24),(px*2)//7,140,3,8)
     for i in range(5):
         if sv[0x280+pg*8+i]: sp=sv[0x2D0+pg*8+i]; x(RSPR[sp],sv[0x290+pg*8+i],sv[0x2A0+pg*8+i],RW[sp],RH[sp])
     if sv[0x2B2+pg]:

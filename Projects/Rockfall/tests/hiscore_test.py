@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """High-score table test: boot disk/rockfall.dsk in bobbin-ai, check the default table at $1B00 and on the
-title screen, the HUD HI value, a qualifying game over (initials typed + arrow-cycled + RETURN, inserted in
-the right place), a new top score feeding the HUD HI, and a non-qualifying score skipping entry.
+title screen, the HISCORE value (HUD no longer shows HI), a qualifying game over (initials typed + arrow-cycled + RETURN, inserted in
+the right place), a new top score feeding HISCORE, and a non-qualifying score skipping entry.
 Saves PNGs of the initials entry screen and the table.  Usage: hiscore_test.py [enhanced|plus]"""
 import subprocess,time,os,sys,json,pty,re
 sys.path.insert(0,'/workspace/apple2/tests'); from sock import send
@@ -65,7 +65,7 @@ ok(tb==[('A2D','0250','04'),('ROM','0150','03'),('GRK','0100','02'),('HGR','0050
 wait_text('R O C K F A L L',35); time.sleep(0.3); sc=screen(); print('== title (score view of the attract loop) ==\n'+sc)
 ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and '2. ROM  0150  LV03' in sc and '5. SPK  0025  LV01' in sc,'table shown on the title screen')
 textpng(D+'/tests/hiscore_title_'+MACH+'.png')
-key(' '); time.sleep(1.5); h=hud(); print('HUD:',repr(h)); ok('HI 0250' in h,'HUD HI = top entry (0250)')
+key(' '); time.sleep(1.5); h=hud(); print('HUD:',repr(h)); ok(' HI ' not in h and list(peek(0x65,2))==[0x50,0x02],'HUD has no HI (power-up slots there); HISCORE = top entry (0250)')
 # --- qualifying: 175 at level 3 -> rank 2 (index 1) ---
 die(0x175,3); ok(wait_text('ENTER YOUR INITIALS'),'qualifying score -> initials entry'); time.sleep(0.3)
 print('RANK',peek(0xAD,1)[0]); ok(peek(0xAD,1)[0]==1,'rank 2 for 0175')
@@ -80,7 +80,7 @@ textpng(D+'/tests/hiscore_table_'+MACH+'.png')
 # --- new top score ---
 key('A',1.5); die(0x300,5); ok(wait_text('ENTER YOUR INITIALS'),'top score -> entry'); key('T'); key('O'); key('P')
 ok(wait_text('ANY KEY: PLAY AGAIN'),'entry done'); tb,_=table(); print('table:',tb); ok(tb[0]==('TOP','0300','05') and tb[1][0]=='A2D','new #1 inserted at top')
-key('A',1.5); h=hud(); print('HUD:',repr(h)); ok('HI 0300' in h,'HUD HI follows the new top entry')
+key('A',1.5); h=hud(); print('HUD:',repr(h)); ok(' HI ' not in h and list(peek(0x65,2))==[0x00,0x03],'HISCORE follows the new top entry (0300), HUD still without HI')
 # --- non-qualifying ---
 die(0x10); time.sleep(1); sc=screen(); print('== non-qualifying ==\n'+sc)
 ok('ENTER YOUR INITIALS' not in sc and 'ANY KEY: PLAY AGAIN' in sc and peek(0xAD,1)[0]==0xFF,'non-qualifying score skips entry')

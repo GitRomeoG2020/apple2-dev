@@ -18,6 +18,9 @@ Layout mirrors `C:\Users\rjguerrero\Projects\AppleII\`.
 ## Run Rockfall
 ![Rockfall title screen](Projects/Rockfall/screenshots/title.png)
 
+Features: 3 rock sizes, laser with heat, bonus flyers, 4 landscapes with levels, saved high scores, and
+power-ups (SHIELD, COOL, SPREAD) that stack in the HUD.
+
 More screenshots and details: [Projects/Rockfall/README.md](Projects/Rockfall/README.md).
 
 From `MAME\`:

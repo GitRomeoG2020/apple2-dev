@@ -172,3 +172,105 @@ boulder_cracked:
         .byte $7C,$6F,$1F   ; row 11
         .byte $70,$6F,$07   ; row 12
         .byte $00,$77,$00   ; row 13
+
+; a2sprite export: cap_shield0
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_SHIELD0_W = 2
+CAP_SHIELD0_H = 9
+
+cap_shield0:
+        .byte $7C,$1F   ; row 0
+        .byte $03,$60   ; row 1
+        .byte $71,$47   ; row 2
+        .byte $71,$47   ; row 3
+        .byte $71,$47   ; row 4
+        .byte $71,$47   ; row 5
+        .byte $41,$41   ; row 6
+        .byte $03,$60   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_shield1
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_SHIELD1_W = 2
+CAP_SHIELD1_H = 9
+
+cap_shield1:
+        .byte $7C,$1F   ; row 0
+        .byte $7F,$7F   ; row 1
+        .byte $0F,$78   ; row 2
+        .byte $0F,$78   ; row 3
+        .byte $0F,$78   ; row 4
+        .byte $0F,$78   ; row 5
+        .byte $3F,$7E   ; row 6
+        .byte $7F,$7F   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_cool0
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_COOL0_W = 2
+CAP_COOL0_H = 9
+
+cap_cool0:
+        .byte $7C,$1F   ; row 0
+        .byte $03,$60   ; row 1
+        .byte $31,$46   ; row 2
+        .byte $41,$41   ; row 3
+        .byte $71,$47   ; row 4
+        .byte $41,$41   ; row 5
+        .byte $31,$46   ; row 6
+        .byte $03,$60   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_cool1
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_COOL1_W = 2
+CAP_COOL1_H = 9
+
+cap_cool1:
+        .byte $7C,$1F   ; row 0
+        .byte $7F,$7F   ; row 1
+        .byte $4F,$79   ; row 2
+        .byte $3F,$7E   ; row 3
+        .byte $0F,$78   ; row 4
+        .byte $3F,$7E   ; row 5
+        .byte $4F,$79   ; row 6
+        .byte $7F,$7F   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_spread0
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_SPREAD0_W = 2
+CAP_SPREAD0_H = 9
+
+cap_spread0:
+        .byte $7C,$1F   ; row 0
+        .byte $03,$60   ; row 1
+        .byte $31,$46   ; row 2
+        .byte $71,$47   ; row 3
+        .byte $41,$41   ; row 4
+        .byte $41,$41   ; row 5
+        .byte $41,$41   ; row 6
+        .byte $03,$60   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_spread1
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_SPREAD1_W = 2
+CAP_SPREAD1_H = 9
+
+cap_spread1:
+        .byte $7C,$1F   ; row 0
+        .byte $7F,$7F   ; row 1
+        .byte $4F,$79   ; row 2
+        .byte $0F,$78   ; row 3
+        .byte $3F,$7E   ; row 4
+        .byte $3F,$7E   ; row 5
+        .byte $3F,$7E   ; row 6
+        .byte $7F,$7F   ; row 7
+        .byte $7C,$1F   ; row 8
