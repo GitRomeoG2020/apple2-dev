@@ -28,6 +28,7 @@ PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
 HOLDNEW = 16             ; II+ (no key-down flag): frames a fresh arrow press moves
 HOLDREP = 6              ; II+: frames per auto-repeat of the same arrow (~150 ms)
 FRAMEDLY= $2F            ; WAIT value per frame (~6 ms; rendering takes the rest)
+FLYDLY  = $22            ; WAIT while a bonus flyer is up (~3.2k cycles shorter)
 
 ; ---- zero page ----
 SRC     = $50            ; blit source ptr
@@ -100,6 +101,42 @@ LLEN    = 12             ; bolt length (rows) = rows moved per frame
 SROW    = 186            ; status line (hi-res font) top row
 LANDY   = 152            ; landscape strip top row (LANDH rows, from land.inc)
 LANDN   = $B2            ; current landscape 0..NLAND-1 (cycles each level)
+
+; ---- bonus flyer (comet / satellite) -- tweak here ----
+; One at a time, rows FMINY..FMINY+31, FLYSPD 2-px units per frame (~4 px/frame, ~2 s to cross).
+; FX = screen x/2 + 14 (0 = fully off the left edge, FXEND = fully off the right edge).
+; Next one FTMIN + 0..510 frames (~10-23 s at ~40 fps) after the last one spawned.
+; Hit: comet 50, satellite 100 points; burst then the points shown for PTLEN frames.
+FLYSPD  = 2
+FXEND   = 154
+FMINY   = 8
+FTMIN   = 400
+PTLEN   = 40
+PTBURST = 32             ; PT >= PTBURST: explosion burst, below: points
+FON     = $B3            ; flyer active
+FX      = $B4
+FY      = $B5            ; top row
+FDIR    = $B6            ; 0 = moving right, 1 = left
+FTYPE   = $B7            ; 0 comet, 1 satellite
+FTL     = $B8            ; frames until the next flyer (16 bit)
+FTH     = $B9
+PK      = $BA            ; popup kind: 0 none, 1 burst, 2 points
+PCL     = $BB            ; popup byte column
+PY      = $BC            ; popup row
+PV      = $BD            ; popup value: 0 = 50, 1 = 100
+PT      = $BE            ; popup timer
+BEXT    = $BF            ; clipped blit: sign extension of BCOL
+CCOL    = $C0
+FS      = $C1            ; sprite: 0 comet right, 1 comet left, 2/3 satellite (beacon on/off)
+DPV     = $C2
+SV_FON  = $1AC0          ; per-page copies (index page)
+SV_FS   = $1AC2
+SV_FX   = $1AC4
+SV_FY   = $1AC6
+SV_PK   = $1AC8
+SV_PC   = $1ACA
+SV_PY   = $1ACC
+SV_PV   = $1ACE
 
 ; ---- laser heat (Parsec-style overheat) -- tweak here ----
 ; HEAT rises by HEATSHOT per shot and falls by 1 every HEATCOOL frames (every
@@ -267,6 +304,11 @@ newgame:
         dex
         bpl @ri
         jsr initstars
+        lda #0
+        sta FON
+        sta PK
+        sta PT
+        jsr settimer
         lda #66
         sta PX
         ldy #1                   ; status labels, both pages
@@ -283,6 +325,7 @@ loop:   jsr input
         jsr moveship
         jsr rocks
         jsr heatcool
+        jsr flyer
         jsr laser
         jsr stars
         jsr collide
@@ -295,8 +338,11 @@ loop:   jsr input
         beq @nolv
         jsr banner
 @nolv:
-        lda #FRAMEDLY
-        jsr WAIT
+        lda #FRAMEDLY            ; a flyer costs ~3.2k cycles/frame to erase+draw:
+        ldx FON                  ; wait that much less so the game speed stays the same
+        beq @dl
+        lda #FLYDLY
+@dl:    jsr WAIT
         jmp loop
 
 gameover:
@@ -1050,7 +1096,10 @@ heatbar:
         rts
 
 ; bolt vs rocks: rows overlap and bolt x inside the rock's 7 units
-hits:   ldx #NROCKS-1
+hits:   jsr flyhit
+        bcc @go
+        rts
+@go:    ldx #NROCKS-1
 @lp:    lda RON,x
         beq @nx
         lda RY,x
@@ -1104,6 +1153,273 @@ collide:
         rts
 @next:  dex
         bpl @lp
+        rts
+
+; ================= bonus flyer =================
+flyer:  lda PT                   ; popup: burst, then points, then gone
+        beq @f
+        dec PT
+        bne @pk
+        lda #0
+        sta PK
+        beq @f
+@pk:    lda PT
+        cmp #PTBURST
+        lda #1
+        bcs @k
+        lda #2
+@k:     sta PK
+@f:     lda FON
+        bne @mv
+        lda FTL                  ; count down to the next one
+        bne @d
+        lda FTH
+        beq @spawn
+        dec FTH
+@d:     dec FTL
+        rts
+@spawn: jsr rand
+        and #1
+        sta FTYPE
+        jsr rand
+        and #1
+        sta FDIR
+        jsr rand
+        and #31
+        cmp #25
+        bcc @y
+        sbc #16
+@y:     clc
+        adc #FMINY               ; rows 8..32 (+7 tall)
+        sta FY
+        lda #0
+        ldx FDIR
+        beq @x
+        lda #FXEND
+@x:     sta FX
+        lda #1
+        sta FON
+        jsr settimer
+        jmp @spr
+@mv:    lda FDIR
+        bne @lt
+        lda FX
+        clc
+        adc #FLYSPD
+        sta FX
+        cmp #FXEND
+        bcc @spr
+        bcs @off
+@lt:    lda FX
+        sec
+        sbc #FLYSPD
+        sta FX
+        beq @off
+        bcs @spr
+@off:   lda #0                   ; left the screen
+        sta FON
+        rts
+@spr:   lda FTYPE
+        beq @c
+        lda FRAME                ; satellite beacon blinks every 8 frames
+        lsr
+        lsr
+        lsr
+        and #1
+        ora #2
+        bne @s
+@c:     lda FDIR
+@s:     sta FS
+        rts
+
+; frames until the next flyer: FTMIN + 2*rand
+settimer:
+        jsr rand
+        sta FTL
+        lda #0
+        sta FTH
+        asl FTL
+        rol FTH
+        lda FTL
+        clc
+        adc #<FTMIN
+        sta FTL
+        lda FTH
+        adc #>FTMIN
+        sta FTH
+        rts
+
+; bolt vs flyer; C=1 if hit (flyer gone, bonus scored)
+flyhit: lda FON
+        beq @no
+        lda FY
+        clc
+        adc #FLYH-1
+        cmp LY                   ; flyer bottom >= bolt top
+        bcc @no
+        lda LY
+        clc
+        adc #LLEN-1
+        cmp FY                   ; bolt bottom >= flyer top
+        bcc @no
+        lda LX2                  ; bolt x - flyer left, 2-px units
+        clc
+        adc #14
+        sec
+        sbc FX
+        bcc @no
+        cmp #11
+        bcs @no
+        lda #0
+        sta FON
+        sta LON
+        lda FY
+        sta PY
+        ldx FX
+        lda pdiv7,x
+        sec
+        sbc #4
+        bpl @c0
+        lda #0
+@c0:    cmp #37
+        bcc @c1
+        lda #36
+@c1:    sta PCL
+        lda FTYPE
+        sta PV
+        lda #PTLEN
+        sta PT
+        lda #1
+        sta PK
+        jsr bonus
+        lda #$50
+        jsr addpts
+        lda PV
+        beq @y
+        lda #$50
+        jsr addpts
+@y:     sec
+        rts
+@no:    clc
+        rts
+
+; XOR flyer sprite A (FS) at FX = X, row Y on page PGEOR, clipped at both edges
+drawfly:
+        sty BY
+        asl
+        asl
+        asl
+        sta TMP
+        lda pmod7,x
+        clc
+        adc TMP
+        tay
+        lda flyspr_lo,y
+        sta SRC
+        lda flyspr_hi,y
+        sta SRC+1
+        lda pdiv7,x
+        sec
+        sbc #4
+        sta BCOL
+        lda #FLYW
+        sta BW
+        lda #FLYH
+        sta BH
+; XOR blit like blit, but BCOL may be negative/past 39: off-screen bytes skipped
+fblit:  lda #0
+        ldx BCOL
+        bpl @p
+        lda #$FF
+@p:     sta BEXT
+        ldx BY
+@row:   lda hgrlo,x
+        clc
+        adc BCOL
+        sta DST
+        lda hgrhi,x
+        eor PGEOR
+        adc BEXT
+        sta DST+1
+        lda BCOL
+        sta CCOL
+        ldy #0
+@b:     lda CCOL
+        cmp #40
+        bcs @s
+        lda (DST),y
+        eor (SRC),y
+        sta (DST),y
+@s:     inc CCOL
+        iny
+        cpy BW
+        bne @b
+        lda SRC
+        clc
+        adc BW
+        sta SRC
+        bcc @nc
+        inc SRC+1
+@nc:    inx
+        dec BH
+        bne @row
+        rts
+
+; XOR popup kind A (1 burst, 2 points DPV) at byte col X, row Y on page PGEOR
+drawpop:
+        sty BY
+        stx BCOL
+        cmp #1
+        bne @dig
+        lda #<burst
+        sta SRC
+        lda #>burst
+        sta SRC+1
+        lda #3
+        sta BW
+        lda #7
+        sta BH
+        jmp blit
+@dig:   iny
+        sty PR
+        stx PC
+        lda DPV
+        beq @50
+        lda #1
+        jsr xglyph
+        lda #0
+        jsr xglyph
+        lda #0
+        jmp xglyph
+@50:    lda #5
+        jsr xglyph
+        lda #0
+; XOR status-font glyph A at col PC, rows PR..PR+4, page PGEOR; PC++
+xglyph: sta TMP
+        asl
+        asl
+        adc TMP
+        tax
+        lda PR
+        sta DLY
+@r:     ldy DLY
+        lda hgrlo,y
+        sta DST
+        lda hgrhi,y
+        eor PGEOR
+        sta DST+1
+        ldy PC
+        lda (DST),y
+        eor font,x
+        sta (DST),y
+        inx
+        inc DLY
+        lda DLY
+        sec
+        sbc PR
+        cmp #5
+        bne @r
+        inc PC
         rts
 
 ; ================= starfield =================
@@ -1273,6 +1589,64 @@ render: ldx BACK
         jsr drawrock
 @r2:    dec CNT
         bpl @rk
+        ; --- bonus flyer ---
+        ldx BACK
+        lda VALID
+        beq @fa
+        lda SV_FON,x
+        beq @fa
+        ldy SV_FY,x
+        lda SV_FS,x
+        pha
+        lda SV_FX,x
+        tax
+        pla
+        jsr drawfly
+@fa:    ldx BACK
+        lda FON
+        sta SV_FON,x
+        beq @fb
+        lda FS
+        sta SV_FS,x
+        lda FX
+        sta SV_FX,x
+        lda FY
+        sta SV_FY,x
+        ldy FY
+        ldx FX
+        lda FS
+        jsr drawfly
+@fb:    ; --- hit popup ---
+        ldx BACK
+        lda VALID
+        beq @pa
+        lda SV_PK,x
+        beq @pa
+        lda SV_PV,x
+        sta DPV
+        lda SV_PK,x
+        pha
+        ldy SV_PY,x
+        lda SV_PC,x
+        tax
+        pla
+        jsr drawpop
+@pa:    ldx BACK
+        lda PK
+        sta SV_PK,x
+        beq @pb
+        lda PV
+        sta SV_PV,x
+        sta DPV
+        lda PCL
+        sta SV_PC,x
+        lda PY
+        sta SV_PY,x
+        ldy PY
+        ldx PCL
+        lda PK
+        jsr drawpop
+@pb:
         ; --- stars ---
         lda BACK
         asl
@@ -1871,6 +2245,26 @@ crackle:
         tax
         rts
 
+; bonus: fast rising arpeggio C6-E6-G6-C7-E7-G7-C8 + C7-G7-C8 trill, ~130 ms
+bonus:  lda #<SPKR
+        sta tog
+        ldy #0
+@n:     lda bnper,y
+        beq @x
+        sta PER
+        lda bnlen,y
+        sta DURL
+        lda #0
+        sta DURH
+        tya
+        pha
+        jsr tone
+        pla
+        tay
+        iny
+        bne @n
+@x:     rts
+
 ; overheat warning: two-tone buzz hi/lo/hi/lo, ~1 kHz / ~600 Hz, ~32 ms
 OVHHI   = 96
 OVHLO   = 165
@@ -1984,13 +2378,40 @@ fill7:    .byte $00,$01,$03,$07,$0F,$1F,$3F
 ovhper:   .byte OVHLO,OVHHI
 chper:    .byte 60,80,100                 ; chime (played last to first)
 chlen:    .byte 90,70,60
+.macro BN f,ms
+        .byte (500000/f-15)/5
+.endmacro
+.macro BL f,ms
+        .byte ms*f/500
+.endmacro
+bnper:  BN 1047,15
+        BN 1319,15
+        BN 1568,15
+        BN 2093,15
+        BN 2637,15
+        BN 3136,15
+        BN 4186,15
+        BN 2093,10
+        BN 3136,10
+        BN 4186,20
+        .byte 0
+bnlen:  BL 1047,15
+        BL 1319,15
+        BL 1568,15
+        BL 2093,15
+        BL 2637,15
+        BL 3136,15
+        BL 4186,15
+        BL 2093,10
+        BL 3136,10
+        BL 4186,20
 ovhlen:   .byte 10,14                      ; half-cycles: lo ~8.5 ms, hi ~7.3 ms
 
 ; ship position tables: index = x in 2-pixel units
-pdiv7:  .repeat PXMAX+4, I
+pdiv7:  .repeat 160, I
         .byte (I*2)/7
         .endrep
-pmod7:  .repeat PXMAX+4, I
+pmod7:  .repeat 160, I
         .byte (I*2) .mod 7
         .endrep
 ; rock left edge in 2-pixel units per byte column
@@ -2013,3 +2434,4 @@ texthi: .repeat 24, R
         .include "font.s"
         .include "sprites.s"
         .include "land.inc"
+        .include "flyer.inc"

@@ -2,6 +2,7 @@
 """Boot disk/rockfall.dsk in bobbin-ai, drive it over the control socket, check both HGR pages,
 page flipping, laser, collision and restart.  Usage: emu_test.py [enhanced|plus]"""
 import subprocess,time,os,sys,json,pty,re
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0,'/workspace/apple2/tests'); from sock import send
 MACH=sys.argv[1] if len(sys.argv)>1 else 'enhanced'
 D=os.path.dirname(os.path.abspath(__file__))+'/..'; SOCK='/tmp/rf_'+MACH+'.sock'
@@ -58,6 +59,7 @@ def expected2(pg,sv):
     if sv[0x2BC+pg]:
         for i in range(NST):
             j=pg*64+i; e[sv[0x200+j]][sv[0x100+j]]^=sv[0x180+j]
+        import flymodel; flymodel.apply(e,sv,pg,FONTB)
     return e
 def check1():
     q({'cmd':'pause'})
@@ -78,8 +80,9 @@ def check(tag,tries=8):
     return len(res[0])+len(res[1]),pgs
 def key(c): q({'cmd':'keys','text':c}); time.sleep(0.05)
 SL=SH=RK=None
+FONTB=None
 time.sleep(6)
-SL,SH,RK=peek(A_SLO,7),peek(A_SHI,7),peek(A_ROCK,16)
+SL,SH,RK=peek(A_SLO,7),peek(A_SHI,7),peek(A_ROCK,16); FONTB=peek(A_FONT,24*5)
 print('== title screen ==\n'+'\n'.join(q({'cmd':'screen'})['lines']))
 key(' '); time.sleep(1.5)
 z=zp(); print('after start:',z)
