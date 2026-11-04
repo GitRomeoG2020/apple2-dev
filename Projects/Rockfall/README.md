@@ -164,3 +164,20 @@ a new game clears them. HUD: the active ones are packed left to right at byte co
 7-px bar that shrinks with the timer), redrawn only when they change. Pacing: `fdelay` also subtracts the
 capsule (CCOST), each bolt in flight (LCOST centre, BCOST side) and the shield bubble (SCOST).
 tests/powerup_test.py covers drops, pickup, each effect, HUD stacking/expiry, refresh, banner pause, new game.
+
+## Title music
+The title plays a dark two-voice track on the stock speaker ($C030, 1-bit): D minor with a Phrygian
+flat-2 (Eb), about 86 BPM. A 2-bar "doom" intro (a low D drone with a creeping Eb) plays once, then a
+12-bar loop (about 30 s) repeats seamlessly: a pulsing low bass ostinato (root, root, octave, root,
+root, fifth, octave, root/flat-2) under a slow lead melody with vibrato. Progression:
+Dm Dm Eb Dm | Bb Gm A A | Dm Eb Bb A.
+
+How it works (`music` in src/rockfall.s): each voice is a 16-bit phase accumulator and every carry
+toggles the speaker, so the two square waves are XOR-mixed. The loop is exactly 63 cycles per
+iteration on every path, so pitch is exact (f = 1020484/63 x inc / 131072). The title's `tick`
+plays 176 iterations (about 11 ms, the length of the old wait) instead of calling WAIT. Between
+segments the sequencer advances, the vibrato steps, the stars and streaks animate and the keyboard
+is polled, so a key starts the game within about one tick and the music stops.
+The song is a note/duration table written by `tools/gen_music.py` (into src/music.inc).
+`tools/render_music.py [out.wav]` renders a WAV preview by simulating the speaker at the real cycle
+timings. tests/music_test.py checks the toggles, the alternation, the loop wrap and the key response.

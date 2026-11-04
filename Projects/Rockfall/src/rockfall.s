@@ -187,6 +187,18 @@ SV_PC   = $1ACA
 SV_PY   = $1ACC
 SV_PV   = $1ACE
 
+; ---- title music (two-voice 1-bit player, see `music`) ----
+MA1     = $10            ; lead accumulator (16-bit)
+MI1     = $12            ; lead increment (with vibrato)
+MA2     = $14            ; bass accumulator
+MI2     = $16            ; bass increment
+MP1     = $18            ; lead stream pointer
+MP2     = $1A            ; bass stream pointer
+MC1     = $1C            ; lead ticks left in event
+MC2     = $1D            ; bass ticks left
+MB1     = $1E            ; lead base increment
+MVIB    = $0F            ; vibrato phase 0..11
+MUSON   = $0E            ; 1 = tick plays music
 ; ---- title / attract mode -- tweak here ----
 ; Art view (hi-res page 1, mixed: text rows 20-23) for ARTT ticks, then the text score view
 ; for SCORET ticks, repeat. One tick = WAIT TICKW (~11 ms) + animation.
@@ -294,7 +306,7 @@ title:  lda #0
         sta MTIM
         jsr artview
         bit KBDSTRB
-        jsr intro                ; play tune over the art
+        jsr musinit              ; dark title music (plays inside tick)
 @art:   jsr artview
         lda #<ARTT
         sta TCL
@@ -316,16 +328,30 @@ title:  lda #0
         jsr tdec
         bne @sl
         jmp @art
-@go:    bit KBDSTRB
+@go:    lda #0
+        sta MUSON                ; music stops on game start
+        bit KBDSTRB
         jmp newgame
 
 ; one tick: wait, stir the RNG; C=1 if a key is waiting
 tick:   inc SEED
         bne @s
         inc SEED
-@s:     lda #TICKW
+@s:     lda MUSON
+        beq @w
+        txa                      ; keep X/Y like WAIT did
+        pha
+        tya
+        pha
+        jsr music                ; ~11 ms of two-voice music instead of the wait
+        pla
+        tay
+        pla
+        tax
+        jmp @k
+@w:     lda #TICKW
         jsr WAIT
-        lda KBD
+@k:     lda KBD
         asl
         rts
 ; TC-- ; Z=1 when it reaches 0
@@ -3063,34 +3089,151 @@ tog = tonelp + 1                 ; operand low byte (self-modified for rests)
         bne tonelp
         rts
 
-intro:  ldy #0
-@nt:    lda tune,y
-        beq @end
-        ldx #<SPKR
-        cmp #1
-        bne @s2
-        ldx #<KBD                ; rest: read keyboard instead of speaker
-        lda #200
-@s2:    sta PER
-        txa
-        sta tog
-        lda tune+1,y
-        sta DURL
-        lda tune+2,y
-        sta DURH
-        tya
-        pha
-        jsr tone
-        pla
-        tay
-        iny
-        iny
-        iny
-        jmp @nt
-@end:   lda #<SPKR
-        sta tog
-        rts
 
+; ================= title music =================
+; Two 1-bit voices on the speaker. Each voice is a 16-bit phase accumulator; every carry
+; toggles $C030, so the two square waves are XOR-mixed. One loop iteration is exactly
+; 63 cycles whatever happens (both branch paths of a voice are 9 cycles), so the pitch
+; is exact: f = 1020484/63 * inc / 131072. One call = MSEGN iterations (~11 ms, the old
+; tick wait), then the sequencer advances one tick: that's where the title animation
+; and keyboard poll run, between segments.
+musinit:
+        lda #<mlead
+        sta MP1
+        lda #>mlead
+        sta MP1+1
+        lda #<mbass
+        sta MP2
+        lda #>mbass
+        sta MP2+1
+        lda #1
+        sta MC1
+        sta MC2
+        sta MUSON
+        lda #0
+        sta MI1
+        sta MI1+1
+        sta MI2
+        sta MI2+1
+        sta MVIB
+        rts
+music:  ldy #MSEGN
+mloop:  clc                      ; 2   lead
+        lda MA1                  ; 3
+        adc MI1                  ; 3
+        sta MA1                  ; 3
+        lda MA1+1                ; 3
+        adc MI1+1                ; 3
+        sta MA1+1                ; 3
+        bcc @n1                  ; 2/3
+        bit SPKR                 ; 4
+        bcs @v2                  ; 3
+@n1:    nop                      ; 6
+        nop
+        nop
+@v2:    clc                      ; 2   bass
+        lda MA2                  ; 3
+        adc MI2                  ; 3
+        sta MA2                  ; 3
+        lda MA2+1                ; 3
+        adc MI2+1                ; 3
+        sta MA2+1                ; 3
+        bcc @n2                  ; 2/3
+        bit SPKR                 ; 4
+        bcs @nx                  ; 3
+@n2:    nop
+        nop
+        nop
+@nx:    dey                      ; 2
+        bne mloop                ; 3   = 63 cycles
+mlend:
+.assert >mloop = >mlend, error, "music loop crosses a page"
+        dec MC1                  ; sequencer: lead
+        bne @l1
+        jsr mnext1
+@l1:    dec MC2                  ; bass
+        bne @vb
+        jsr mnext2
+@vb:    ldx MVIB                 ; vibrato: base, +d, base, -d (3 ticks each)
+        inx
+        cpx #4*MVIBS
+        bcc @vs
+        ldx #0
+@vs:    stx MVIB
+        lda MB1+1                ; d = base/128
+        sta MI1+1
+        lda MB1
+        sta MI1
+        asl
+        lda MB1+1
+        rol
+        cpx #MVIBS
+        bcc @vx
+        cpx #2*MVIBS
+        bcc @vp
+        cpx #3*MVIBS
+        bcc @vx
+        eor #$FF                 ; -d
+        sec
+        adc MI1
+        sta MI1
+        bcs @vx
+        dec MI1+1
+        rts
+@vp:    clc
+        adc MI1
+        sta MI1
+        bcc @vx
+        inc MI1+1
+@vx:    rts
+mnext1: ldy #0
+        lda (MP1),y
+        cmp #$FF
+        bne @a
+        lda #<mleadl
+        sta MP1
+        lda #>mleadl
+        sta MP1+1
+        jmp mnext1
+@a:     tax
+        iny
+        lda (MP1),y
+        sta MC1
+        lda minclo,x
+        sta MB1
+        lda minchi,x
+        sta MB1+1
+        lda MP1
+        clc
+        adc #2
+        sta MP1
+        bcc @r
+        inc MP1+1
+@r:     rts
+mnext2: ldy #0
+        lda (MP2),y
+        cmp #$FF
+        bne @a
+        lda #<mbassl
+        sta MP2
+        lda #>mbassl
+        sta MP2+1
+        jmp mnext2
+@a:     tax
+        iny
+        lda (MP2),y
+        sta MC2
+        lda minclo,x
+        sta MI2
+        lda minchi,x
+        sta MI2+1
+        lda MP2
+        clc
+        adc #2
+        sta MP2
+        bcc @r
+        inc MP2+1
+@r:     rts
 ; ---------------------------------------------------------------
 ; pew: laser fire sound, descending sweep ~3.5 kHz -> ~700 Hz, ~28 ms.
 ; All timing at 1.023 MHz.  One half-period (speaker toggle to toggle):
@@ -3228,20 +3371,6 @@ crash:  lda #<SPKR
         .byte 1
         .word ms                  ; ~1 ms per half-cycle at PER=200
 .endmacro
-tune:   NOTE 523,110
-        NOTE 659,110
-        NOTE 784,110
-        NOTE 1047,220
-        REST 60
-        NOTE 784,110
-        NOTE 1047,330
-        REST 120
-        NOTE 880,110
-        NOTE 784,110
-        NOTE 659,110
-        NOTE 523,330
-        .byte 0
-
 s_title:  .byte "R O C K F A L L",0
 s_sub:    .byte "DODGE THE FALLING METEORS!",0
 s_twist:  .byte "THEY'RE NOT ROCKS. THEY'RE METEORS!",0
@@ -3373,3 +3502,4 @@ texthi: .repeat 24, R
         .include "land.inc"
         .include "flyer.inc"
         .include "title.inc"
+        .include "music.inc"
