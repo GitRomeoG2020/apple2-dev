@@ -16,10 +16,14 @@ Layout mirrors `C:\Users\rjguerrero\Projects\AppleII\`.
 - **AppleCommander** in `Tools\AppleCommander\` and a **JDK/JRE** (`Tools\jre\`) to build disk images.
 
 ## Run Rockfall
+![Rockfall title screen](Projects/Rockfall/screenshots/title.png)
+
+More screenshots and details: [Projects/Rockfall/README.md](Projects/Rockfall/README.md).
+
 From `MAME\`:
 ```
 .\mame.exe apple2e -flop1 ..\Projects\Rockfall\disk\rockfall.dsk -window
 ```
 Rebuild: `cd Projects\Rockfall; .\build.ps1 -Run` (you may need `Unblock-File .\build.ps1`).
 
-Note: `disk/rockfall.dsk` is not stored in this repo (binary). Run `build.ps1` to create it, or use the copy from the release zip.
+A ready-to-boot `disk/rockfall.dsk` is included; `build.ps1` rebuilds it.

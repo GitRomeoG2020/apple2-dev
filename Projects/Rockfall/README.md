@@ -24,6 +24,15 @@ failed writes show a message and keep the scores in memory. Rebuilding the disk 
 MAME: the .dsk must be writable. Play a copy (e.g. Disks\rockfall-play.dsk) so git pull doesn't conflict
 with the tracked disk/rockfall.dsk.
 
+## Screenshots
+![Rockfall title screen](screenshots/title.png)
+
+*Title screen: the "rocks" are really meteors falling from space.*
+
+![Rockfall gameplay over the mountains landscape](screenshots/gameplay_mountains.png)
+
+*In game: level 1 over the mountains, with the parallax starfield, falling meteors and the HUD.*
+
 ## Files
 - src/rockfall.s    game source (ca65)
 - src/font.s       tiny 3x5 hi-res font for the status line, made by tools/gen_font.py
