@@ -112,6 +112,9 @@ HISCORE = $65            ; 2 bytes BCD
 DEAD    = $67
 LIVES   = $4E            ; ships left incl. the one in play (HUD col 17)
 NLIVES  = 3              ; ships per game
+DEMO    = $6B            ; 1 = attract demo (AI play, no high-score save)
+DAIF    = $6C            ; demo: frames until the next fire tap
+DTHRT   = $6D            ; demo: chosen rock index ($FF = none)
 PER     = $68            ; sound period
 DURL    = $69
 DURH    = $6A
@@ -214,7 +217,8 @@ MVIB    = $0F            ; vibrato phase 0..11
 MUSON   = $0E            ; 1 = tick plays music
 ; ---- title / attract mode -- tweak here ----
 ; Art view (hi-res page 1, mixed: text rows 20-23) for ARTT ticks, then the text score view
-; for SCORET ticks, repeat. One tick = WAIT TICKW (~11 ms) + animation.
+; for SCORET ticks. After one idle pass with no key, enter DEMO (AI play). One tick = WAIT
+; TICKW (~11 ms) + animation.
 ARTT    = 1300           ; art view ticks, ~15 s
 SCORET  = 450            ; ~5 s
 TICKW   = $40
@@ -304,6 +308,7 @@ boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
 
 ; ================= title screen (attract mode) =================
 title:  lda #0
+        sta DEMO
         sta MON
         sta RLEPG                ; title art -> HGR page 1 only
         lda #<titleart
@@ -340,9 +345,22 @@ title:  lda #0
         bcs @go
         jsr tdec
         bne @sl
-        jmp @art
+        jmp demogame             ; one idle art+score pass -> demo
 @go:    lda #0
+        sta DEMO                 ; real game
         sta MUSON                ; music stops on game start
+        bit KBDSTRB
+        jmp newgame
+
+; attract demo: same game loop, AI drives the ship; any key starts a real game;
+; a death returns to the title (no high-score save).
+demogame:
+        lda #1
+        sta DEMO
+        lda #20
+        sta DAIF
+        lda #0
+        sta MUSON
         bit KBDSTRB
         jmp newgame
 
@@ -670,7 +688,12 @@ loselife:
         jsr render
         jsr flip
         jsr crash
-        dec LIVES
+        lda DEMO
+        beq @pl
+        ldx #$FF                 ; demo death: back to title, no score save
+        txs
+        jmp title
+@pl:    dec LIVES
         jsr status
         lda LIVES
         bne @re
@@ -715,7 +738,12 @@ loselife:
         rts
 
 gameover:
-        lda #0
+        lda DEMO
+        beq @real
+        ldx #$FF
+        txs
+        jmp title                ; never save demo scores
+@real:  lda #0
         sta SAVERR
         jsr hsinsert             ; RANK, HILITE; table updated (initials AAA)
         jsr sethi
@@ -1110,7 +1138,18 @@ letptr: pha
         rts
 
 ; ================= input =================
-input:  lda KBD
+input:  lda DEMO
+        beq @hum
+        lda KBD                  ; any key ends demo and starts a real game
+        bpl @dai
+        bit KBDSTRB
+        lda #0
+        sta DEMO
+        ldx #$FF
+        txs
+        jmp newgame
+@dai:   jmp demoai
+@hum:   lda KBD
         bmi @key
         lda ISIIE
         beq @plus
@@ -1169,6 +1208,79 @@ input:  lda KBD
 @h:     sta DIR
         stx HOLD
         rts
+
+; demo AI: move away from the lowest active rock (highest RY), tap fire on a cooldown
+; while heat allows. Capsules/boss use the same rock slots (boss RSIZE=4).
+demoai: lda #0
+        sta DIR
+        sta FIRE
+        lda #$FF
+        sta DTHRT
+        lda #0
+        sta TMP                  ; best RY
+        ldx #NROCKS-1
+@scan:  lda RON,x
+        beq @sn
+        lda RY,x
+        cmp #24                  ; ignore rocks still high up
+        bcc @sn
+        ldy DTHRT
+        bpl @cmp
+        stx DTHRT
+        sta TMP
+        bne @sn
+@cmp:   cmp TMP
+        bcc @sn
+        stx DTHRT
+        sta TMP
+@sn:    dex
+        bpl @scan
+        ldx DTHRT
+        bmi @fire
+        ldy RCOL,x
+        lda rockx2,y             ; left edge in 2-px units
+        ldy RSIZE,x
+        cpy #4
+        bne @w
+        clc                      ; boss: aim at mid (~9 units in)
+        adc #9
+        jmp @ctr
+@w:     clc
+        adc rcoli,y
+        sta CNT
+        lda rcolw,y
+        lsr
+        clc
+        adc CNT                  ; approx centre
+@ctr:   sta CNT
+        lda PX
+        clc
+        adc #3                   ; ship centre
+        cmp CNT
+        beq @fire
+        bcc @left                ; ship left of rock -> dodge left
+        lda #2
+        bne @set
+@left:  lda #1
+@set:   sta DIR
+@fire:  lda OVH
+        bne @out
+        lda LON
+        ora SON
+        ora SON+1
+        bne @out
+        lda HEAT
+        cmp #HEATMAX-HEATSHOT
+        bcs @out
+        lda DAIF
+        beq @shot
+        dec DAIF
+        rts
+@shot:  lda #28                  ; ~0.7 s between taps
+        sta DAIF
+        lda #1
+        sta FIRE
+@out:   rts
 
 moveship:
         lda DIR
@@ -3106,7 +3218,31 @@ status: ldy #1
         ldy #17
         lda LIVES
         jsr hchar
-        rts                      ; (cols 19-25: power-up slots, see pwhud)
+        lda DEMO                 ; show DEMO in the power-up columns (attract)
+        beq @nd
+        lda FRAME
+        and #16                  ; blink
+        beq @db
+        ldy #19
+        lda #11                  ; D
+        jsr hchar
+        lda #12                  ; E
+        jsr hchar
+        lda #28                  ; M
+        jsr hchar
+        lda #19                  ; O
+        jsr hchar
+        rts
+@db:    ldy #19                  ; blank while blinked off
+        lda #17
+        jsr hchar
+        lda #17
+        jsr hchar
+        lda #17
+        jsr hchar
+        lda #17
+        jsr hchar
+@nd:    rts                      ; (cols 19-25: power-up slots, see pwhud)
 
 ; ---- level banner: "LEVEL N" XOR-drawn big (2x tall) on both pages ----
 banner: jsr bdraw
@@ -3714,7 +3850,7 @@ starmask: .byte $03,$06,$0C,$18,$30,$60
 pgeor:    .byte $00,$60
 lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
 lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
-; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21 L22 V23)
+; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21 L22 V23, M28)
 ; "0000 SPD0 LV00 ^3 " (cols 1-18; ^ = ship glyph 27, then lives), blanks to col 25, runs on into s_heat (cols 26-29)
 s_hstat:  .byte 0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,27,3,17,17,17,17,17,17,17,17
 s_heat:   .byte 13,12,20,21,$FF            ; HEAT (s_hstat runs on into it)

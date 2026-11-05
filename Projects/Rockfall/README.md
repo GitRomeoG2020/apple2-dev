@@ -6,6 +6,9 @@ Controls: Left/Right arrows or J / L to move, Space or A to fire the laser. Fly 
 capsule to collect it (SHIELD, COOL, SPREAD; see Power-ups below).
 On a IIe the ship stops when you let go of the key; on a II+ it glides a few frames.
 Game over: any key plays again, Esc goes back to the title.
+Demo: after one idle pass of the title art and high-score screen, an attract demo plays with a simple
+AI that dodges and taps fire (DEMO blinks on the HUD). Any key starts a real game; a death returns to the
+title without saving scores.
 Laser heat: every shot heats the laser (HEAT bar, bottom right). Fire slowly and it stays cool; hold fire and it
 overheats on the 6th shot: a warning buzz, the label turns to HOT, the bar blinks, and the laser is locked for ~1.2 s
 until it has cooled all the way down.

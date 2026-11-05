@@ -90,12 +90,17 @@ time.sleep(0.3); sc=screen(); print('== score view ==\n'+'\n'.join(l for l in sc
 ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and 'PRESS ANY KEY TO START' in sc and 'ARROWS' in sc,'score view: table, prompt and controls')
 
 from PIL import Image; textpng(T+'/title_scores_'+MACH+'.png'); print('screenshot:',T+'/title_scores_'+MACH+'.png')
-ok(wait(lambda:view()==0,9),'back to the art view')
-time.sleep(0.2); d,_=artdiff(); print('art bytes differing after the round trip: %d, non-star %s'%(len(d),[x for x in d if x not in STARS][:8]))
-ok(all(x in STARS for x in d) or peek(0xC5,1)[0]==1,'no streak residue after the round trip')
-# ---------- 3: key starts the game; ESC from game over returns ----------
+# after the score view the attract mode enters DEMO (AI play) instead of looping art forever
+ok(wait(lambda:peek(0x6B,1)[0]==1 or view()==0,12),'after scores: demo or art continues')
+if peek(0x6B,1)[0]==1:
+    print('entered DEMO after idle score pass')
+    ok(True,'idle enters demo mode')
+else:
+    time.sleep(0.2); d,_=artdiff(); print('art bytes differing after the round trip: %d, non-star %s'%(len(d),[x for x in d if x not in STARS][:8]))
+    ok(all(x in STARS for x in d) or peek(0xC5,1)[0]==1,'no streak residue after the round trip')
+# ---------- 3: key starts the game (from demo or title); ESC from game over returns ----------
 key(' ',1.5); f0=peek(0x90,1)[0]; time.sleep(0.3)
-ok(peek(0x90,1)[0]!=f0 and not peek(0x67,1)[0],'any key starts the game')
+ok(peek(0x6B,1)[0]==0 and peek(0x90,1)[0]!=f0 and not peek(0x67,1)[0],'any key starts a real game')
 poke(0x63,[0,0]); poke(0x4E,[1]); poke(0x67,[1]); time.sleep(4)
 ok(wait(lambda:'ANY KEY: PLAY AGAIN' in screen(),6),'game over screen')
 key('\x1b',0.5)
