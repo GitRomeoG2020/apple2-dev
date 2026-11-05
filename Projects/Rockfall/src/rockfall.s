@@ -1209,8 +1209,19 @@ input:  lda DEMO
         stx HOLD
         rts
 
-; demo AI: move away from the lowest active rock (highest RY), tap fire on a cooldown
-; while heat allows. Capsules/boss use the same rock slots (boss RSIZE=4).
+; demo AI (attract). Each frame:
+;  1. DODGE: the lowest rock below DDANG whose hit span (+DMARG each side) overlaps
+;     the ship -> step toward the nearer clear side (falls back to the other side
+;     at a wall, so it never parks against an edge).
+;  2. else HUNT: line the nose up under the lowest rock still up in the field.
+;  3. else WANDER: drift to a random x, re-picked every ~1.5 s.
+;  FIRE: tap when any rock is in the nose lane, heat kept below the overheat line.
+DDANG   = 80                     ; rocks with RY >= this are dodge threats
+DMARG   = 4                      ; 2-px units of margin around a threat
+DFIRE   = 7                      ; frames between demo fire taps
+DTGT    = $6E                    ; demo: wander target PX
+DWT     = $6F                    ; demo: wander re-pick timer
+TMP2    = $4D                    ; demo: threat span right edge
 demoai: lda #0
         sta DIR
         sta FIRE
@@ -1222,65 +1233,162 @@ demoai: lda #0
 @scan:  lda RON,x
         beq @sn
         lda RY,x
-        cmp #24                  ; ignore rocks still high up
+        cmp #DDANG
         bcc @sn
-        ldy DTHRT
-        bpl @cmp
-        stx DTHRT
-        sta TMP
-        bne @sn
-@cmp:   cmp TMP
+        jsr dspan                ; CNT = left, TMP2 = right (exclusive)
+        lda PX
+        clc
+        adc #7
+        cmp CNT                  ; ship right <= left -> clear
         bcc @sn
-        stx DTHRT
+        beq @sn
+        lda PX
+        cmp TMP2                 ; ship left >= right -> clear
+        bcs @sn
+        lda RY,x
+        cmp TMP
+        bcc @sn
         sta TMP
+        stx DTHRT
 @sn:    dex
         bpl @scan
         ldx DTHRT
-        bmi @fire
+        bmi @hunt
+; --- dodge: left target = CNT-7 (if CNT>=7), right target = TMP2 (if <= PXMAX)
+        jsr dspan
+        lda TMP2
+        cmp #PXMAX+1
+        bcs @goL                 ; no room right
+        lda CNT
+        cmp #7
+        bcc @goR                 ; no room left
+        sec
+        sbc #7
+        sta CNT                  ; left target
+        lda PX
+        sec
+        sbc CNT                  ; cost left
+        sta DTHRT
+        lda TMP2
+        sec
+        sbc PX                   ; cost right
+        cmp DTHRT
+        bcc @goR
+@goL:   lda #1
+        bne @mv
+@goR:   lda #2
+@mv:    sta DIR
+        jmp @fire
+; --- hunt: lowest rock above the danger line
+@hunt:  lda #$FF
+        sta DTHRT
+        lda #0
+        sta TMP
+        ldx #NROCKS-1
+@h1:    lda RON,x
+        beq @h2
+        lda RY,x
+        cmp TMP
+        bcc @h2
+        sta TMP
+        stx DTHRT
+@h2:    dex
+        bpl @h1
+        ldx DTHRT
+        bmi @wand
         ldy RCOL,x
-        lda rockx2,y             ; left edge in 2-px units
-        ldy RSIZE,x
-        cpy #4
-        bne @w
-        clc                      ; boss: aim at mid (~9 units in)
-        adc #9
-        jmp @ctr
-@w:     clc
-        adc rcoli,y
-        sta CNT
-        lda rcolw,y
+        lda RSIZE,x
+        tax
+        lda rhitw,x
         lsr
         clc
-        adc CNT                  ; approx centre
-@ctr:   sta CNT
-        lda PX
-        clc
-        adc #3                   ; ship centre
-        cmp CNT
+        adc rockx2,y             ; rock centre
+        sec
+        sbc #3                   ; PX that puts the nose there
+        bcs @tg
+        lda #0
+@tg:    cmp #PXMAX+1
+        bcc @seek
+        lda #PXMAX
+        bne @seek
+; --- wander
+@wand:  lda DWT
+        bne @wd
+        jsr rand
+        and #$7F
+        sta DTGT
+        lda #60
+        sta DWT
+        bne @wv
+@wd:    dec DWT
+@wv:    lda DTGT
+@seek:  sec
+        sbc PX
         beq @fire
-        bcc @left                ; ship left of rock -> dodge left
+        bcs @sr                  ; target right of ship
+        cmp #$FF
+        beq @fire                ; within 1: hold
+        lda #1
+        bne @sd
+@sr:    cmp #2
+        bcc @fire
         lda #2
-        bne @set
-@left:  lda #1
-@set:   sta DIR
-@fire:  lda OVH
-        bne @out
-        lda LON
-        ora SON
-        ora SON+1
-        bne @out
-        lda HEAT
-        cmp #HEATMAX-HEATSHOT
-        bcs @out
-        lda DAIF
-        beq @shot
+@sd:    sta DIR
+; --- fire when something is in the nose lane
+@fire:  lda DAIF
+        beq @f0
         dec DAIF
         rts
-@shot:  lda #28                  ; ~0.7 s between taps
+@f0:    lda OVH
+        bne @out
+        lda LON
+        bne @out
+        lda HEAT
+        cmp #HEATMAX-HEATSHOT-4
+        bcs @out
+        lda PX
+        clc
+        adc #3
+        sta HX
+        ldx #NROCKS-1
+@fl:    lda RON,x
+        beq @fn
+        lda RY,x
+        cmp #PLAYY-4
+        bcs @fn
+        ldy RCOL,x
+        lda HX
+        sec
+        sbc rockx2,y
+        bcc @fn
+        ldy RSIZE,x
+        cmp rhitw,y
+        bcc @shot
+@fn:    dex
+        bpl @fl
+@out:   rts
+@shot:  lda #DFIRE
         sta DAIF
         lda #1
         sta FIRE
-@out:   rts
+        rts
+
+; rock X hit span for the demo: CNT = left-DMARG (clamped 0), TMP2 = left+w+DMARG
+dspan:  ldy RCOL,x
+        lda rockx2,y
+        sta TMP2
+        sec
+        sbc #DMARG
+        bcs @l
+        lda #0
+@l:     sta CNT
+        ldy RSIZE,x
+        lda rhitw,y
+        clc
+        adc #DMARG
+        adc TMP2
+        sta TMP2
+        rts
 
 moveship:
         lda DIR
