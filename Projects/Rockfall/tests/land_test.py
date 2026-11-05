@@ -67,8 +67,8 @@ time.sleep(6); key(' '); time.sleep(1.5)
 z,pg=snap(); print('new game:',z)
 ok(z['LEVEL']==1 and z['LANDN']==0 and which(strip(pg[0]))==0 and which(strip(pg[1]))==0,'level 1 shows landscape 0 (%s) on both pages'%NAMES[0])
 png(pg[1-z['BACK']],D+'/tests/land_0_%s_%s.png'%(NAMES[0].lower(),MACH))
-# --- force level-ups: 6 levels -> landscapes 1,2,3,0,1,2 ---
-for n in range(2,8):
+# --- force level-ups: levels 2..NLAND+2 -> landscapes 1..NLAND-1,0,1 ---
+for n in range(2,len(LAND)+3):
     for attempt in range(6):
         alive(); norocks(); z0=st()
         if z0['LEVEL']!=n-1:     # died earlier -> new game is level 1: jump the counter

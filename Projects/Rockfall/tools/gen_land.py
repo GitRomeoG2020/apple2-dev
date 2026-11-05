@@ -93,7 +93,66 @@ def desert(c):
             c.rect(px, yy, px + half, yy + 1, 'o')
     c.rect(0, H - 2, W, H, 'o')
 
-LANDS = [('MOUNTAINS', mountains), ('CITY', city), ('MOON', moon), ('DESERT', desert)]
+def forest(c):
+    import random
+    r = random.Random(11)
+    for x in range(W):                                                    # rolling hill
+        c.col(x, H - (5 + wave(x, (2, 83, 0.5), (1, 29, 1.9))), 'g')
+    x = 2
+    while x < W:                                                          # pine trees
+        h = r.randint(12, 26); half = h // 3
+        base = H - 4
+        c.rect(x - 1, base - 3, x + 1, base, 'o')                         # trunk
+        for y in range(h):
+            w2 = int((y + 1) * half / h) + (1 if y % 5 == 4 else 0)
+            c.rect(x - w2, base - 3 - h + y, x + w2 + 1, base - 2 - h + y, 'g')
+        x += r.randint(10, 18)
+    c.rect(0, H - 2, W, H, 'g')
+
+def towers(c):
+    for x in range(W):                                                    # hills behind
+        c.col(x, H - (8 + wave(x, (3, 67, 1.1))), 'v')
+    for tx, tw, th in ((30, 22, 26), (110, 30, 30), (195, 18, 22), (250, 24, 27)):
+        c.rect(tx, H - th, tx + tw, H, 'w')                               # castle tower
+        for bx in range(tx, tx + tw, 6): c.rect(bx, H - th - 3, bx + 3, H - th, 'w')   # battlements
+        for wy in range(H - th + 5, H - 6, 7): c.rect(tx + tw // 2 - 1, wy, tx + tw // 2 + 1, wy + 3, 'k')
+        c.rect(tx + tw // 2 - 3, H - 7, tx + tw // 2 + 3, H, 'k')         # gate
+    c.rect(52, H - 14, 110, H, 'v'); c.rect(140, H - 12, 195, H, 'v'); c.rect(213, H - 10, 250, H, 'v')  # walls
+    c.rect(0, H - 2, W, H, 'g')
+
+def crater(c):
+    for x in range(W):
+        d = abs(x - 140) / 140.0
+        rim = 6 + 20 * math.exp(-((d - 0.62) / 0.16) ** 2) + wave(x, (1.5, 13, 0.4))
+        c.col(x, H - rim, 'o')
+        if 0.35 < d < 0.8: c.col(x, H - rim, 'w', int(H - rim + 2))       # sunlit lip
+    for x in range(70, 211):                                              # glowing crater floor
+        d = abs(x - 140) / 70.0
+        c.col(x, H - 5 + int(2 * d), 'v', H - 2 + int(d))
+    c.rect(0, H - 2, W, H, 'o')
+
+def harbor(c):
+    for x in range(W):                                                    # water
+        c.col(x, H - 7, 'b')
+        if (x // 6 + x // 23) % 3 == 0: c.set(x, H - 7, 'w'); c.set(x + 3, H - 4, 'w')
+    for x in range(W):                                                    # suspension bridge cables
+        sag = 14 * (1 - ((x % 140) - 70) ** 2 / 4900.0)
+        c.set(x, int(H - 26 + sag), 'w'); c.set(x, int(H - 25 + sag), 'w')
+    for px in (0, 140, 279):
+        c.rect(max(0, px - 3), H - 28, min(W, px + 4), H - 7, 'o')        # pylons
+    c.rect(0, H - 12, W, H - 10, 'o')                                     # deck
+    for hx in range(5, W, 10):                                            # hangers
+        sag = 14 * (1 - ((hx % 140) - 70) ** 2 / 4900.0)
+        c.col(hx, int(H - 25 + sag), 'w', H - 12)
+    c.ascii(60, H - 7 - 4, """
+...ww...
+oooooooo
+.oooooo.
+""", sx=2)                                                                 # a boat
+    c.rect(0, H - 2, W, H, 'b')
+
+LANDS = [('MOUNTAINS', mountains), ('CITY', city), ('MOON', moon), ('DESERT', desert),
+         ('FOREST', forest), ('TOWERS', towers), ('CRATER', crater), ('HARBOR', harbor)]
 
 # ---------------- encoding ----------------
 def encode(c):
