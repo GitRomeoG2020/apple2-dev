@@ -29,10 +29,6 @@ PLAYY   = 140            ; top row of ship (field is rows 0-151, landscape 152-1
 RSIZE   = $D0            ; NROCKS bytes each
 RHP     = $D8            ; hits left
 RSUB    = $E0            ; half-row speed remainder
-DRSTEP  = 3              ; split pebbles: columns of sideways drift
-DRMASK  = 3              ; ... one column every DRMASK+1 frames
-rdx     = $18A0          ; NROCKS: drift steps left (0 = falls straight)
-rdr     = $18A8          ; NROCKS: drift direction 0 right, 1 left
 BCNT    = $D5            ; boss: levels since the last boss
 BOSS    = $D6            ; boss: 0 none, 1 pending (field clearing), 2 in play (rock slot 0, RSIZE 4)
 BTIM    = $D7            ; boss: frames until it sheds a pebble
@@ -605,7 +601,6 @@ newgame:
         ldx #NROCKS-1
 @ri:    lda #0
         sta RON,x
-        sta rdx,x
         txa
         asl
         asl
@@ -1270,7 +1265,6 @@ rocks:  lda BOSS
         sta RHP,x
         lda #0
         sta RSUB,x
-        sta rdx,x
         jsr rand                 ; random byte column that fits
 @m:     cmp rncol,y
         bcc @ok
@@ -1285,13 +1279,6 @@ rocks:  lda BOSS
 @move:  ldy RSIZE,x              ; speed in half-rows: 3/2/1 x SPEED
         cpy #4
         beq @next                ; the boss moves itself
-        lda rdx,x                ; split debris drifting sideways?
-        beq @nd
-        lda FRAME
-        and #DRMASK
-        bne @nd
-        jsr drift
-@nd:
         lda SPEED
         cpy #2
         beq @v
@@ -1410,7 +1397,6 @@ boss:   cmp #2
         lda #0
         sta RSIZE,x
         sta RSUB,x
-        sta rdx,x
         lda #1
         sta RHP,x
         sta RON,x
@@ -1464,7 +1450,6 @@ bosskill:
 killrock:
         lda #0
         sta RON,x
-        sta rdx,x
         jsr rand
         and #31
         clc
@@ -1873,9 +1858,6 @@ split:  cpy #1
         lda #1
         sta RHP,x
         sta RON,x
-        sta rdr,x                ; drifts left
-        lda #DRSTEP
-        sta rdx,x
         ldx #NROCKS-1            ; find a free slot for the right pebble
 @f:     lda RON,x
         beq @g
@@ -1899,29 +1881,11 @@ split:  cpy #1
         sta RSUB,x
         sta RHP,x
         sta RON,x
-        lda #0
-        sta rdr,x                ; drifts right
-        lda #DRSTEP
-        sta rdx,x
 @d:     pla
         tax
         pla
         tay
         rts
-
-; split pebble X: one column sideways (rdr: 0 right, 1 left), clamped to the screen
-drift:  dec rdx,x
-        lda rdr,x
-        bne @l
-        lda RCOL,x
-        cmp #40-PEBBLE_W
-        bcs @x
-        inc RCOL,x
-        rts
-@l:     lda RCOL,x
-        beq @x
-        dec RCOL,x
-@x:     rts
 
 ; boulder explosion: two crackles and a low thud (~35 ms; keeps X)
 bigboom:
@@ -3384,8 +3348,6 @@ tog = tonelp + 1                 ; operand low byte (self-modified for rests)
         bne tonelp
         rts
 
-
-        .res 12,0                ; pad: keeps the 63-cycle music loop inside one page (see assert)
 
 ; ================= title music =================
 ; Two 1-bit voices on the speaker. Each voice is a 16-bit phase accumulator; every carry
