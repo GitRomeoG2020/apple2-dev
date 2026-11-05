@@ -199,6 +199,10 @@ iteration on every path, so pitch is exact (f = 1020484/63 x inc / 131072). The 
 plays 176 iterations (about 11 ms, the length of the old wait) instead of calling WAIT. Between
 segments the sequencer advances, the vibrato steps, the stars and streaks animate and the keyboard
 is polled, so a key starts the game within about one tick and the music stops.
+Press **M** on the title (art or high-score screen) to mute or unmute; the preference sticks for the
+session (`MMUTE` in zero page). The hint shows `M: MUSIC ON` or `M: MUSIC OFF`. Demo/attract keeps
+music off while playing and restores the preference when it returns to the title.
 The song is a note/duration table written by `tools/gen_music.py` (into src/music.inc).
 `tools/render_music.py [out.wav]` renders a WAV preview by simulating the speaker at the real cycle
-timings. tests/music_test.py checks the toggles, the alternation, the loop wrap and the key response.
+timings. tests/music_test.py checks the toggles, the mute key, the alternation, the loop wrap and
+the key response.

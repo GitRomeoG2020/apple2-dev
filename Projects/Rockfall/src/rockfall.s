@@ -215,6 +215,7 @@ MC2     = $1D            ; bass ticks left
 MB1     = $1E            ; lead base increment
 MVIB    = $0F            ; vibrato phase 0..11
 MUSON   = $0E            ; 1 = tick plays music
+MMUTE   = $0D            ; 1 = title music muted (session preference)
 ; ---- title / attract mode -- tweak here ----
 ; Art view (hi-res page 1, mixed: text rows 20-23) for ARTT ticks, then the text score view
 ; for SCORET ticks. After one idle pass with no key, enter DEMO (AI play). One tick = WAIT
@@ -301,6 +302,7 @@ boot:   lda $C088,x              ; X = slot*16 from the loader: motor off
         sta SEED
         lda #0
         sta ISIIE
+        sta MMUTE                ; music on until player mutes
         lda MACHID
         cmp #$06
         bne title
@@ -331,8 +333,11 @@ title:  lda #0
         lda #>ARTT
         sta TCH
 @al:    jsr tick
+        bcc @an
+        jsr muskey               ; M toggles mute; other keys start
+        bcc @al
         bcs @go
-        jsr animate
+@an:    jsr animate
         jsr tdec
         bne @al
         jsr mclear
@@ -342,8 +347,11 @@ title:  lda #0
         lda #>SCORET
         sta TCH
 @sl:    jsr tick
+        bcc @sd
+        jsr muskey
+        bcc @sl
         bcs @go
-        jsr tdec
+@sd:    jsr tdec
         bne @sl
         jmp demogame             ; one idle art+score pass -> demo
 @go:    lda #0
@@ -410,6 +418,7 @@ artview:
         ldx #21
         ldy #3
         jsr print
+        jsr mushint              ; M: MUSIC ON/OFF at row 22 col 0
         jsr setstr2
         .addr s_best
         ldx #22
@@ -485,6 +494,7 @@ scoreview:
         ldx #11
         ldy #11
         jsr print
+        jsr mushint              ; M: MUSIC ON/OFF
         jsr setstr2
         .addr s_press
         ldx #14
@@ -3658,6 +3668,42 @@ tog = tonelp + 1                 ; operand low byte (self-modified for rests)
 ; is exact: f = 1020484/63 * inc / 131072. One call = MSEGN iterations (~11 ms, the old
 ; tick wait), then the sequencer advances one tick: that's where the title animation
 ; and keyboard poll run, between segments.
+;
+; Title key: M toggles MMUTE (session). C=0 after toggle (stay on title); C=1 = start game.
+muskey: lda KBD
+        and #$7F
+        cmp #'M'
+        beq @tg
+        cmp #'m'
+        beq @tg
+        sec
+        rts
+@tg:    lda MMUTE
+        eor #1
+        sta MMUTE
+        eor #1                   ; MUSON = !MMUTE
+        sta MUSON
+        bit KBDSTRB
+        jsr mushint
+        clc
+        rts
+; print "M: MUSIC ON/OFF" — art view row 22 col 0; score view row 12 col 9
+mushint:
+        lda MMUTE
+        bne @of
+        jsr setstr2
+        .addr s_muson
+        jmp @pr
+@of:    jsr setstr2
+        .addr s_musoff
+@pr:    lda TVIEW
+        bne @sc
+        ldx #22
+        ldy #0
+        jmp print
+@sc:    ldx #12
+        ldy #9
+        jmp print
 musinit:
         lda #<mlead
         sta MP1
@@ -3670,6 +3716,8 @@ musinit:
         lda #1
         sta MC1
         sta MC2
+        lda MMUTE                ; respect session mute
+        eor #1
         sta MUSON
         lda #0
         sta MI1
@@ -3940,6 +3988,8 @@ s_best:   .byte "BEST:",0
 s_keys:   .byte "ARROWS OR J / L TO MOVE",0
 s_fire:   .byte "SPACE OR A TO FIRE",0
 s_press:  .byte "PRESS ANY KEY TO START",0
+s_muson:  .byte "M: MUSIC ON ",0
+s_musoff: .byte "M: MUSIC OFF",0
 s_hshdr:  .byte "HIGH SCORES",0
 s_saving: .byte "SAVING...",0
 s_wprot:  .byte "DISK WRITE PROTECTED - NOT SAVED",0

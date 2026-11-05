@@ -71,7 +71,7 @@ time.sleep(2.5); d,pg=artdiff(); sc=text()
 print('art bytes differing from gen_title output: %d (stars %d)'%(len(d),sum(1 for x in d if x in STARS)))
 ok(all(x in STARS or x[0]<75 for x in d),'art matches gen_title output except twinkling stars / streak area')
 print('text window:\n'+'\n'.join(sc[20:24]))
-ok("THEY'RE METEORS" in sc[20] and 'MOVE' in sc[21] and 'FIRE' in sc[21] and 'BEST:' in sc[22] and 'PRESS ANY KEY TO START' in sc[23],'text window: tagline, controls, best score, prompt')
+ok("THEY'RE METEORS" in sc[20] and 'MOVE' in sc[21] and 'FIRE' in sc[21] and 'BEST:' in sc[22] and 'MUSIC ON' in sc[22] and 'PRESS ANY KEY TO START' in sc[23],'text window: tagline, controls, best score, music hint, prompt')
 fl=peek(TL(23),40); ok(all(0x40<=b<0x80 for b in fl if b!=0xA0),'prompt flashes')
 artpng(pg,T+'/title_art_'+MACH+'.png')
 # animation: sample for 6 s, collect changed bytes
@@ -87,7 +87,7 @@ ok(streak,'a meteor streak animates')
 # ---------- 2: alternation ----------
 ok(wait(lambda:view()==1,24),'switches to the score view')
 time.sleep(0.3); sc=screen(); print('== score view ==\n'+'\n'.join(l for l in sc.split('\n') if l.strip()))
-ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and 'PRESS ANY KEY TO START' in sc and 'ARROWS' in sc,'score view: table, prompt and controls')
+ok('HIGH SCORES' in sc and '1. A2D  0250  LV04' in sc and 'PRESS ANY KEY TO START' in sc and 'ARROWS' in sc and 'MUSIC ON' in sc,'score view: table, prompt, controls, music hint')
 
 from PIL import Image; textpng(T+'/title_scores_'+MACH+'.png'); print('screenshot:',T+'/title_scores_'+MACH+'.png')
 # after the score view the attract mode enters DEMO (AI play) instead of looping art forever
