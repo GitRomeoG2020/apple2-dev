@@ -1,7 +1,7 @@
 # Box build (Linux). On Windows use build.ps1.
 BIN=/workspace/apple2/bin
 all: disk/rockfall.dsk
-build/rockfall.bin: src/boot.s src/rockfall.s src/sprites.s src/font.s src/land.inc src/flyer.inc src/title.inc src/music.inc src/rockfall.cfg
+build/rockfall.bin: src/boot.s src/rockfall.s src/sprites.s src/font.s src/land.inc src/flyer.inc src/title.inc src/music.inc src/boss.inc src/rockfall.cfg
 	cd src && $(BIN)/ca65 rockfall.s -o ../build/rockfall.o -l ../build/rockfall.lst
 	cd src && $(BIN)/ca65 boot.s -o ../build/boot.o -l ../build/boot.lst
 	$(BIN)/ld65 -C src/rockfall.cfg build/boot.o build/rockfall.o -o $@ -m build/rockfall.map
