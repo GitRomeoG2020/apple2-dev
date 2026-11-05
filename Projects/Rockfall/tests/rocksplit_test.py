@@ -4,6 +4,7 @@
  - the pebbles score +3 each when shot and never split;
  - a LARGE boulder still needs 2 hits, gives +15 and leaves no pebbles;
  - with the rock table full, a medium split gives just one pebble (no overrun), game keeps running;
+ - the split pebbles drift apart sideways a few columns;
  - pages stay exact after a split.  Usage: rocksplit_test.py [enhanced|plus]"""
 import subprocess,time,os,sys,json,pty,re,shutil
 sys.path.insert(0,'/workspace/apple2/tests'); from sock import send
@@ -123,6 +124,13 @@ ok(z['SCORE']-sc0==5,'medium hit +5')
 ok(len(P)==2 and 0 in P,'medium splits into 2 pebbles')
 ok(len(P)==2 and z['RCOL'][P[0]]!=z['RCOL'][P[1]],'pebbles separated')
 n,z2,sv,pgs=exact(); ok(n==0,'pages exact after split')
+# debris drift: the two pebbles move apart sideways while falling, then stop drifting
+d0=abs(z['RCOL'][P[0]]-z['RCOL'][P[1]]) if len(P)==2 else 0
+time.sleep(0.5); z3=st(); P3=peb(z3)
+d1=abs(z3['RCOL'][P3[0]]-z3['RCOL'][P3[1]]) if len(P3)==2 else -1
+dx=peek(0x18A0,5)
+print('drift: separation %d -> %d cols, steps left %s'%(d0,d1,list(dx)))
+ok(len(P3)==2 and d1>d0 and d1<=d0+6,'split pebbles drift apart (slightly)')
 # shoot a pebble: +3, no split
 q({'cmd':'pause'}); z=st(); P=peb(z); i=P[0]; c=z['RCOL'][i]; y=z['RY'][i]; sc0=z['SCORE']
 poke(0x88,[1 if j==i else 0 for j in range(5)]); bolt(y+6+3,(c*7)//2+1); q({'cmd':'resume'}); time.sleep(0.12); z=st()
