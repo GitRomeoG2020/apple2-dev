@@ -166,7 +166,7 @@ def shoot(size,hp=None,col=None):
     z,sv,pgs=snap(); return sc0,z,sv,pgs
 for size in (0,1):
     sc0,z,_,_=shoot(size); print('%s hit: score %d -> %d, RON %d'%(NAMES[size],sc0,z['SCORE'],z['RON'][0]))
-    ok(z['SCORE']-sc0==PTS[size] and not (z['RON'][0] and z['RY'][0]>=60),'%s: one hit, +%d'%(NAMES[size],PTS[size]))
+    ok(z['SCORE']-sc0==PTS[size] and not (z['RON'][0] and z['RSIZE'][0]==size and z['RY'][0]>=60),'%s: one hit, +%d'%(NAMES[size],PTS[size]))
 sc0,z,sv,pgs=shoot(2); time.sleep(0.05); z2,sv2,pgs2=snap()
 print('boulder 1st hit: score %d -> %d, RON %d RHP %d, sprite drawn on pages %s'%(sc0,z2['SCORE'],z2['RON'][0],z2['RHP'][0],[sv2[0x2D0],sv2[0x2D8]]))
 ok(z2['SCORE']==sc0 and z2['RON'][0] and z2['RHP'][0]==1 and 3 in (sv2[0x2D0],sv2[0x2D8]),'boulder survives the 1st hit, cracked sprite, no points')

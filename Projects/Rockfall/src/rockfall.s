@@ -1599,6 +1599,7 @@ hit1:   jsr flyhit
 @kill:  jsr killrock
         cpy #2
         beq @big
+        jsr split                ; medium: two pebbles (keeps X, Y)
         lda rpts,y
         pha
         jsr crackle
@@ -1636,6 +1637,61 @@ hit1:   jsr flyhit
         bmi @mz
         jmp @lp
 @mz:    clc
+        rts
+
+; medium rock X just killed: pebble in slot X at col-1, second pebble at col+2 / row+2 in a
+; free slot (silently skipped if none is free). Keeps X and Y.
+split:  cpy #1
+        beq @s
+        rts
+@s:     tya
+        pha
+        txa
+        pha
+        lda RCOL,x
+        sta DCL
+        lda RY,x
+        sta DRW
+        lda DCL                  ; slot X: left pebble
+        beq @l
+        sec
+        sbc #1
+@l:     sta RCOL,x
+        lda DRW
+        sta RY,x
+        lda #0
+        sta RSIZE,x
+        sta RSUB,x
+        lda #1
+        sta RHP,x
+        sta RON,x
+        ldx #NROCKS-1            ; find a free slot for the right pebble
+@f:     lda RON,x
+        beq @g
+        dex
+        bpl @f
+        bmi @d                   ; table full: drop it
+@g:     lda DCL
+        clc
+        adc #2
+        cmp #40
+        bcc @r
+        lda #39
+@r:     sta RCOL,x
+        lda DRW
+        clc
+        adc #2
+        sta RY,x
+        lda #0
+        sta RSIZE,x
+        lda #1
+        sta RSUB,x
+        sta RHP,x
+        sta RON,x
+@d:     pla
+        tax
+        pla
+        tay
         rts
 
 ; boulder explosion: two crackles and a low thud (~35 ms; keeps X)
