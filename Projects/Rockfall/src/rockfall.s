@@ -57,11 +57,12 @@ CFALL   = 2              ; capsule fall speed, rows/frame (was 1)
 CAPH    = 9              ; capsule sprite rows (2 bytes wide)
 DROPB   = 86             ; boulder drop chance /256 (~1 in 3)
 DROPF   = 128            ; flyer hit drop chance /256 (1 in 2)
+DROP1   = 16             ; of those drops, 1-up chance /256 (~1 in 16)
 PUT     = $E8            ; 3 timers: 0 shield, 1 cool, 2 spread (0 = off)
 CON     = $EB            ; capsule falling
 KCOL    = $EC            ; capsule byte column
 CY      = $ED            ; capsule top row
-CTYPE   = $EE            ; capsule type 0..2
+CTYPE   = $EE            ; capsule type 0..3 (3 = 1-up)
 SON     = $EF            ; side bolts on (2: left, right)
 SX      = $F1            ; side bolt x (2-px units)
 SCB     = $F3            ; side bolt byte column
@@ -112,6 +113,7 @@ HISCORE = $65            ; 2 bytes BCD
 DEAD    = $67
 LIVES   = $4E            ; ships left incl. the one in play (HUD col 17)
 NLIVES  = 3              ; ships per game
+MAXL    = 5              ; 1-up cap (single HUD digit)
 DEMO    = $6B            ; 1 = attract demo (AI play, no high-score save)
 DAIF    = $6C            ; demo: frames until the next fire tap
 DTHRT   = $6D            ; demo: chosen rock index ($FF = none)
@@ -2302,10 +2304,15 @@ trydrop:
         bcs @no
         sta CY
 @t:     jsr rand
+        cmp #DROP1               ; rare 1-up (~1 in 16 capsules)
+        bcs @n1
+        lda #3
+        bne @set                 ; always
+@n1:    jsr rand
         and #3
         cmp #3
-        beq @t
-        sta CTYPE
+        beq @n1
+@set:   sta CTYPE
         lda #1
         sta CON
 @no:    rts
@@ -2348,6 +2355,8 @@ capsule:
         lda #0                   ; collected
         sta CON
         ldx CTYPE
+        cpx #3
+        beq @1up                 ; 1-up is instant, not a timer
         lda #PTIME               ; new or refreshed: full timer
         sta PUT,x
         cpx #1
@@ -2359,6 +2368,12 @@ capsule:
         sta LASTBAR
         jsr coollbl
 @s:     jmp pickup
+@1up:   lda LIVES
+        cmp #MAXL
+        bcs @s                   ; already at cap: still play pickup
+        inc LIVES
+        jsr status
+        jmp pickup
 @r:     rts
 
 ; once per frame: timers tick every 2nd frame (~10 s), then the HUD slots
@@ -4041,8 +4056,8 @@ sn_break: PN 2000,15                    ; shield break: falling glass
 sn_down:  PN 660,30                     ; power-down blip
           PN 440,40
           .byte 0
-caplo:    .byte <cap_shield0,<cap_shield1,<cap_cool0,<cap_cool1,<cap_spread0,<cap_spread1
-caphi:    .byte >cap_shield0,>cap_shield1,>cap_cool0,>cap_cool1,>cap_spread0,>cap_spread1
+caplo:    .byte <cap_shield0,<cap_shield1,<cap_cool0,<cap_cool1,<cap_spread0,<cap_spread1,<cap_oneup0,<cap_oneup1
+caphi:    .byte >cap_shield0,>cap_shield1,>cap_cool0,>cap_cool1,>cap_spread0,>cap_spread1,>cap_oneup0,>cap_oneup1
 picon:    .byte 24,25,26                ; HUD icons: shield, snowflake, spread
 slotcol:  .byte 19,21,23                ; HUD slot icon cols (bar at +1)
 barw:     .byte $00,$01,$03,$07,$0F,$1F,$3F,$7F

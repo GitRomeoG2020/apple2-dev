@@ -274,3 +274,37 @@ cap_spread1:
         .byte $3F,$7E   ; row 6
         .byte $7F,$7F   ; row 7
         .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_oneup0
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_ONEUP0_W = 2
+CAP_ONEUP0_H = 9
+
+cap_oneup0:
+        .byte $7C,$1F   ; row 0
+        .byte $03,$60   ; row 1
+        .byte $41,$41   ; row 2
+        .byte $41,$41   ; row 3
+        .byte $71,$47   ; row 4
+        .byte $71,$47   ; row 5
+        .byte $31,$46   ; row 6
+        .byte $03,$60   ; row 7
+        .byte $7C,$1F   ; row 8
+
+; a2sprite export: cap_oneup1
+; size: 2 bytes (14 px) x 9 rows, 18 bytes
+; byte layout: bit0 = leftmost pixel, bit7 = palette (0=violet/green, 1=blue/orange)
+CAP_ONEUP1_W = 2
+CAP_ONEUP1_H = 9
+
+cap_oneup1:
+        .byte $7C,$1F   ; row 0
+        .byte $7F,$7F   ; row 1
+        .byte $3F,$7E   ; row 2
+        .byte $3F,$7E   ; row 3
+        .byte $0F,$78   ; row 4
+        .byte $0F,$78   ; row 5
+        .byte $4F,$79   ; row 6
+        .byte $7F,$7F   ; row 7
+        .byte $7C,$1F   ; row 8

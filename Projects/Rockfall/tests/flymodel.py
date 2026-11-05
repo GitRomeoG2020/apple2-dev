@@ -5,7 +5,7 @@ sys.path.insert(0,os.path.dirname(os.path.abspath(__file__))+'/../tools'); impor
 def _caps():
     t=open(os.path.dirname(os.path.abspath(__file__))+'/../src/sprites.s').read()
     out=[]
-    for n in ('shield0','shield1','cool0','cool1','spread0','spread1'):
+    for n in ('shield0','shield1','cool0','cool1','spread0','spread1','oneup0','oneup1'):
         body=t.split('cap_'+n+':')[1].split('\n\n')[0]
         out.append([int(v,16) for v in re.findall(r'\$([0-9A-F]{2})',body)])
     return out
