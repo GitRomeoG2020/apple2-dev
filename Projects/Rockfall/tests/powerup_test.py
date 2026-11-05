@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Power-ups test: boot disk/rockfall.dsk in bobbin-ai and check
  - drops: a destroyed boulder drops a capsule ~1 in 3, a hit flyer ~1 in 2; the capsule blinks (2 frames),
-   falls 1 row/frame, is drawn exactly (both-page model) and vanishes at the landscape line;
+   falls 2 rows/frame, is drawn exactly (both-page model) and vanishes at the landscape line;
  - pickup on contact with the ship -> timer PTIME (200 ticks ~10 s); collecting again refreshes it;
  - SHIELD: bubble drawn instead of the ship; a rock hit is absorbed (rock destroyed), shield gone, next hit kills;
  - COOL: HEAT reset to 0 and stays 0 while firing, label reads COOL, back to HEAT when it ends;
@@ -158,7 +158,7 @@ ok(fh>=28 and 0.2<=fd/fh<=0.8,'a hit flyer drops a capsule about 1 in 2')
 fresh(); poke(0x5C,[130]); capsule(2,8,10); time.sleep(0.05)
 a=st()['FRAME'],z0(CY)[0]; time.sleep(0.5); b=st()['FRAME'],z0(CY)[0]
 rate=(b[1]-a[1])/((b[0]-a[0])&255); print('capsule fall rate %.2f rows/frame'%rate)
-ok(abs(rate-1)<0.1,'capsule falls 1 row per frame')
+ok(abs(rate-2)<0.15,'capsule falls 2 rows per frame')
 n,z,sv,pgs=exact(); png(pgs[1-z['BACK']],T+'/powerup_capsule_%s.png'%MACH)
 ok(n==0 and sv[0x2F4+1-z['BACK']],'capsule drawn exactly (model) on the shown page')
 seen=set()

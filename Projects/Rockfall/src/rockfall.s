@@ -53,6 +53,7 @@ LCOST   = 16             ; centre bolt in flight (draw/erase + hit tests)
 SCOST   = 16
 ; ---- power-ups ----
 PTIME   = 200            ; power-up length in 2-frame ticks (~10 s)
+CFALL   = 2              ; capsule fall speed, rows/frame (was 1)
 CAPH    = 9              ; capsule sprite rows (2 bytes wide)
 DROPB   = 86             ; boulder drop chance /256 (~1 in 3)
 DROPF   = 128            ; flyer hit drop chance /256 (1 in 2)
@@ -1999,12 +2000,14 @@ trydrop:
         sta CON
 @no:    rts
 
-; capsule falls 1 row/frame, vanishes at the landscape, collected by the ship
+; capsule falls CFALL rows/frame, vanishes at the landscape, collected by the ship
 capsule:
         lda CON
         beq @r
-        inc CY
         lda CY
+        clc
+        adc #CFALL
+        sta CY
         cmp #LANDY-CAPH+1
         bcc @p
         lda #0
