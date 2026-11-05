@@ -96,7 +96,7 @@ ok(all(x in STARS for x in d) or peek(0xC5,1)[0]==1,'no streak residue after the
 # ---------- 3: key starts the game; ESC from game over returns ----------
 key(' ',1.5); f0=peek(0x90,1)[0]; time.sleep(0.3)
 ok(peek(0x90,1)[0]!=f0 and not peek(0x67,1)[0],'any key starts the game')
-poke(0x63,[0,0]); poke(0x67,[1]); time.sleep(4)
+poke(0x63,[0,0]); poke(0x4E,[1]); poke(0x67,[1]); time.sleep(4)
 ok(wait(lambda:'ANY KEY: PLAY AGAIN' in screen(),6),'game over screen')
 key('\x1b',0.5)
 ok(wait(lambda:view()==0 and len(artdiff()[0])<60,8),'ESC returns to the title art')

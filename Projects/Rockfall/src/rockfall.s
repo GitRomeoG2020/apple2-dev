@@ -110,6 +110,8 @@ DODGE   = $62            ; rocks dodged since last speed-up
 SCORE   = $63            ; 2 bytes BCD, $63=lo $64=hi
 HISCORE = $65            ; 2 bytes BCD
 DEAD    = $67
+LIVES   = $4E            ; ships left incl. the one in play (HUD col 17)
+NLIVES  = 3              ; ships per game
 PER     = $68            ; sound period
 DURL    = $69
 DURH    = $6A
@@ -232,9 +234,9 @@ TVIEW   = $CE            ; 0 = art view, 1 = score view (for tests)
 ; HEAT rises by HEATSHOT per shot and falls by 1 every HEATCOOL frames (every
 ; frame while overheated). Reaching HEATMAX = OVERHEAT: the laser is locked
 ; until HEAT is back to HEATOK. ~40 fps: 1 shot per ~0.9 s never heats up;
-; holding fire overheats on the 5th shot, then ~1.6 s lockout.
+; holding fire overheats on the 6th shot (~1.65 s vs 1.3 s at 18), then ~1.6 s lockout.
 HEATMAX = 63
-HEATSHOT= 18
+HEATSHOT= 16             ; was 18: held fire overheats on the 6th shot, not the 5th
 HEATCOOL= 2              ; power of 2
 HEATOK  = 0
 BARCOL  = 31             ; heat bar: byte cols 31-38 (56 px), caps at 30/39
@@ -598,6 +600,8 @@ newgame:
         lda #1
         sta SPEED
         sta LEVEL
+        lda #NLIVES
+        sta LIVES
         ldx #NROCKS-1
 @ri:    lda #0
         sta RON,x
@@ -648,7 +652,10 @@ loop:   jsr input
         jsr heatbar
         jsr power
         lda DEAD
-        bne gameover
+        beq @alive
+        jsr loselife             ; C=1: last ship gone
+        bcs gameover
+@alive:
         lda LVLUP
         beq @nolv
         jsr banner
@@ -656,10 +663,58 @@ loop:   jsr input
         jsr fdelay
         jmp loop
 
-gameover:
-        jsr render               ; same final frame on the other page too
+; ship hit (DEAD=1): final frame on both pages + crash (DEAD stays 1 meanwhile).
+; Ships left: respawn with a clear field (a boss in play re-enters with full HP),
+; heat reset, rocks re-staggered, DEAD=0, C=0. Last ship: C=1.
+loselife:
+        jsr render
         jsr flip
         jsr crash
+        dec LIVES
+        jsr status
+        lda LIVES
+        bne @re
+        sec
+        rts
+@re:    ldx #12                  ; short beat before the new ship
+@p:     lda #$FF
+        jsr WAIT
+        dex
+        bne @p
+        lda BOSS
+        beq @nb
+        lda #1                   ; boss due again once the field is clear
+        sta BOSS
+@nb:    ldx #NROCKS-1
+@ri:    lda #0
+        sta RON,x
+        txa
+        asl
+        asl
+        asl
+        asl
+        clc
+        adc #24                  ; ~0.6 s grace before the first rock
+        sta RWAIT,x
+        dex
+        bpl @ri
+        lda #0
+        sta LON
+        sta SON
+        sta SON+1
+        sta FIRE
+        sta HEAT
+        sta OVH
+        sta DIR
+        sta DEAD
+        lda #$FF
+        sta LASTBAR
+        jsr heatlbl
+        bit KBDSTRB
+        clc
+        rts
+
+gameover:
         lda #0
         sta SAVERR
         jsr hsinsert             ; RANK, HILITE; table updated (initials AAA)
@@ -3037,17 +3092,20 @@ hbcd:   pha
         and #$0F
         jmp hchar
 
-status: ldy #4
+status: ldy #1
         lda SCORE+1
         jsr hbcd
         lda SCORE
         jsr hbcd
-        ldy #12
+        ldy #9
         lda SPEED
         jsr hchar
-        ldy #16
+        ldy #13
         lda LEVEL
         jsr hbcd
+        ldy #17
+        lda LIVES
+        jsr hchar
         rts                      ; (cols 19-25: power-up slots, see pwhud)
 
 ; ---- level banner: "LEVEL N" XOR-drawn big (2x tall) on both pages ----
@@ -3657,8 +3715,8 @@ pgeor:    .byte $00,$60
 lmask1:   .byte $03,$06,$0C,$18,$30,$60,$40
 lmask2:   .byte $00,$00,$00,$00,$00,$00,$01
 ; status labels as font glyph indices (0-9, C10 D11 E12 H13 I14 P15 R16 blank17 S18 O19 A20 T21 L22 V23)
-; "SC 0000 SPD0 LV00 HI 0000 " (cols 1-25), runs on into s_heat (cols 26-29)
-s_hstat:  .byte 18,10,17,0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,17,17,17,17,17,17,17
+; "0000 SPD0 LV00 ^3 " (cols 1-18; ^ = ship glyph 27, then lives), blanks to col 25, runs on into s_heat (cols 26-29)
+s_hstat:  .byte 0,0,0,0,17,18,15,11,0,17,22,23,0,0,17,27,3,17,17,17,17,17,17,17,17
 s_heat:   .byte 13,12,20,21,$FF            ; HEAT (s_hstat runs on into it)
 s_cool:   .byte 10,19,19,22,$FF            ; COOL
 s_hot:    .byte 13,19,21,17,$FF            ; HOT

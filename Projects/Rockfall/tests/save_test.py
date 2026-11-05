@@ -37,7 +37,7 @@ class Emu:
             time.sleep(0.1)
         return False
     def die(s,score,level):
-        s.poke(0x63,[score&0xFF,score>>8]); s.poke(0xA7,[level]); s.poke(0x67,[1])
+        s.poke(0x63,[score&0xFF,score>>8]); s.poke(0xA7,[level]); s.poke(0x4E,[1]); s.poke(0x67,[1])
     def quit(s):
         try: s.q({'cmd':'quit'})
         except Exception: pass

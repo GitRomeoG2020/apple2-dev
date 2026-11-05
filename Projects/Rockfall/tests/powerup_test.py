@@ -45,7 +45,7 @@ def norocks(): poke(0x88,[0]*5); poke(0x80,[0xFF]*5)
 def quiet(): norocks(); poke(0xB8,[0xFF,0x7F]); poke(0x5E,[0])
 def alive():
     for t in range(30):
-        if not st()['DEAD']: return
+        if not st()['DEAD']: poke(0x4E,[1]); return   # legacy one-ship play (lives: lives_test)
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def rock(i,size,col,y,hp=None):
     poke(0xD0+i,[size]); poke(0xD8+i,[hp if hp is not None else (2 if size==2 else 1)]); poke(0xE0+i,[0]); poke(0x70+i,[col]); poke(0x78+i,[y]); poke(0x88+i,[1])
@@ -228,7 +228,7 @@ time.sleep(0.4); z=st(); print('spread vs 3 rocks: score %d -> %d, RON %s'%(sc0,
 ok(z['SCORE']-sc0>=15 and (z['SCORE']-sc0)%5==0,'all 3 bolts hit (3 rocks destroyed, +15)')
 # ---------- 7: HUD stacked, timers decrease and expire ----------
 fresh(); poke(PUT,[200,150,100]); time.sleep(0.2); m=hudmem(); s1=slots(m); print('HUD text %r slots %s'%(hudtext(m),s1))
-ok(' HI' not in hudtext(m) and hudtext(m).startswith('SC ') and 'SPD' in hudtext(m) and 'LV' in hudtext(m),'HUD keeps SC SPD LV, no HI')
+ok(' HI' not in hudtext(m) and 'SPD' in hudtext(m) and 'LV' in hudtext(m) and hudtext(m)[:4].isdigit(),'HUD keeps score SPD LV, no HI')
 ok([s and s[0] for s in s1]==['shield','cool','spread'] and s1[0][1]>=s1[1][1]>=s1[2][1]>0,'all 3 power-ups stacked with bars')
 png(peek(0x2000,0x2000),T+'/powerup_hud_%s.png'%MACH)
 p0=z0(PUT,3); time.sleep(2); p1=z0(PUT,3); print('timers %s -> %s in 2 s'%(p0,p1))

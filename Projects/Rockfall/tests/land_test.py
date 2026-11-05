@@ -59,7 +59,7 @@ def png(mem,path):
     im.resize((560,384),Image.NEAREST).save(path)
 def alive():
     for t in range(25):
-        if not st()['DEAD']: return
+        if not st()['DEAD']: poke(0x4E,[1]); return   # legacy one-ship play (lives: lives_test)
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def norocks(): poke(0x88,[0]*5); poke(0x80,[0xFF]*5)
 bcd=lambda v:(v>>4)*10+(v&15)

@@ -53,7 +53,7 @@ def png(mem,path):
     im.resize((560,384),Image.NEAREST).save(path)
 def alive():
     for t in range(20):
-        if not st()['DEAD']: return
+        if not st()['DEAD']: poke(0x4E,[1]); return   # legacy one-ship play (lives: lives_test)
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def step(setup=()):
     """force one speed-up step (after applying setup pokes); returns (state before, state after)"""

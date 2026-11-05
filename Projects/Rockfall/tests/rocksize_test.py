@@ -45,7 +45,7 @@ def norocks(): poke(0x88,[0]*5); poke(0x80,[0xFF]*5)
 def quiet(): norocks(); poke(0xB8,[0xFF,0x7F]); poke(0x5E,[0])
 def alive():
     for t in range(30):
-        if not st()['DEAD']: return
+        if not st()['DEAD']: poke(0x4E,[1]); return   # legacy one-ship play (lives: lives_test)
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def rock(i,size,col,y,hp=None):
     poke(0xD0+i,[size]); poke(0xD8+i,[hp if hp is not None else (2 if size==2 else 1)]); poke(0xE0+i,[0]); poke(0x70+i,[col]); poke(0x78+i,[y]); poke(0x88+i,[1])

@@ -7,7 +7,7 @@ capsule to collect it (SHIELD, COOL, SPREAD; see Power-ups below).
 On a IIe the ship stops when you let go of the key; on a II+ it glides a few frames.
 Game over: any key plays again, Esc goes back to the title.
 Laser heat: every shot heats the laser (HEAT bar, bottom right). Fire slowly and it stays cool; hold fire and it
-overheats on the 5th shot: a warning buzz, the label turns to HOT, the bar blinks, and the laser is locked for ~1.2 s
+overheats on the 6th shot: a warning buzz, the label turns to HOT, the bar blinks, and the laser is locked for ~1.2 s
 until it has cooled all the way down.
 Score: +1 per rock dodged, +5 per rock shot. Speed goes up every 15 rocks (max 5).
 Levels: every LEVELSPD=3 speed-up steps (steps keep counting after SPEED caps at 5) is a new level: a
@@ -103,7 +103,7 @@ Or by hand, from the MAME folder:
 - Laser: one bolt at a time, 12 rows long, flying up 12 rows per frame from the ship's nose.
   A rock is hit if it overlaps the bolt's rows and the bolt's x is inside the rock. Hit = rock
   gone (it respawns at the top later), +5 points, and a crackle.
-- Heat (Parsec-style): constants at the top of rockfall.s. HEATSHOT=18 per shot, HEATMAX=63,
+- Heat (Parsec-style): constants at the top of rockfall.s. HEATSHOT=16 (was 18) per shot, HEATMAX=63,
   cools 1 per HEATCOOL=2 frames (~20/s at ~40 fps), every frame while overheated. Reaching 63 locks the
   laser until heat is back to HEATOK=0. Firing while locked only clicks. The bar (byte cols 31-38,
   56 px = HEAT*7/8, even widths) is written straight to both pages, only when it changes.
@@ -164,6 +164,13 @@ a new game clears them. HUD: the active ones are packed left to right at byte co
 7-px bar that shrinks with the timer), redrawn only when they change. Pacing: `fdelay` also subtracts the
 capsule (CCOST), each bolt in flight (LCOST centre, BCOST side) and the shield bubble (SCOST).
 tests/powerup_test.py covers drops, pickup, each effect, HUD stacking/expiry, refresh, banner pause, new game.
+
+## Lives
+3 ships per game (`NLIVES`, ZP `LIVES` = $4E). HUD: `0000 SPD1 LV01 ^3` - the ship glyph (font 27) and the
+ships left sit at cols 16-17, before the power-up slots. A hit without shield (rock, or the boss reaching
+the ship row) plays the crash, then respawns: field cleared, rocks re-staggered (~0.6 s grace), heat
+reset, score/level/power-ups kept. A boss in play is due again and re-enters with full HP. The last ship
+lost is game over. Tests poke `LIVES=1` for legacy one-ship play; `tests/lives_test.py` covers lives.
 
 ## Boss meteor
 Every 3rd level-up (levels 4, 7, 10, ...) a boss is due: new rocks stop, and once the field is clear a

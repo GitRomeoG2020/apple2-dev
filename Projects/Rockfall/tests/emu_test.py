@@ -126,7 +126,7 @@ time.sleep(0.3); print('after 10x left: PX',px0,'->',zp()['PX'])
 # --- laser test: fire, then (paused) put rock 0 in the bolt's path and check +5 ---
 def alive():   # after game over: 'A' x3 fills initials if the score made the table, then 'A' restarts
     for t in range(20):
-        if not zp()['DEAD']: return
+        if not zp()['DEAD']: q({'cmd':'poke','addr':0x4E,'data':[1]}); return   # legacy one-ship play
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.3)
 alive()
 for tries in range(6):

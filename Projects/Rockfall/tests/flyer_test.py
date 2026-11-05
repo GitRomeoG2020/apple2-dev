@@ -48,7 +48,7 @@ def norocks(): poke(0x88,[0]*5); poke(0x80,[0xFF]*5)
 def quiet(): norocks(); poke(0xB8,[0xFF,0x7F])    # no rocks, no natural flyer for ~13 min
 def alive():
     for t in range(25):
-        if not st()['DEAD']: return
+        if not st()['DEAD']: poke(0x4E,[1]); return   # legacy one-ship play (lives: lives_test)
         time.sleep(3 if t==0 else 0.6); key('A'); time.sleep(0.5)
 def snap():
     q({'cmd':'pause'})
