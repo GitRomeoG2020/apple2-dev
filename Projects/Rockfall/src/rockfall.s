@@ -29,6 +29,14 @@ PLAYY   = 140            ; top row of ship (field is rows 0-151, landscape 152-1
 RSIZE   = $D0            ; NROCKS bytes each
 RHP     = $D8            ; hits left
 RSUB    = $E0            ; half-row speed remainder
+BCNT    = $D5            ; boss: levels since the last boss
+BOSS    = $D6            ; boss: 0 none, 1 pending (field clearing), 2 in play (rock slot 0, RSIZE 4)
+BTIM    = $D7            ; boss: frames until it sheds a pebble
+BDIR    = $DD            ; boss: 0 drifting right, 1 left
+BOSSLV  = 3              ; a boss every 3rd level (levels 4, 7, 10, ...)
+BOSSHP  = 7              ; laser hits to destroy it
+BSHED   = 40             ; frames between shed pebbles
+BCAP    = 2              ; at most this many shed rocks on screen with the boss
 MAXLG   = 2              ; at most this many boulders at once
 SV_RSP  = $1AD0          ; per page: sprite drawn (0 pebble, 1 rock, 2 boulder, 3 cracked)
 PXMAX   = 132            ; ship x in 2-pixel units (pixel x = 2*px)
@@ -581,6 +589,8 @@ newgame:
         sta DEAD
         sta SPDUPS
         sta LVLUP
+        sta BCNT
+        sta BOSS
         sta SMODE
         lda #1
         sta SPEED
@@ -1218,9 +1228,14 @@ pksize: lda LEVEL
         lda #2
         rts
 
-rocks:  ldx #NROCKS-1
+rocks:  lda BOSS
+        beq @go
+        jsr boss
+@go:    ldx #NROCKS-1
 @lp:    lda RON,x
         bne @move
+        lda BOSS                 ; no normal spawns while a boss is due or in play
+        bne @next
         dec RWAIT,x
         bne @next
         jsr pksize
@@ -1242,6 +1257,8 @@ rocks:  ldx #NROCKS-1
         sta RON,x
         jmp @next
 @move:  ldy RSIZE,x              ; speed in half-rows: 3/2/1 x SPEED
+        cpy #4
+        beq @next                ; the boss moves itself
         lda SPEED
         cpy #2
         beq @v
@@ -1265,6 +1282,148 @@ rocks:  ldx #NROCKS-1
         jsr addscore
 @next:  dex
         bpl @lp
+        rts
+
+; ================= boss meteor =================
+; pending: once the field is clear, spawn it in slot 0. In play: sinks 1 row / 4 frames,
+; drifts 1 column / 8 frames, sheds a pebble every BSHED frames (BCAP max). Reaching the
+; ship row is a ship hit (a shield absorbs it and the boss is lost, no reward).
+boss:   cmp #2
+        beq @act
+        ldx #NROCKS-1
+@c:     lda RON,x
+        bne @r
+        dex
+        bpl @c
+        lda #4
+        sta RSIZE
+        lda #BOSSHP
+        sta RHP
+        lda #0
+        sta RY
+        sta RSUB
+        sta BDIR
+        lda #17
+        sta RCOL
+        lda #1
+        sta RON
+        lda #BSHED
+        sta BTIM
+        lda #2
+        sta BOSS
+@r:     rts
+@act:   lda FRAME
+        and #3
+        bne @h
+        inc RY
+        lda RY
+        cmp #PLAYY-BOSS_H+1
+        bcc @h
+        lda #0
+        sta RON
+        sta BOSS
+        ldx #0
+        jsr killrock
+        lda PUT
+        beq @die
+        lda #0
+        sta PUT
+        jmp shbreak
+@die:   lda #1
+        sta DEAD
+        rts
+@h:     lda FRAME
+        and #7
+        bne @s
+        lda BDIR
+        bne @lf
+        inc RCOL
+        lda RCOL
+        cmp #40-BOSS_W
+        bcc @s
+        inc BDIR
+        bne @s
+@lf:    dec RCOL
+        bne @s
+        dec BDIR
+@s:     dec BTIM
+        bne @r
+        lda #BSHED
+        sta BTIM
+        ldy #0                   ; shed rocks on screen
+        ldx #NROCKS-1
+@k:     lda RON,x
+        beq @k2
+        iny
+@k2:    dex
+        bne @k
+        cpy #BCAP
+        bcs @r
+        ldx #NROCKS-1
+@f:     lda RON,x
+        beq @g
+        dex
+        bne @f
+        rts
+@g:     jsr rand
+        and #3
+        clc
+        adc RCOL
+        sta RCOL,x
+        lda RY
+        clc
+        adc #BOSS_H-4
+        sta RY,x
+        lda #0
+        sta RSIZE,x
+        sta RSUB,x
+        lda #1
+        sta RHP,x
+        sta RON,x
+        rts
+
+; boss X destroyed by the laser: burst + "100" popup, guaranteed shield/cool capsule,
+; big boom, speed up a notch
+bosskill:
+        lda #0
+        sta BOSS
+        lda RCOL
+        clc
+        adc #1
+        sta PCL
+        sta DCL
+        lda RY
+        clc
+        adc #8
+        sta PY
+        sta DRW
+        lda #1
+        sta PV
+        sta PK
+        lda #PTLEN
+        sta PT
+        lda #$FF
+        jsr trydrop
+        lda CON
+        beq @nc
+        jsr rand
+        and #1                   ; 0 shield, 1 cool
+        sta CTYPE
+@nc:    jsr bigboom
+        jsr bigboom
+        lda SPEED
+        cmp #5
+        bcs @sp
+        inc SPEED
+@sp:    sed
+        lda SCORE+1              ; +100
+        clc
+        adc #1
+        sta SCORE+1
+        cld
+        lda #0
+        jsr addpts
+        sec
         rts
 
 ; rock X off; respawn later (keeps X)
@@ -1304,6 +1463,16 @@ addscore:                        ; +1 for a dodged rock
         cld
         sta LEVEL
         inc LVLUP                ; main loop shows the banner
+        inc BCNT                 ; every BOSSLV levels: boss meteor
+        lda BCNT
+        cmp #BOSSLV
+        bcc @nb
+        lda #0
+        sta BCNT
+        lda BOSS
+        bne @nb
+        inc BOSS                 ; pending: no new rocks until the field is clear
+@nb:
         inc LANDN                ; next landscape (drawn during the banner)
         lda LANDN
         cmp #NLAND
@@ -1569,8 +1738,9 @@ hit1:   jsr flyhit
         rts
 @go:    ldx #NROCKS-1
 @lp:    lda RON,x
-        beq @nx
-        ldy RSIZE,x
+        bne @on
+        jmp @nx
+@on:    ldy RSIZE,x
         lda RY,x
         clc
         adc rsph,y
@@ -1597,7 +1767,10 @@ hit1:   jsr flyhit
         sec
         rts
 @kill:  jsr killrock
-        cpy #2
+        cpy #4
+        bne @nbk
+        jmp bosskill
+@nbk:   cpy #2
         beq @big
         jsr split                ; medium: two pebbles (keeps X, Y)
         lda rpts,y
@@ -1719,6 +1892,8 @@ collide:
 @lp:    lda RON,x
         beq @next
         ldy RSIZE,x
+        cpy #4
+        beq @next                ; the boss checks the ship row itself
         sty TMP
         lda RY,x
         clc
@@ -3522,17 +3697,18 @@ pmod7:  .repeat 160, I
         .byte (I*2) .mod 7
         .endrep
 ; ---- rock sizes: 0 pebble, 1 rock, 2 boulder (3 = cracked boulder sprite) ----
-rsprlo: .byte <pebble,<rock,<boulder,<boulder_cracked
-rsprhi: .byte >pebble,>rock,>boulder,>boulder_cracked
-rspw:   .byte PEBBLE_W,ROCK_W,BOULDER_W,BOULDER_W
-rsph:   .byte PEBBLE_H,ROCK_H,BOULDER_H,BOULDER_H
+; (size 4 = boss meteor, sprite 4; size 3 is never used, its entries are padding)
+rsprlo: .byte <pebble,<rock,<boulder,<boulder_cracked,<boss_spr
+rsprhi: .byte >pebble,>rock,>boulder,>boulder_cracked,>boss_spr
+rspw:   .byte PEBBLE_W,ROCK_W,BOULDER_W,BOULDER_W,BOSS_W
+rsph:   .byte PEBBLE_H,ROCK_H,BOULDER_H,BOULDER_H,BOSS_H
 rmaxy1: .byte LANDY-PEBBLE_H+1,LANDY-ROCK_H+1,LANDY-BOULDER_H+1   ; RY >= this: gone
 rncol:  .byte 41-PEBBLE_W,41-ROCK_W,41-BOULDER_W                 ; spawn columns
 rhp0:   .byte 1,1,2                                               ; laser hits needed
 rpts:   .byte $03,$05,$15                                         ; points (BCD)
-rhitw:  .byte 3,7,11                                              ; laser hit width, 2-px units
+rhitw:  .byte 3,7,11,0,17                                         ; laser hit width, 2-px units
 rcolw:  .byte 2,6,9                                               ; ship collision: PX < left+w
-rcost:  .byte 8,14,31                                             ; erase+draw cost, ~100-cycle units
+rcost:  .byte 8,14,31,0,72                                             ; erase+draw cost, ~100-cycle units
 ; spawn odds per level bucket (L1, L2, L3, L4+), out of 16: pebble if r < rsmall, boulder if r >= rlarge
 rsmall: .byte 3,4,5,5
 rlarge: .byte 15,14,14,13
@@ -3555,6 +3731,7 @@ texthi: .repeat 24, R
 
         .include "font.s"
         .include "sprites.s"
+        .include "boss.inc"
         .include "land.inc"
         .include "flyer.inc"
         .include "title.inc"
