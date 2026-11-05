@@ -165,6 +165,17 @@ a new game clears them. HUD: the active ones are packed left to right at byte co
 capsule (CCOST), each bolt in flight (LCOST centre, BCOST side) and the shield bubble (SCOST).
 tests/powerup_test.py covers drops, pickup, each effect, HUD stacking/expiry, refresh, banner pause, new game.
 
+## Boss meteor
+Every 3rd level-up (levels 4, 7, 10, ...) a boss is due: new rocks stop, and once the field is clear a
+huge cratered meteor (35x24 px, rock slot 0, `RSIZE` 4) sinks from the top, 1 row every 4 frames, drifting
+side to side and shedding a pebble every 40 frames (at most 2 on screen). It takes 7 laser hits (`BOSSHP`),
+so with the heat gauge you have to fire in short bursts, cool off and dodge; spread bolts count too.
+Destroying it: +100, a burst popup, a guaranteed SHIELD or COOL capsule, and the speed goes up a notch;
+normal rocks resume. If it reaches the ship row it is a ship hit (a shield absorbs it and the boss is lost).
+Sprite: `tools/gen_boss.py` -> `src/boss.inc`. Test: `tests/boss_test.py`.
+
+![The boss meteor](screenshots/boss.png)
+
 ## Title music
 The title plays a dark two-voice track on the stock speaker ($C030, 1-bit): D minor with a Phrygian
 flat-2 (Eb), about 86 BPM. A 2-bar "doom" intro (a low D drone with a creeping Eb) plays once, then a

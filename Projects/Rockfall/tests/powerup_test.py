@@ -34,7 +34,7 @@ A=lambda y:(y&7)*0x400+((y>>3)&7)*0x80+(y>>6)*0x28
 L=open(D+'/build/rockfall.lst').read(); M=open(D+'/build/rockfall.map').read()
 ROD=int(re.search(r'^RODATA\s+([0-9A-F]+)',M,re.M).group(1),16)
 lab=lambda n:ROD+int(re.search(r'^([0-9A-F]+)r 2 .*?\b'+n+':',L,re.M).group(1),16)
-RW=[1,2,3,3]; RH=[6,8,14,14]; PTS=[3,5,15]; NAMES=['pebble','rock','boulder']
+RW=[1,2,3,3,5]; RH=[6,8,14,14,24]; PTS=[3,5,15]; NAMES=['pebble','rock','boulder']
 FAIL=[]
 def ok(c,msg): print(('PASS ' if c else 'FAIL ')+msg); c or FAIL.append(msg)
 def st():
@@ -104,7 +104,7 @@ def png(mem,path):
     im.resize((560,384),Image.NEAREST).save(path); print('screenshot:',path)
 time.sleep(6); FONT=peek(lab('font'),120); SL,SH=peek(lab('ship_shift_lo'),7),peek(lab('ship_shift_hi'),7)
 SHIP={k:peek(SL[k]|SH[k]<<8,24) for k in range(7)}
-RSPR=[peek(lab(n),RW[i]*RH[i]) for i,n in enumerate(['pebble','rock','boulder','boulder_cracked'])]
+RSPR=[peek(lab(n),RW[i]*RH[i]) for i,n in enumerate(['pebble','rock','boulder','boulder_cracked','boss_spr'])]
 import re as _re; sys.path.insert(0,D+'/tools'); import gen_land
 _inc=open(D+'/src/land.inc').read()
 LANDS=[bytes(gen_land.unrle([int(v,16) for v in _re.findall(r'\$([0-9A-F]{2})',_re.search(r'^land%d:\n((?:\s+\.byte .*\n)+)'%k,_inc,_re.M).group(1))])) for k in range(len(gen_land.LANDS))]

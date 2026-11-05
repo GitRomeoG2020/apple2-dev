@@ -29,7 +29,7 @@ A=lambda y:(y&7)*0x400+((y>>3)&7)*0x80+(y>>6)*0x28
 L=open(D+'/build/rockfall.lst').read(); M=open(D+'/build/rockfall.map').read()
 ROD=int(re.search(r'^RODATA\s+([0-9A-F]+)',M,re.M).group(1),16)
 lab=lambda n:ROD+int(re.search(r'^([0-9A-F]+)r 2 .*?\b'+n+':',L,re.M).group(1),16)
-RW=[1,2,3,3]; RH=[6,8,14,14]; PTS=[3,5,15]; NAMES=['pebble','rock','boulder']
+RW=[1,2,3,3,5]; RH=[6,8,14,14,24]; PTS=[3,5,15]; NAMES=['pebble','rock','boulder']
 FAIL=[]
 def ok(c,msg): print(('PASS ' if c else 'FAIL ')+msg); c or FAIL.append(msg)
 def st():
@@ -99,7 +99,7 @@ def png(mem,path):
     im.resize((560,384),Image.NEAREST).save(path); print('screenshot:',path)
 time.sleep(6); FONT=peek(lab('font'),120); SL,SH=peek(lab('ship_shift_lo'),7),peek(lab('ship_shift_hi'),7)
 SHIP={k:peek(SL[k]|SH[k]<<8,24) for k in range(7)}
-RSPR=[peek(lab(n),RW[i]*RH[i]) for i,n in enumerate(['pebble','rock','boulder','boulder_cracked'])]
+RSPR=[peek(lab(n),RW[i]*RH[i]) for i,n in enumerate(['pebble','rock','boulder','boulder_cracked','boss_spr'])]
 key(' '); time.sleep(1.5)
 def shoot(size,hp=None,col=None):
     alive(); quiet(); time.sleep(0.15)
