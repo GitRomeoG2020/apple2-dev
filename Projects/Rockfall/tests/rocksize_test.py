@@ -141,16 +141,19 @@ for spd in (2,4):
     print('SPEED %d: rows/frame pebble %.2f rock %.2f boulder %.2f over %d frames'%(spd,*res[spd],fr))
 ok(all(abs(res[s][0]-1.5*s)<0.35 and abs(res[s][1]-s)<0.2 and abs(res[s][2]-0.5*s)<0.25 for s in res),'speeds 1.5x / 1x / 0.5x SPEED')
 norocks()
-# ---------- 3: collision boxes ----------
-W=[2,6,9]
+# ---------- 3: collision boxes (inset AABB: rcoli + rcolw; rock deep enough past rbot) ----------
+INSET=[0,1,1]; W=[2,5,8]
 def trial(size,px):
-    alive(); quiet(); poke(0x63,[0,0]); poke(0x61,[1])
-    q({'cmd':'pause'}); poke(0x5C,[px]); poke(0x5E,[0]); norocks(); rock(0,size,20,141-RH[size]+2); q({'cmd':'resume'})   # rock bottom just inside the ship rows
+    alive(); quiet(); poke(0x63,[0,0]); poke(0x61,[0])  # freeze so the inset edges stay put
+    # RY so solid bottom (RY+H-rbot) is just inside the ship: rbot=[1,2,2]
+    rbot=[1,2,2][size]
+    q({'cmd':'pause'}); poke(0x5C,[px]); poke(0x5E,[0]); norocks(); rock(0,size,20,141-RH[size]+rbot+1); q({'cmd':'resume'})
     time.sleep(0.12); d=st()['DEAD']; norocks(); return d
-rx=70
+rx0=70
 for size in range(3):
-    r=[trial(size,rx-5),trial(size,rx-6),trial(size,rx+W[size]-1),trial(size,rx+W[size])]
-    print('%s at col 20 (left %d units): ship PX %d hit=%d, %d hit=%d | PX %d hit=%d, %d hit=%d'%(NAMES[size],rx,rx-5,r[0],rx-6,r[1],rx+W[size]-1,r[2],rx+W[size],r[3]))
+    left=rx0+INSET[size]
+    r=[trial(size,left-5),trial(size,left-6),trial(size,left+W[size]-1),trial(size,left+W[size])]
+    print('%s at col 20 (box left %d units): ship PX %d hit=%d, %d hit=%d | PX %d hit=%d, %d hit=%d'%(NAMES[size],left,left-5,r[0],left-6,r[1],left+W[size]-1,r[2],left+W[size],r[3]))
     ok(r==[1,0,1,0],'%s collision box edges (hit inside, miss outside)'%NAMES[size])
 # ---------- 4: laser hits ----------
 def shoot(size,hp=None,col=None):

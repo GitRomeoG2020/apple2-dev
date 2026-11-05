@@ -1906,7 +1906,7 @@ bigboom:
         tax
         rts
 
-; bounding boxes in 2-pixel units / rows, per size
+; inset AABB per size (rcoli/rcolw/rtop/rbot): solid mass, not empty sprite corners
 collide:
         ldx #NROCKS-1
 @lp:    lda RON,x
@@ -1917,15 +1917,22 @@ collide:
         sty TMP
         lda RY,x
         clc
-        adc rsph,y               ; RY+h > PLAYY: bottom reaches the ship
+        adc rsph,y
+        sec
+        sbc rbot,y               ; solid bottom (skip tapered tip)
         cmp #PLAYY+1
         bcc @next
         lda RY,x
-        cmp #PLAYY+8             ; top above the ship's bottom
+        clc
+        adc rtop,y               ; solid top (skip tapered tip)
+        cmp #PLAYY+8
         bcs @next
         ldy RCOL,x
         lda rockx2,y
-        sta CNT                  ; rock left
+        ldy TMP
+        clc
+        adc rcoli,y              ; inset left edge
+        sta CNT
         lda PX
         clc
         adc #6
@@ -1933,7 +1940,6 @@ collide:
         sbc CNT                  ; PX+6 > left
         bcc @next
         beq @next
-        ldy TMP
         lda CNT
         clc
         adc rcolw,y              ; PX < left + w
@@ -3729,7 +3735,11 @@ rncol:  .byte 41-PEBBLE_W,41-ROCK_W,41-BOULDER_W                 ; spawn columns
 rhp0:   .byte 1,1,2                                               ; laser hits needed
 rpts:   .byte $03,$05,$15                                         ; points (BCD)
 rhitw:  .byte 3,7,11,0,17                                         ; laser hit width, 2-px units
-rcolw:  .byte 2,6,9                                               ; ship collision: PX < left+w
+; ship collision insets (pebble/rock/boulder): left + width in 2-px units, top/bottom rows skipped
+rcoli:  .byte 0,1,1                                               ; left inset
+rcolw:  .byte 2,5,8                                               ; PX < left+w (was 2,6,9)
+rtop:   .byte 0,1,2                                               ; ignore top tip rows
+rbot:   .byte 1,2,2                                               ; ignore bottom tip rows
 rcost:  .byte 8,14,31,0,72                                             ; erase+draw cost, ~100-cycle units
 ; spawn odds per level bucket (L1, L2, L3, L4+), out of 16: pebble if r < rsmall, boulder if r >= rlarge
 rsmall: .byte 3,4,5,5
