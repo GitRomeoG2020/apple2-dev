@@ -102,6 +102,8 @@ PX      = $5C            ; ship x (2px units)
 OLDPX   = $5D
 DIR     = $5E            ; 0 none, 1 left, 2 right
 HOLD    = $5F            ; II+ key hold timer
+FLAST   = $4F            ; FRAME of the last fire key code (repeat filter)
+FRPT    = 5              ; fire codes closer than this while moving = key repeat
 ISIIE   = $60
 SPEED   = $61
 DODGE   = $62            ; rocks dodged since last speed-up
@@ -1082,7 +1084,24 @@ input:  lda KBD
         beq @f
         cmp #$C1                 ; A fires
         bne @rts2
-@f:     lda #1
+; Fire-repeat filter.  The keyboard latch only holds the LAST key pressed, and
+; IIe/MAME auto-repeat keeps re-sending that code while ANY key is down.  Hold
+; an arrow, tap space, let go of space: the latch says "space" and keeps
+; repeating it, so fire looked held.  The Apple II can't tell which key is
+; still down, so: while the ship is moving, a fire code arriving within FRPT
+; frames of the previous one is treated as auto-repeat and ignored (a repeat
+; stream keeps itself blocked).  Real taps (< ~8/s) still fire; standing still,
+; held fire still auto-fires (heat-limited) as before.
+@f:     lda FRAME
+        tax
+        sec
+        sbc FLAST
+        stx FLAST
+        ldx DIR
+        beq @fok
+        cmp #FRPT
+        bcc @rts2                ; repeat while moving: ignore
+@fok:   lda #1
         sta FIRE
 @rts2:  rts
 @l:     lda #1
