@@ -28,7 +28,7 @@ FONT.update({
 SW,SH=42,44
 CLEAR=6
 
-def room():
+def room(online=False):
     p=Paint()
     # Back wall: a deep, quiet workshop rather than a busy neon maze.
     p.line([(6,3),(273,3),(273,152)],B,2)
@@ -68,16 +68,26 @@ def room():
     p.rect((23,50,52,65),K)
     p.line([(23,65),(23,50),(49,50),(53,54),(53,65)],T)
     p.rect((27,54,45,62),B); p.rect((29,55,43,60),K)
-    p.line([(29,59),(32,59),(34,56),(36,60),(38,57),(41,58)],G)
+    if online:
+        p.line([(29,59),(32,59),(34,56),(36,60),(38,57),(41,58)],G)
+    else:
+        p.line([(30,55),(40,60)],O); p.line([(30,60),(40,55)],O)
     p.rect((48,55,50,56),O); p.rect((48,60,50,61),T)
     p.poly([(61,69),(76,69),(82,73),(63,73)],G)
     for x in (65,71,77): p.line([(x,69),(x+2,72)],K)
+    # Front-facing service socket: probe reaches it from the bench's apron.
+    p.rect((70,86,79,96),K)
+    p.line([(71,87),(78,87),(78,95),(71,95),(71,87)],G if online else O)
+    p.line([(74,89),(74,93)],T)
+    if online:
+        p.line([(12,13),(76,13)],G,2)
+        p.line([(83,30),(106,30)],T,2)
     # Rear door -- decoration only in this first, single-room milestone.
     p.rect((113,28,172,74),K)
     p.line([(113,74),(113,28),(172,28),(172,74)],B,2)
     p.line([(117,72),(117,32),(168,32),(168,72)],V)
     p.line([(142,33),(142,71)],B)
-    p.rect((159,51,162,54),O)
+    p.rect((159,51,162,54),G if online else O)
     p.rect((130,20,156,24),K)
     p.text(132,20,'01',O)
     # Clock, sleeping terminal, fan vents and cable loops.
@@ -108,27 +118,67 @@ def room():
     # Native HGR lettering keeps both text pages and resident loader untouched.
     p.line([(8,160),(271,160)],B)
     p.text(46,163,'G-BOT: AFTER HOURS',T,2)
-    mini={
-      'A':['010','101','111','101','101'], 'B':['110','101','110','101','110'],
-      'C':['011','100','100','100','011'], 'D':['110','101','101','101','110'],
-      'E':['111','100','110','100','111'], 'H':['101','101','111','101','101'],
-      'I':['111','010','010','010','111'], 'K':['101','101','110','101','101'],
-      'L':['100','100','100','100','111'], 'O':['010','101','101','101','010'],
-      'P':['110','101','110','100','100'], 'R':['110','101','110','101','101'],
-      'S':['011','100','010','001','110'], 'T':['111','010','010','010','010'],
-      'W':['101','101','111','111','101'], '/':['001','001','010','100','100'],
-      ' ':['000']*5, '-':['000','000','111','000','000'],
-      '+':['000','010','111','010','000'], ':':['000','010','000','010','000'],
+    # Byte-aligned monochrome text stays legible without artifact-color fringes.
+    data=bytearray(encode(p.im))
+    for row,values in enumerate(message_pixels('WASD/ARROWS WALK   SPACE PROBE')):
+        data[row_offset(186+row):row_offset(186+row)+40]=values
+    return bytes(data)
+
+# Three logical columns, each emitted as a pair of lit HGR bits: real white,
+# not alternating artifact colors. One seven-pixel byte per character.
+REPAIR_FONT={
+ 'A':['010','101','111','101','101'], 'B':['110','101','110','101','110'],
+ 'C':['011','100','100','100','011'], 'D':['110','101','101','101','110'],
+ 'E':['111','100','110','100','111'], 'F':['111','100','110','100','100'],
+ 'G':['011','100','101','101','011'], 'H':['101','101','111','101','101'],
+ 'I':['111','010','010','010','111'], 'J':['001','001','001','101','010'],
+ 'K':['101','101','110','101','101'], 'L':['100','100','100','100','111'],
+ 'M':['101','111','111','101','101'], 'N':['101','111','111','111','101'],
+ 'O':['010','101','101','101','010'], 'P':['110','101','110','100','100'],
+ 'Q':['010','101','101','111','011'], 'R':['110','101','110','101','101'],
+ 'S':['011','100','010','001','110'], 'T':['111','010','010','010','010'],
+ 'U':['101','101','101','101','111'], 'V':['101','101','101','101','010'],
+ 'W':['101','101','111','111','101'], 'X':['101','101','010','101','101'],
+ 'Y':['101','101','010','010','010'], 'Z':['111','001','010','100','111'],
+ ' ':['000']*5, '-':['000','000','111','000','000'],
+ '/':['001','001','010','100','100'], ':':['000','010','000','010','000'],
+ '.':['000','000','000','000','010'],
+}
+def message_pixels(text):
+    assert len(text)<=40
+    text=text.center(40)
+    return [bytes(sum((3<<(x*2)) for x,v in enumerate(REPAIR_FONT[ch][y]) if v=='1') for ch in text) for y in range(5)]
+
+def interaction_art():
+    offline,online=room(),room(True)
+    changed=[i for i,(a,b) in enumerate(zip(offline,online)) if a!=b]
+    assert 0<len(changed)<=128, "6502 patch loop uses a signed decrement"
+    messages=[
+        'WORKBENCH OFFLINE - CHECK LEFT BENCH',
+        'WORKBENCH: SPACE TO INSPECT',
+        'LOOSE LEAD: R RECONNECT / ESC CANCEL',
+        'RECONNECTING... HOLD TIGHT LITTLE BOT',
+        'WORKSHOP ONLINE - NICE WORK G-BOT',
+        'NO CONTACT - TRY LEFT BENCH SOCKET',
+        'TERMINAL ONLINE - ALL SET HERE',
+        'MOVE CLOSER TO LEFT BENCH SOCKET',
+    ]
+    arrays={
+        'patchlo':[i&255 for i in changed],
+        'patchhi':[i>>8 for i in changed],
+        'patch_off':[offline[i] for i in changed],
+        'patch_on':[online[i] for i in changed],
     }
-    def small(x,y,text,color):
-        for ch in text:
-            for yy,line in enumerate(mini[ch]):
-                for xx,v in enumerate(line):
-                    if v=='1':p.rect((x+xx*2,y+yy,x+xx*2+1,y+yy),color)
-            x+=8
-    small(28,177,'WASD/ARROWS WALK - SPACE PROBE',T)
-    small(48,186,'II+: HOLD REPT TO REPEAT',B)
-    return encode(p.im)
+    lines=['; Generated by tools/gen_workshop.py; do not hand edit.',f'PATCH_COUNT={len(changed)}']
+    for name,values in arrays.items():
+        lines += [name+':','.byte '+','.join(str(v) for v in values)]
+    lines += ['messagelo:', '.byte '+','.join('<message'+str(i) for i in range(len(messages))),
+              'messagehi:', '.byte '+','.join('>message'+str(i) for i in range(len(messages)))]
+    for i,text in enumerate(messages):
+        lines += [f'message{i}: ; {text}']
+        for row in message_pixels(text):lines += ['.byte '+','.join(str(v) for v in row)]
+    (ROOT/'src/interaction.inc').write_text('\n'.join(lines)+'\n')
+    print('Repair visual patch:',len(changed),'bytes; messages:',len(messages)*200,'bytes')
 
 def robot(direction=0,pose=0,blink=False,probe=False):
     im=Image.new('L',(SW,SH),CLEAR); d=ImageDraw.Draw(im)
@@ -215,6 +265,7 @@ def robot(direction=0,pose=0,blink=False,probe=False):
 
 def main():
     (ROOT/'build').mkdir(exist_ok=True)
+    interaction_art()
     data=room(); (ROOT/'art/workshop-room.hgr').write_bytes(data)
     frames=[robot(d,p) for d in range(4) for p in range(3)]
     frames += [robot(blink=True),robot(probe=True)]

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Bounded, real Disk II boot and frame-by-frame integration tests in Bobbin.
 Usage: python3 tests/workshop_test.py enhanced|plus [--bobbin /path/bobbin-ai]
-No external Python dependencies except Pillow for screenshot export.
+Pillow supplies the independent art oracle and screenshot export.
 """
-import argparse,json,os,pty,re,socket,subprocess,tempfile,time
+import argparse,json,os,pty,re,socket,subprocess,tempfile,time,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -24,6 +24,17 @@ def expected(room,sprites,x,y,frame):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('machine',choices=['plus','enhanced'],default='enhanced',nargs='?')
     ap.add_argument('--bobbin',default='/workspace/apple2/bin/bobbin-ai');args=ap.parse_args()
+    sys.path.insert(0,str(ROOT/"tools"))
+    from gen_workshop import room as room_art,message_pixels
+    messages=["WORKBENCH OFFLINE - CHECK LEFT BENCH", "WORKBENCH: SPACE TO INSPECT",
+              "LOOSE LEAD: R RECONNECT / ESC CANCEL", "RECONNECTING... HOLD TIGHT LITTLE BOT",
+              "WORKSHOP ONLINE - NICE WORK G-BOT", "NO CONTACT - TRY LEFT BENCH SOCKET",
+              "TERMINAL ONLINE - ALL SET HERE", "MOVE CLOSER TO LEFT BENCH SOCKET"]
+    def background(repair=0,msg=0):
+        out=bytearray(room_art(repair==3))
+        for row,data in enumerate(message_pixels(messages[msg])):
+            out[offset(177+row):offset(177+row)+40]=data
+        return bytes(out)
     failures=[]
     def ok(condition,description):
         print(('PASS ' if condition else 'FAIL ')+description,flush=True)
@@ -54,11 +65,15 @@ def main():
             return b''.join(bytes(q({'cmd':'peek','addr':a,'len':min(4096,addr+n-a)})['data']) for a in range(addr,addr+n,4096))
         def poke(a,d):q({'cmd':'poke','addr':a,'data':d})
         def state():return peek(0x70,20)
-        pages={0:expected(room,sprites,126,104,0),1:expected(room,sprites,126,104,0)}
+        pages={0:expected(background(),sprites,126,104,0),1:expected(background(),sprites,126,104,0)}
         cycles=[];poses=set();shifts=set();checks=0
         def verify():
             nonlocal checks
-            st=state();page=st[6];pages[page]=expected(room,sprites,st[0],st[1],st[7])
+            st=state();page=st[6]
+            repair,near,msg=peek(0x83,3)
+            canonical=background(repair,msg)
+            if peek(0x8000,8192)!=canonical:raise AssertionError("canonical background not expected repair/status art")
+            pages[page]=expected(canonical,sprites,st[0],st[1],st[7])
             for n in (0,1):
                 actual=peek(0x2000+n*8192,8192)
                 if actual!=pages[n]:
@@ -98,6 +113,7 @@ def main():
             if not wait(lambda:q({'cmd':'cpu'})['paused'],40):raise RuntimeError('boot deadline exceeded')
             ok(peek(0x7F,1)==b'\xa5','self-boot to workshop on '+args.machine)
             verify();capture('idle')
+            ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
             st=state();start=st[:2]
             for key,dir,dx,dy in [('D',2,8,0),('S',0,0,8),('A',1,-8,0),('W',3,0,-8)]:
                 before=state();after=press(key)
@@ -115,6 +131,8 @@ def main():
             # Front-view walking screenshot; return to a clean composition.
             position(126,104);frame('S');capture('walking');press('W');position(126,104)
             after=frame(' ');ok(after[7]==13,'Space previews extended probe')
+            ok(peek(0x83,1)==b'\0' and peek(0x85,1)==b'\x05','far probe gives NO CONTACT without repair')
+            frame('R');ok(peek(0x83,1)==b'\0','R alone cannot repair a distant/uninspected terminal')
             capture('probe')
             for _ in range(10):frame()
             ok(state()[:2]==bytes([126,104]) and state()[7]==0,'probe retracts without movement or room changes')
@@ -129,8 +147,45 @@ def main():
             ok(blink,'periodic idle eye blink observed')
             ok(state()[:2]==before and state()[3]==0,'stable idle: no sticky last-key drift')
             capture('final')
+            # Reach the service apron using real controls, not a teleport fixture.
+            for _ in range(11):press('A',4)
+            for _ in range(5):press('W',4)
+            ok(tuple(state()[:2])==(38,64) and peek(0x84,1)==b'\x01','walk from spawn to reachable left workbench service position')
+            ok(peek(0x85,1)==b'\x01','context prompt identifies Space to inspect')
+            frame('R');ok(peek(0x83,1)==b'\0','reconnect requires inspecting the fault first')
+            press(' ')
+            ok(peek(0x83,1)==b'\x01' and peek(0x85,1)==b'\x02','probe diagnoses loose lead and offers R or Escape')
+            capture('fault')
+            # Space repeat cannot auto-confirm. Only R makes the repair.
+            for _ in range(12):frame(' ')
+            ok(peek(0x83,1)==b'\x01','held/repeating Space does not complete repair')
+            frame('\x1B');ok(peek(0x83,1)==b'\0','Escape cancels inspection without restoring power')
+            for _ in range(10):frame()
+            press(' ');press('D',4);press('D',4);press('D',4);press('D',4)
+            ok(peek(0x83,1)==b'\0','walking away cancels diagnosis safely')
+            for _ in range(4):press('A',4)
+            press(' ');frame('R')
+            ok(peek(0x83,1)==b'\x02' and peek(0x85,1)==b'\x03','R starts bounded visible reconnect sequence')
+            capture('repairing')
+            before=state()[:2]
+            for _ in range(8):frame('D')
+            ok(state()[:2]==before and peek(0x83,1)==b'\x02','repair holds position briefly, cannot be interrupted by walk repeat')
+            for _ in range(18):frame()
+            ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\x04','repair completes: terminal waveform, conduit light and green door indicator')
+            frame();frame();capture('online')
+            for _ in range(12):frame(' ')
+            ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\x06','re-probing reports ONLINE and never toggles back')
+            frame('R');ok(peek(0x83,1)==b'\x03','repeated reconnect is idempotent')
+            before=state()[0];after=press('D')
+            ok(after[0]==before+8,'normal movement resumes after repair')
+            # Sweep all alignments after dynamic room changes; exact BOTH-page checks.
+            for _ in range(7):press('D',4)
+            for _ in range(7):press('A',4)
+            position(126,104)
+            for _ in range(55):frame()
+            capture('restored')
             ok({0,1,2,3,4,5,6,7,8,9,10,11,12,13}<=poses,'all 14 standing/walk/facing/blink/probe frames exercised')
-            ok(peek(0x8000,8192)==room and peek(0xA000,8008)==sprites,'immutable background and source sprites unchanged')
+            ok(peek(0x8000,8192)==background(3,4) and peek(0xA000,8008)==sprites,'canonical online background synchronized; source sprites unchanged')
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))
             print('EXACT PAGE CHECKS',checks,'BOTH PAGES, 8192 bytes each',flush=True)
@@ -139,7 +194,7 @@ def main():
             try:proc.wait(timeout=3)
             except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=3)
             os.close(master)
-        ok(Path(disk).read_bytes()==original,'boot, walk, idle and probe never write the disk')
+        ok(Path(disk).read_bytes()==original,'boot, walk, idle, probe and repair never write the disk')
     print('RESULT: '+('FAIL' if failures else 'PASS'),flush=True)
     return bool(failures)
 if __name__=='__main__':raise SystemExit(main())

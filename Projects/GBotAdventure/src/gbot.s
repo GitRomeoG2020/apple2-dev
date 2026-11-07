@@ -1,6 +1,6 @@
-; G-Bot: After Hours -- first playable workshop. Plain NMOS 6502 / 48K.
-; HGR pages $2000/$4000, immutable room $8000, masked frames $A000.
-; Only the offscreen page's old 7x44 rectangle is restored, then composited.
+; G-Bot: After Hours -- first workshop repair. Plain NMOS 6502 / 48K.
+; HGR pages $2000/$4000, canonical room $8000, masked frames $A000.
+; Offscreen old 7x44 rectangle restored; diagnostics synced; robot composited.
 ; All horizontal positions are even: artifact-color parity never reverses.
         .setcpu "6502"
 SRC=$50
@@ -39,6 +39,13 @@ PROBE=$7E
 READY=$7F
 MOVING=$80
 TICKS=$81                     ; 16-bit completed-frame counter, test visibility
+REPAIR=$83                    ; 0 faulted, 1 inspected, 2 reconnecting, 3 online
+NEAR=$84
+MESSAGE=$85
+LASTMSG=$86
+REPAIRTIME=$87
+FEEDBACK=$88
+UIROW=$89
 MASKBUF=$1200                 ; 308 shifted opacity bytes (not inverse masks)
 DATABUF=$1000                 ; 308 shifted pixels
 PHASEBUF=$1400                ; 44 phase bytes
@@ -51,7 +58,7 @@ entry:  cld
         lda $C088,x            ; motor off. No subsequent disk I/O, ever.
         bit $C051              ; hide setup in text mode
         lda #0
-        ldx #$32
+        ldx #$39
 @state: sta $50,x
         dex
         bpl @state
@@ -96,6 +103,9 @@ entry:  cld
         inc DST+1
         dex
         bne @page2
+        lda #$FF
+        sta LASTMSG
+        jsr interaction
         ; Render both initial images before showing graphics.
         jsr prepare
         jsr render
@@ -115,6 +125,7 @@ main:   lda PAGE
         sta PAGE
         jsr keyboard
         jsr update
+        jsr interaction
         jsr prepare
         jsr render
         ldx PAGE
@@ -129,12 +140,21 @@ main:   lda PAGE
 
 keyboard:
         lda $C000
-        bpl @done
+        bmi :+
+        rts
+:
         bit $C010
+        ldx REPAIR
+        cpx #2
+        beq @done
         and #$7F
+        cmp #$1B
+        beq @cancel
         cmp #$20
         beq @probe
         and #$DF               ; accepts lower-case WASD on IIe
+        cmp #'R'
+        beq @repair
         ldx #0
         cmp #'S'
         beq @walk
@@ -160,8 +180,34 @@ keyboard:
         sta BURST
         lda #0
         sta PROBE
+        sta FEEDBACK
         rts
-@probe: lda #8
+@cancel:
+        lda REPAIR
+        cmp #1
+        bne @done
+        lda #0
+        sta REPAIR
+        rts
+@repair:
+        lda REPAIR
+        cmp #1
+        bne @done
+        lda NEAR
+        beq @done
+        lda #2
+        sta REPAIR
+        lda #24
+        sta REPAIRTIME
+        sta PROBE
+        lda #0
+        sta BURST
+        sta DIR
+        rts
+@probe: lda PROBE
+        bne @done
+        jsr probe_contact
+        lda #8
         sta PROBE
         lda #0
         sta BURST
@@ -225,6 +271,171 @@ update: lda #0
         sta PY
         lda #0
         sta BURST
+        rts
+
+; Small repair: inspect the fault, explicitly reconnect with R, watch it boot.
+; A different confirmation key means held/repeating Space cannot solve it.
+probe_contact:
+        lda NEAR
+        bne @contact
+        lda #5
+        bne @feedback
+@contact:
+        lda REPAIR
+        cmp #3
+        beq @online
+        lda #1
+        sta REPAIR
+        lda #0
+        sta FEEDBACK
+        rts
+@online:
+        lda #6
+@feedback:
+        sta MESSAGE
+        lda #48
+        sta FEEDBACK
+        rts
+
+interaction:
+        lda #0
+        sta NEAR
+        lda PX
+        cmp #14
+        bcc @range_done
+        cmp #65
+        bcs @range_done
+        lda PY
+        cmp #64
+        bcc @range_done
+        cmp #85
+        bcs @range_done
+        inc NEAR
+@range_done:
+        lda REPAIR
+        cmp #2
+        bne @not_busy
+        dec REPAIRTIME
+        bne @busy
+        lda #3
+        sta REPAIR
+        lda #0
+        sta PROBE
+        sta FEEDBACK
+        jmp @not_busy
+@busy:  lda #3
+        jmp @message
+@not_busy:
+        lda FEEDBACK
+        beq @context
+        dec FEEDBACK
+        lda MESSAGE
+        jmp @message
+@context:
+        lda REPAIR
+        cmp #3
+        beq @ready
+        lda NEAR
+        beq @away
+        lda REPAIR
+        cmp #1
+        beq @loose
+        lda #1
+        bne @message
+@loose: lda #2
+        bne @message
+@away:  lda #0
+        sta REPAIR              ; walking away cancels inspection, not repair
+        beq @message
+@ready: lda #4
+@message:
+        sta MESSAGE
+        cmp LASTMSG
+        beq @patch
+        sta LASTMSG
+        tax
+        lda messagelo,x
+        sta SRC
+        lda messagehi,x
+        sta SRC+1
+        lda #177
+        sta UIROW
+@textrow:
+        ldx UIROW
+        lda rowlo,x
+        sta BG
+        lda rowhi,x
+        ora #$80
+        sta BG+1
+        ldy #39
+@letter:
+        lda (SRC),y
+        sta (BG),y
+        dey
+        bpl @letter
+        clc
+        lda SRC
+        adc #40
+        sta SRC
+        bcc :+
+        inc SRC+1
+:       inc UIROW
+        lda UIROW
+        cmp #182
+        bne @textrow
+@patch:
+        ; Mutable canonical background is the sole restoration source.
+        ldx #PATCH_COUNT-1
+@byte:  lda patchlo,x
+        sta BG
+        lda patchhi,x
+        ora #$80
+        sta BG+1
+        lda REPAIR
+        cmp #3
+        beq @on
+        lda patch_off,x
+        jmp @store
+@on:    lda patch_on,x
+@store: ldy #0
+        sta (BG),y
+        dex
+        bpl @byte
+        rts
+
+; Called AFTER old robot restoration and BEFORE new robot compositing.
+; Each page receives the current diagnostics/visual state independently.
+draw_diagnostics:
+        lda #177
+        sta UIROW
+        lda #0
+        sta OX
+@row:   ldx UIROW
+        jsr row_pointers
+        ldy #39
+@copy:  lda (BG),y
+        sta (DST),y
+        dey
+        bpl @copy
+        inc UIROW
+        lda UIROW
+        cmp #182
+        bne @row
+        ldx #PATCH_COUNT-1
+@patch: lda patchlo,x
+        sta BG
+        sta DST
+        lda patchhi,x
+        ora #$80
+        sta BG+1
+        lda patchhi,x
+        ora PAGEHI
+        sta DST+1
+        ldy #0
+        lda (BG),y
+        sta (DST),y
+        dex
+        bpl @patch
         rts
 
 ; Pick an expressive pose and construct the 7-byte-wide shifted sprite.
@@ -344,7 +555,7 @@ prepare:
         bne @row
         rts
 
-; Both restore and blit use row lookup tables, never redraw room furniture.
+; Restore and blit use row tables; only repair-patch bytes change furniture.
 render: ldx PAGE
         lda pagehigh,x
         sta PAGEHI
@@ -372,6 +583,7 @@ render: ldx PAGE
         lda ROW
         cmp #44
         bne @restore
+        jsr draw_diagnostics
         lda XB
         sta OX
         lda PY
@@ -454,6 +666,7 @@ advance_buffers:
 :       rts
 
         .segment "RODATA"
+        .include "interaction.inc"
 dx: .byte 0,254,2,0
 dy: .byte 2,0,0,254
 baseframe: .byte 0,3,6,9
