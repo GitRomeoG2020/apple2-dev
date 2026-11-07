@@ -206,3 +206,17 @@ The song is a note/duration table written by `tools/gen_music.py` (into src/musi
 `tools/render_music.py [out.wav]` renders a WAV preview by simulating the speaker at the real cycle
 timings. tests/music_test.py checks the toggles, the mute key, the alternation, the loop wrap and
 the key response.
+
+## Hidden landscape gallery
+Press **G** on either title view (art or high scores) to browse all eight existing
+landscapes without playing. **Left/Right** or **A/D** wraps through the scenes;
+**Space** advances and **Escape** returns to the title. The gallery shows each
+scene's name and number and reuses the original strip at rows 152–183.
+There is no title-screen hint: this is an Easter egg. Music follows the session's
+M preference; the attract countdown pauses while browsing. No scores, lives or
+save data change. `tests/gallery_test.py [enhanced|plus]` covers both entrances,
+all eight strips on both pages, wrapping, exit, mute and state/disk isolation.
+
+The rebuilt distribution disk contains the default high scores. To preserve
+local scores, keep your existing play disk and copy this build to a differently
+named test disk rather than overwriting it.

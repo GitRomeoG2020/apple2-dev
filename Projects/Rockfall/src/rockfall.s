@@ -336,6 +336,10 @@ title:  lda #0
         sta TCH
 @al:    jsr tick
         bcc @an
+        lda KBD
+        and #$DF                 ; accept G/g on IIe
+        cmp #$C7
+        beq @gallery
         jsr muskey               ; M toggles mute; other keys start
         bcc @al
         bcs @go
@@ -350,17 +354,127 @@ title:  lda #0
         sta TCH
 @sl:    jsr tick
         bcc @sd
+        lda KBD
+        and #$DF
+        cmp #$C7
+        beq @gallery
         jsr muskey
         bcc @sl
         bcs @go
 @sd:    jsr tdec
         bne @sl
         jmp demogame             ; one idle art+score pass -> demo
+@gallery:
+        jsr gallery
+        jmp title                ; redraw art, restart idle countdown
 @go:    lda #0
         sta DEMO                 ; real game
         sta MUSON                ; music stops on game start
         bit KBDSTRB
         jmp newgame
+
+; Hidden scenery gallery: no game loop, saves, or gameplay initialization.
+; LANDN is borrowed only while here; title redraws page 1 on return.
+gallery:
+        .assert NLAND = 8, error, "gallery wrap assumes eight landscapes"
+        lda LANDN
+        pha
+        lda #0
+        sta LANDN
+        sta PGEOR
+        bit KBDSTRB
+        sta TXTCLR
+        sta MIXCLR
+        sta LOWSCR
+        sta HIRES
+@draw:  lda #0
+        sta DST
+        lda #$20
+        ldx #$40
+        jsr clrmem               ; both pages, including old title art
+        jsr drawland             ; original strip at rows 152..183
+        lda #12
+        sta PR
+        lda #8
+        sta PC
+        jsr setstr2
+        .addr g_title
+        jsr gprint
+        lda #30
+        sta PR
+        lda #5
+        sta PC
+        jsr setstr2
+        .addr g_controls
+        jsr gprint
+        lda #42
+        sta PR
+        lda #15
+        sta PC
+        jsr setstr2
+        .addr g_exit
+        jsr gprint
+        lda #SROW
+        sta PR
+        lda #2
+        sta PC
+        lda LANDN
+        clc
+        adc #1
+        jsr xglyph
+        jsr setstr2
+        .addr g_count
+        jsr gprint
+        ldx LANDN
+        lda g_nlo,x
+        sta STR
+        lda g_nhi,x
+        sta STR+1
+        jsr gprint
+@wait:  jsr tick                 ; keep music timing, NOT title/demo timer
+        bcc @wait
+        lda KBD
+        and #$7F
+        bit KBDSTRB
+        cmp #$1B
+        beq @exit
+        cmp #$08                 ; left arrow (II+ too)
+        beq @prev
+        and #$DF
+        cmp #'A'
+        beq @prev
+        cmp #'D'
+        beq @next
+        cmp #$15                 ; right arrow
+        beq @next
+        cmp #$00                 ; space after AND #$DF
+        bne @wait                ; G/repeat cannot start gameplay
+@next:  inc LANDN
+        lda LANDN
+        and #7
+        sta LANDN
+        jmp @draw
+@prev:  lda LANDN
+        sec
+        sbc #1
+        and #7
+        sta LANDN
+        jmp @draw
+@exit:  pla
+        sta LANDN
+        bit KBDSTRB
+        rts
+; Glyph strings at arbitrary HGR row PR and byte column PC, page 1.
+gprint: lda #0
+        sta CNT
+@l:     ldy CNT
+        lda (STR),y
+        cmp #$FF
+        beq @done
+        jsr xglyph
+        inc CNT
+        bne @l
+@done:  rts
 
 ; attract demo: same game loop, AI drives the ship; any key starts a real game;
 ; a death returns to the title (no high-score save).
@@ -3995,6 +4109,22 @@ crash:  lda #<SPKR
         .byte 1
         .word ms                  ; ~1 ms per half-cycle at PER=200
 .endmacro
+
+; Gallery labels, encoded in the existing HGR font.
+g_title: .byte 22,20,32,11,18,10,20,15,12,17,31,20,22,22,12,16,36,$FF ; LANDSCAPE GALLERY
+g_controls: .byte 20,37,11,17,19,16,17,20,16,16,19,34,18,17,17,18,15,20,10,12,17,32,12,35,21,$FF ; A/D OR ARROWS  SPACE NEXT
+g_exit: .byte 12,18,10,17,21,14,21,22,12,$FF ; ESC TITLE
+g_count: .byte 37,8,17,17,$FF ; /8
+g_name0: .byte 28,19,33,32,21,20,14,32,18,$FF ; MOUNTAINS
+g_name1: .byte 10,14,21,36,$FF ; CITY
+g_name2: .byte 28,19,19,32,$FF ; MOON
+g_name3: .byte 11,12,18,12,16,21,$FF ; DESERT
+g_name4: .byte 30,19,16,12,18,21,$FF ; FOREST
+g_name5: .byte 21,19,34,12,16,18,$FF ; TOWERS
+g_name6: .byte 10,16,20,21,12,16,$FF ; CRATER
+g_name7: .byte 13,20,16,29,19,16,$FF ; HARBOR
+g_nlo: .lobytes g_name0,g_name1,g_name2,g_name3,g_name4,g_name5,g_name6,g_name7
+g_nhi: .hibytes g_name0,g_name1,g_name2,g_name3,g_name4,g_name5,g_name6,g_name7
 s_title:  .byte "R O C K F A L L",0
 s_sub:    .byte "DODGE THE FALLING METEORS!",0
 s_twist:  .byte "THEY'RE NOT ROCKS. THEY'RE METEORS!",0
