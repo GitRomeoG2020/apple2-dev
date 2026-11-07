@@ -1,121 +1,181 @@
-# G-Bot Adventure
+# G-Bot: After Hours
 
-![G-Bot, a friendly cream-colored maintenance robot with a green CRT face, inspecting a logic module in a quiet repair workshop](art/gbot-workshop.png)
+![G-Bot in the playable workshop, captured from the Apple IIe emulator's actual HGR page](screenshots/workshop_idle_enhanced.png)
 
-*First character concept: a little repair robot keeping the workshop company after everyone has gone.*
+**First playable milestone: one workshop and one very curious maintenance robot.**
+The official title is **G-Bot: After Hours**; the stable project folder remains
+`Projects/GBotAdventure`.
 
-**Working title — not final.** An optional naming idea is **G-Bot: After Hours**.
-The stable workshop folder is `Projects/GBotAdventure` regardless of the eventual title.
+## What's playable
 
-## Status
+- An original, fixed workshop in true Apple II color HGR: a tool board, oscilloscope,
+  parts bench, terminal, cables and a service mat in a slightly elevated view.
+- A **42 × 44-pixel masked G-Bot**, including his arms and chunky boots. His large
+  green CRT face, sloped cream/white enclosure, chest drive, belly keys, grabber,
+  repair probe and bent aerial carry over from the original portrait.
+- Four-direction walking with alternating weighted feet and a small body bob.
+  Sideward glances, rear service vents, and a front-facing idle blink give him
+  character. The chest activity light briefly dims with the idle blink.
+- Solid room edges, bench and terminal; clean background restoration over floor
+  seams, cables and furniture. No sprite trails or XOR drawing.
+- Space gives a brief probe-extension gesture. **It does not repair anything yet.**
 
-**Character concept artwork is now available; gameplay is still at the planning/scaffold stage.**
-There is no game executable or bootable disk yet. The illustration explores the
-character and mood, not a finished gameplay sprite or a promise of in-game scale.
-Everything under “Proposed” remains open to collaboration.
+This is a **workshop/movement prototype**, not the finished adventure. The rear
+room door is decorative. There are no other rooms, puzzles, enemies, combat,
+lives, checkpoints, saves or story reveals in this build. Those belong to later
+collaboration; the underlying mystery and twists are not finalized here.
 
-## The first portrait
+## Play the included disk
 
-G-Bot is a curious mechanic, not a tank: a scuffed cream-colored CRT shell,
-asymmetric green pixel eyes, a crooked smile, a chest disk drive and amber
-activity light, chunky work boots, an open grabber holding a logic module,
-and an extended repair probe. A sleeping terminal, hanging tools, oscilloscope,
-and loose cables make up the quiet workshop. White/black texture and warm
-orange accents suggest aged cream plastic within the Apple II palette.
+The self-booting [disk/gbot-after-hours.dsk](disk/gbot-after-hours.dsk) needs no build
+step. Target: **Apple II+ or IIe, 48 KB, Disk II**, stock NMOS 6502 instructions.
 
-This is an original, authored **280 × 192 full-screen standard Apple II HGR**
-illustration—not a modern picture recolored to look retro. The displayed PNG
-is decoded from the actual screen bytes, including seven-pixel byte groups,
-the shared palette/phase bit, pixel parity, and adjacent-bit white.
-
-- [Large preview](art/gbot-workshop.png): 1120 × 768, crisp 4× nearest-neighbor pixels.
-- [Logical-size preview](art/gbot-workshop-280.png): 280 × 192.
-- [Native HGR screen](art/gbot-workshop.hgr): exactly 8,192 bytes, no file header.
-- [Reproducible generator](tools/gen_concept.py): original shapes, details and lettering;
-  no external image or font assets. Encoder/preview conventions follow Rockfall's
-  existing landscape tools without modifying or importing them.
-
-### Regenerate the art
-
-From the workshop root, with Python 3 and Pillow available:
+From the main `AppleII` folder in Windows PowerShell:
 
 ```powershell
+git pull
+Push-Location MAME
+.\mame.exe apple2e -flop1 ..\Projects\GBotAdventure\disk\gbot-after-hours.dsk -window
+Pop-Location
+```
+
+For II+, use `apple2p` instead of `apple2e`. In AppleWin, insert this `.dsk` in
+Drive 1 and boot an Apple II+/IIe with at least 48 KB. The disk is a raw boot disk,
+not a DOS filesystem. The program never writes to it.
+
+### Controls
+
+| Key | Action |
+| --- | --- |
+| W / Up | Walk toward the back wall |
+| A / Left | Walk left |
+| S / Down | Walk toward the front |
+| D / Right | Walk right |
+| Space | Face forward and briefly extend the probe |
+
+The Apple II keyboard reports **key events, not independent held-key states**.
+A tap starts a short, bounded four-tick walk (up to eight pixels); the robot then
+stops unless another direction event arrives. IIe autorepeat continues walking
+after its initial delay. On an original II+, hold **REPT with W/A/S/D** to repeat,
+or tap to walk. II+ keyboards don't have all four arrow keys. This prototype
+supports one direction at a time, not simultaneous/diagonal movement, and does
+not latch the last key into endless motion. Blocked walks stop at the obstacle.
+
+## Build
+
+Uses the workshop's existing **ca65 / ld65** installation. No WSL, Java,
+AppleCommander, Python or Pillow is required for the native Windows build:
+
+```powershell
+.\Projects\GBotAdventure\build.ps1
+# Or build and launch:
+.\Projects\GBotAdventure\build.ps1 -Run
+```
+
+Tools are resolved under `Tools\cc65\bin`, with MAME under `MAME\mame.exe`.
+The build only uses this project's files. It does not rebuild or modify Rockfall.
+
+On the development box / Linux:
+
+```sh
+python3 Projects/GBotAdventure/tools/build.py
+# Optional explicit tool directory:
+python3 Projects/GBotAdventure/tools/build.py --cc65 /path/to/cc65/bin
+```
+
+The Python build uses only the standard library and the checked-in native art.
+Both build routes use the same linker layout and DOS-order sector mapping.
+
+### Art regeneration (optional)
+
+With Python 3 and Pillow installed:
+
+```powershell
+python Projects/GBotAdventure/tools/gen_workshop.py
 python Projects/GBotAdventure/tools/gen_concept.py
 ```
 
-On systems where Python is named `python3`, use that command instead. This
-regenerates all three assets and checks deterministic screen generation,
-unique scanline addresses, and zero-filled screen holes. It is an **art tool**,
-not a gameplay build.
+`gen_workshop.py` authors the separate, **robot-free background** and 14 masked
+animation frames. `gen_concept.py` regenerates the original portrait without
+changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
+after regenerating workshop art. The checked-in `.hgr` and sprite `.bin` are
+required native build inputs, not modern images loaded by the game.
 
-### Native screen format / viewing
+## Graphics / memory notes
 
-Load the raw file at **$2000–$3FFF** in an Apple II emulator that supports binary
-memory loading. Select graphics ($C050), full-screen ($C052), page one ($C054),
-and high-resolution ($C057). Do not call `HGR` *after* loading: it clears the page.
-The file is a memory image, not a bootable disk or a DOS binary with a load header.
+- Full-screen **280 × 192 HGR**, with the room above row 160 and native HGR title
+  and controls below. No text-page switching or IIe-only video features.
+- `$0800–$0BFF`: read-only bootloader; `$0C00–$0D6F`: boot decoding scratch.
+  No high-score sector, write routine or Rockfall runtime is carried over.
+- `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
+  `$1400–$142B`: row palette phases; `$50–$82`: engine zero-page state/scratch.
+- `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
+- `$6000–$6C7F`: engine and lookup tables (including alignment padding).
+  `$6C80–$7FFF` remains available: 4,992 bytes.
+- `$8000–$9FFF`: immutable native room (8,192 bytes).
+- `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
+  `$BF48–$BFFF`: 184 spare bytes. Total current layout slack: **5,176 bytes**.
+- A fixed 24 KB load fills tracks 1–6; the complete disk is 143,360 bytes.
+  No language card, auxiliary RAM or expansion sound hardware is needed.
 
-For row `y`, its 40 display bytes begin at offset
-`((y & 7) << 10) | (((y >> 3) & 7) << 7) | ((y >> 6) * 40)`.
-There are 7,680 display bytes and 512 padding bytes. Both PNGs come from decoding
-the saved `.hgr`, not from the unconstrained painting canvas.
+Before drawing, only the **offscreen page's previous 7-byte × 44-line rectangle**
+is restored from the immutable room. The next sprite is shifted in software and
+mask-composited, then the completed page is selected. Every horizontal position
+is even, preserving artifact color parity at all seven byte alignments. At an
+opaque edge, the sprite selects that byte's palette phase; the underlying room
+bytes are restored exactly when it moves away. The two display pages normally
+show successive animation states, not identical frames.
 
-The preview is a discrete artifact-color approximation, matching the workshop's
-existing neighbor/parity renderer; it does not simulate analog NTSC, CRT bloom,
-or half-dot phase displacement. Real displays and emulator color filters will
-vary. Byte layout and deterministic regeneration are validated; an attempted
-Bobbin headless export timed out, so this portrait is **not emulator-verified**.
+Measured game ticks average approximately **61,500 cycles (~16 updates/second
+at 1 MHz)** in Bobbin, with a worst sampled tick under 62,000 cycles.
 
-## Proposed concept
+There is no IIe-only vertical-blank wait: the II+ uses the same bounded software
+loop. Page selection is not beam-synchronized, so a CRT can show a slight transition
+tear, but no partially erased sprite is deliberately displayed.
 
-An original, fixed-room repair adventure with exploration and bursts of danger.
-Room-to-room transitions take inspiration from Berzerk and Castle Wolfenstein,
-with original assets and design rather than copied characters, rooms, or mechanics.
-Bringing broken equipment back online could open routes—and wake security systems
-that were better left switched off.
+## Validation / screenshots
 
-The proposed protagonist is a curious maintenance robot, not a combat tank:
-- A squat, battered cream-colored body inspired by an Apple II.
-- A green screen face with expressive pixel eyes and a chest disk-drive light.
-- Chunky feet, one grabber hand, and a repair/zap probe on the other arm.
-- A larger, readable sprite with walking animation and a visibly extending repair probe.
+[IIe screenshot, native 280 × 192](screenshots/workshop_idle_enhanced-280.png) ·
+[Walking pose](screenshots/workshop_walking_enhanced.png) ·
+[Probe gesture](screenshots/workshop_probe_enhanced.png) ·
+[II+ workshop](screenshots/workshop_idle_plus.png)
 
-Fixed rooms are intended to leave more room for character and environment detail
-without requiring scrolling. Sprite dimensions, graphics techniques, controls,
-and memory budgets are still to be worked out in the prototype.
+Screenshots are decoded **from actual Bobbin HGR RAM after booting this disk**,
+not the generator's concept preview. Enlargements use nearest-neighbor pixels.
+The renderer uses a discrete artifact-color approximation (adjacent lit bits white;
+isolated bits colored by parity and byte phase), not an analog NTSC/CRT simulation.
+Real monitors and emulator filter settings will look a little different.
 
-## Proposed first prototype
+`tests/workshop_test.py` boots a disposable disk in Bobbin through a PTY and its
+JSON control socket. It checks WASD and Apple arrow codes, four facings/foot poses,
+all seven horizontal byte alignments, all four walls, both furniture fronts and
+sides, the probe, idle blink and no stuck movement. Every sampled frame compares
+**both entire 8 KB display pages** against an independent software compositor,
+including old-background restoration and HGR holes. It also checks immutable
+source art, resident loader preservation and an unchanged disk. Frame-cost checks
+combine Bobbin's completed video-frame count and partial-frame cycle count.
 
-Start with three connected rooms to test the repair/explore loop before building
-an entire facility:
-1. **Workshop/tutorial:** a quiet space to learn movement and a simple repair.
-2. **Dark power room:** restore power and discover what it changes elsewhere.
-3. **Security room:** react to systems awakened by restored power, introducing danger.
+```sh
+# Build first, then (each run is bounded by the caller):
+timeout 100 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
+timeout 100 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+```
 
-The first milestone would be readable movement, room transitions, and one repair
-with a visible consequence—not a complete game. None of this is implemented yet.
+These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
+MAME, AppleWin and physical hardware have not been run in this Linux environment;
+their launch/build instructions follow the workshop's existing native layout.
 
-## Intended technical direction
+## Original portrait and future direction
 
-- Apple II+/IIe, 48 KB RAM; 6502 assembly using the workshop's ca65/ld65 toolchain.
-- Follow the existing native Windows PowerShell build workflow with the workshop's
-  cc65, AppleCommander/JRE, and MAME setup; no WSL or new major tool installation planned.
-- Two disks are acceptable later if the world needs them, but are not a requirement
-  or an established disk layout. Prototype scope and memory usage come first.
+![The original G-Bot character concept, preserved unchanged](art/gbot-workshop.png)
 
-There are deliberately no **game** build/run commands yet: no buildable game or disk
-exists for this project. The art-only generator above is available now. Rockfall
-remains separate and unchanged.
+[Native full-screen portrait](art/gbot-workshop.hgr) ·
+[280 × 192 portrait](art/gbot-workshop-280.png)
 
-## Folder layout
-
-- `src/` — reserved for future assembly source and project assets.
-- `disk/` — reserved for future distributable disk images.
-- `tests/` — reserved for future checks and emulator tests.
-- `art/` — native HGR character concept and its decoded PNG previews.
-- `tools/` — reproducible concept-art generator; future project-specific helpers.
-- `build/` — future generated intermediates; ignored by the workshop `.gitignore`
-  and created locally/by a future build, not tracked in Git.
-
-The empty tracked directories use `.gitkeep` only to preserve the scaffold.
-See the [workshop README](../../README.md) for shared tools and repository layout.
+G-Bot is a curious repair robot, not a combat tank. The wider idea remains a
+room-to-room repair adventure: a workshop, a dark power room and a security room
+are potential next steps, with repairs that affect other rooms and gradually
+reveal the facility's story. Room checkpoints rather than limited lives are the
+current direction. Two disks remain an option **if the world earns them**, not a
+requirement to fill space. First, we can judge the robot's size, personality and
+movement together in this one room.
