@@ -7,6 +7,7 @@ Layout mirrors `C:\Users\rjguerrero\Projects\AppleII\`.
 - `Scripts/` – `Run-Apple2.ps1` + `runner.lua`: run a program in MAME headlessly and write `results.txt` (see `docs/README-runner.md`).
 - `Projects/BeginnerTesting/` – `hello.bas`, `store.s` smoke tests.
 - `Projects/Rockfall/` – hi-res avoid-the-rocks game (ca65 source, `build.ps1`, builds bootable `disk/rockfall.dsk`).
+- [Projects/GBotAdventure/](Projects/GBotAdventure/README.md) – G-Bot Adventure (working title): repair-adventure planning/scaffold; no playable prototype or disk yet.
 - `Tools/a2sprite/` – offline HTML sprite / Applesoft shape-table editor (open `a2sprite.html`).
 - `docs/` – documentation.
 
