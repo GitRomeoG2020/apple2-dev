@@ -347,13 +347,14 @@ opaque edge, the sprite selects that byte's palette phase; the underlying room
 bytes are restored exactly when it moves away. The two display pages normally
 show successive animation states, not identical frames.
 
-Measured game ticks average approximately **70,600 cycles (~14.2 updates/second
+Measured game ticks average approximately **72,600 cycles (~13.8 updates/second
 at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
-**86,439 cycles**, in the security room with both sprites; the workshop and
+**89,906 cycles**, with G-Bot and an actor both on screen; the workshop and
 power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
 each last about 1.7 seconds. A room change (door beat, disk spin-up, seek,
-two-track read, both pages rebuilt) took at most **2.48 million cycles (~2.4 s)**
-in Bobbin's Disk II emulation.
+two-track read, both pages rebuilt) took at most **2.49 million cycles (~2.4 s)**
+in Bobbin's Disk II emulation. Entering or leaving the lab also swaps the actor
+frames (one more 4 KB track) and stays within that bound.
 
 There is no IIe-only vertical-blank wait: the II+ uses the same bounded software
 loop. Page selection is not beam-synchronized, so a CRT can show a slight transition
@@ -369,7 +370,11 @@ tear, but no partially erased sprite is deliberately displayed.
 [II+ power room](screenshots/power_arrive_plus.png) ·
 [Locker prompt](screenshots/power_locker_enhanced.png) ·
 [Security room arrival, guard rebooting](screenshots/security_arrive_enhanced.png) ·
-[II+ security room](screenshots/security_patrol_plus.png)
+[II+ security room](screenshots/security_patrol_plus.png) ·
+[Lab arrival, native 280 × 192](screenshots/lab_arrive_enhanced-280.png) ·
+[II+ lab with the scientist](screenshots/lab_scientist_plus.png) ·
+[Lab consoles](screenshots/lab_consoles_enhanced.png) ·
+[Lab door locked](screenshots/security_labdoor_locked_enhanced.png)
 
 Screenshots are decoded **from actual Bobbin HGR RAM after booting this disk**,
 not the generator's concept preview. Enlargements use nearest-neighbor pixels.
@@ -405,17 +410,28 @@ lit room streamed from tracks 9–10; the lit room still lit after a trip to the
 workshop; the security door opening at its checkpoint; the guard rebooting,
 waking, and patrolling one byte at a time to both ends while the checkpoint stays
 safe; a touch sending G-Bot back; a timed crossing with real controls to the desk;
-the desk probe and solidity; and round trips through all three rooms (15
-transitions). The independent compositor also draws the guard, with the same
-depth ordering, so every frame checks both sprites on both pages. The IIe run
-checked **1,513 frames**, the II+ run **1,507**, with both full pages
-compared each time. Frame-cost checks
+the desk probe and solidity; and round trips through all three rooms.
+
+The lab milestone adds: the lab door sealed before the desk (message and orange
+lamp bytes); the desk unlocking it (green lamp, run-on line); walking into the lab
+from tracks 14–15 with the scientist's frames streamed to `$1800` from track 16;
+250 frames of the flicker cycle (gone, flickering in, solid, flickering out) with
+both solid and ghost frames seen at more than one spot and G-Bot never moved; the
+consoles, chamber, bay and scientist prompts and probes, every run-on line, and
+the empty-floor probe; the dais blocking from the front and side; leaving the lab
+with the guard's frames re-streamed and the guard and door state kept; and a full
+round trip lab → security → power → workshop → power → security → lab with every
+state kept (24 transitions in the whole run). The independent compositor draws
+the guard and the scientist (including ghost frames) with the same depth ordering,
+so every frame checks both sprites on both pages, and every flicker frame proves
+there are no trails. The IIe run checked **2,350 frames**, the II+ run **2,344**,
+with both full pages compared each time. Frame-cost checks
 combine Bobbin's completed video-frame count and partial-frame cycle count.
 
 ```sh
 # Build first, then (each run is bounded by the caller):
-timeout 900 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
-timeout 900 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+timeout 1500 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
+timeout 1500 python3 Projects/GBotAdventure/tests/workshop_test.py plus
 ```
 
 These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
@@ -430,8 +446,8 @@ their launch/build instructions follow the workshop's existing native layout.
 [280 × 192 portrait](art/gbot-workshop-280.png)
 
 G-Bot is a curious repair robot, not a combat tank. The wider idea remains a
-room-to-room repair adventure: the workshop, power room and security room now
-exist, with repairs that affect other rooms and gradually reveal the facility's
+room-to-room repair adventure: the workshop, power room, security room and lab
+now exist, with repairs that affect other rooms and gradually reveal the facility's
 story. Room checkpoints rather than limited lives are the direction already used
 for the guard. Two disks remain an option **if the world earns them**, not a
 requirement to fill space.
