@@ -1,9 +1,10 @@
-; G-Bot: After Hours -- three rooms: workshop, power room, security room.
+; G-Bot: After Hours -- four rooms: workshop, power room, security room, lab.
 ; Plain NMOS 6502 / 48K. HGR pages $2000/$4000, canonical room $8000,
-; G-Bot's masked frames $A000, guard frames $1800 (loaded at boot, track 13).
+; G-Bot's masked frames $A000, actor frames $1800: the guard (track 13, read
+; at boot) or the lab's flickering scientist (track 16), loaded per room.
 ; Only ONE 8K room fits at $8000: room changes stream the next background from
 ; disk through the resident boot loader. Tracks: 3-4 workshop, 7-8 dark power
-; room, 9-10 lit power room, 11-12 security room.
+; room, 9-10 lit power room, 11-12 security room, 14-15 lab.
 ; Every frame: restore both sprites' old rectangles on the offscreen page, sync
 ; diagnostics, then composite back-to-front (by feet depth) and flip.
 ; All G-Bot x positions are even: artifact-color parity never reverses.
@@ -69,15 +70,30 @@ NX=$99
 NY=$9A
 NDIR=$9B
 POWERUP=$9C
+LABOPEN=$9D                   ; security desk probed: lab door unlocked
+ACTLOADED=$9E                 ; whose frames are at $1800: 2 guard, 3 scientist
+ACTX=$9F                      ; current room's actor: byte column, top row,
+ACTY=$A0                      ;   height, frame index, visible
+ACTH=$A1
+ACTSHOW=$A2
+ACTVIS=$A3
+GOLDY=$A4                     ; actor top row last drawn on page 0 / page 1
+SCSPOT=$A6                    ; scientist: spot 0-2, phase timer, phase
+SCTIMER=$A7
+SCPHASE=$A8                   ; 0 gone, 1 flickering in, 2 here, 3 flickering out
 MASKBUF=$1200                 ; 308 shifted opacity bytes (not inverse masks)
 DATABUF=$1000                 ; 308 shifted pixels
 PHASEBUF=$1400                ; 44 phase bytes
 GUARDART=$1800                ; 6 x 270-byte guard frames from track 13
 LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
+LOADONE=$0808                 ; same, one track (4K)
 WORKSHOP_TRACK=3
 POWER_TRACK=7
 POWERLIT_TRACK=9
 SECURITY_TRACK=11
+GUARD_TRACK=13
+LAB_TRACK=14
+SCI_TRACK=16
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -95,12 +111,14 @@ entry:  cld
         lda $C088,x            ; motor off; only room changes read the disk
         bit $C051              ; hide setup in text mode
         lda #0
-        ldx #$4C
+        ldx #$58
 @state: sta $50,x
         dex
         bpl @state
         lda #GXMIN
         sta GX
+        lda #2                 ; boot read the guard's frames
+        sta ACTLOADED
         lda #126
         sta PX
         lda #104
@@ -168,7 +186,7 @@ main:   lda PAGE
         beq :+
         jsr transition
         jmp main               ; both pages already complete
-:       jsr guard
+:       jsr actors
         jsr interaction
         jsr prepare
         jsr render
@@ -268,8 +286,9 @@ update: lda #0
         dec PROBE
         rts
 @move:  lda BURST
-        beq @done
-        dec BURST
+        bne :+
+        rts
+:       dec BURST
         lda PX
         sta TMPX
         lda PY
@@ -298,7 +317,18 @@ update: lda #0
         beq @work
         cmp #1
         beq @power
-        lda PX                 ; security desk: front y=96, right x=100
+        cmp #3
+        bne @desk
+        lda PY                 ; lab: time-chamber dais, front y=100
+        cmp #58
+        bcs @allowed
+        lda PX
+        cmp #64
+        bcc @allowed
+        cmp #175
+        bcs @allowed
+        bcc @blocked
+@desk:  lda PX                 ; security desk: front y=96, right x=100
         cmp #82
         bcs @allowed
         lda PY
@@ -340,10 +370,46 @@ update: lda #0
 
 ; Doors. A = message when sealed; otherwise queue the transition.
 doors:  lda ROOM
-        beq @workshop
-        cmp #1
-        beq @power
-        lda DIR                ; security: east door, front half of right wall
+        bne :+
+        jmp @workshop
+:       cmp #1
+        bne :+
+        jmp @power
+:       cmp #3
+        bne @security
+        lda DIR                ; lab: doorway at the bottom, back to security
+        bne @no1
+        lda PY
+        cmp #114
+        bne @no1
+        jsr incolumn
+        bcc @no1
+        lda #0
+        sta NDIR
+        lda #2
+        ldx PX
+        ldy #48
+        jmp @go
+@no1:   rts
+@security:
+        lda DIR
+        cmp #3
+        bne @east
+        lda PY                 ; north: the lab door, released from the desk
+        cmp #48
+        bne @no1
+        jsr incolumn
+        bcc @no1
+        lda LABOPEN
+        bne :+
+        lda #29                ; LAB DOOR LOCKED - TRY THE DESK
+        jmp @sealed
+:       lda #3
+        sta NDIR
+        ldx PX
+        ldy #114
+        jmp @go
+@east:  lda DIR                ; east door, front half of right wall
         cmp #2
         bne @no0
         lda PX
@@ -428,6 +494,17 @@ doors:  lda ROOM
         sta FEEDBACK
         rts
 
+incolumn:                      ; C=1 when PX is in the shared doorway column
+        lda PX
+        cmp #DOOR_X0
+        bcc :+
+        cmp #DOOR_X1+1
+        bcs :++
+        sec
+:       rts
+:       clc
+        rts
+
 ; Room change (or reload of the lit power room). Entry/exit: PAGE is the
 ; displayed page. Only the workshop door gets the slide-open beat.
 transition:
@@ -467,6 +544,16 @@ transition:
         lda #POWERLIT_TRACK
 @load:  ldy #>room
         jsr LOADROOM
+        ldx ROOM               ; this room's actor frames at $1800, if needed
+        cpx #2
+        bcc @noactor
+        cpx ACTLOADED
+        beq @noactor
+        stx ACTLOADED
+        lda actortrack-2,x
+        ldy #$10
+        jsr LOADONE
+@noactor:
         lda POWERUP
         beq :+
         lda #0
@@ -484,11 +571,79 @@ transition:
         sta GSTATE
         lda #40
         sta GTIMER
-:       jsr guard_show
+:       lda ROOM
+        cmp #3
+        bne :+
+        lda #0                 ; lab: the scientist is out of sync for a moment
+        sta SCPHASE
+        lda #20
+        sta SCTIMER
+:       jsr actor_show
         lda #$FF
         sta LASTMSG
         jsr interaction        ; status line, and repair patches if workshop
         jmp show_room
+
+actors: lda ROOM
+        cmp #2
+        bne :+
+        jmp guard
+:       cmp #3
+        beq scientist
+        rts
+actor_show:
+        lda ROOM
+        cmp #2
+        bne :+
+        jmp guard_show
+:       cmp #3
+        beq sci_show
+        rts
+
+; The flickering scientist: harmless. Gone, flickers in, stays ~3 s, flickers
+; out, then turns up at the next spot. Ghost frames draw alternate rows only.
+scientist:
+        dec SCTIMER
+        bne sci_show
+        ldx SCPHASE
+        inx
+        cpx #4
+        bcc @set
+        ldx #0
+        ldy SCSPOT
+        iny
+        cpy #3
+        bcc :+
+        ldy #0
+:       sty SCSPOT
+@set:   stx SCPHASE
+        lda phasetime,x
+        sta SCTIMER
+sci_show:
+        ldx SCSPOT
+        lda spotx,x
+        sta ACTX
+        lda spoty,x
+        sta ACTY
+        lda #40
+        sta ACTH
+        ldy SCPHASE
+        lda phasevis,y
+        sta ACTVIS
+        lda #0
+        cpy #2
+        beq :+
+        lda SCTIMER            ; flickering: alternate solid and ghost
+        and #1
+        asl a
+:       clc
+        adc #6                 ; scientist frames follow the guard's six
+        sta ACTSHOW
+        lda ACTX
+        and #1
+        ora ACTSHOW
+        sta ACTSHOW
+        rts
 
 ; Security guard: dormant until first seen, ~3 s reboot, then a steady
 ; byte-stepped patrol along the hazard lane. Touch = back to the checkpoint.
@@ -579,7 +734,17 @@ guard_show:
         adc #2
         adc GSHOW
         sta GSHOW
-:       rts
+:       lda GSHOW
+        sta ACTSHOW
+        lda GX
+        sta ACTX
+        lda #GY
+        sta ACTY
+        lda #30
+        sta ACTH
+        lda #1
+        sta ACTVIS
+        rts
 
 probe_contact:
         lda ROOM
@@ -587,10 +752,18 @@ probe_contact:
         jmp @workshop
 :       cmp #1
         beq @power
+        cmp #3
+        beq @lab
         ldx #28                ; NOTHING TO PROBE HERE
         lda NEAR
         beq @say
+        lda #1
+        sta LABOPEN            ; the desk's door release: lab unlocked
         ldx #27                ; MONITORS: EVERY CAMERA SHOWS NOBODY
+        bne @say
+@lab:   ldx NEAR
+        lda labprobe,x
+        tax
         bne @say
 @power: lda NEAR
         bne @thing
@@ -656,7 +829,11 @@ interaction:
         beq @workshop
         cmp #1
         beq @prange
-        lda PX                 ; security desk apron
+        cmp #3
+        bne @srange
+        jsr labnear
+        jmp @range_done
+@srange:lda PX                 ; security desk apron
         cmp #76
         bcs @range_done
         lda PY
@@ -729,14 +906,26 @@ interaction:
         lda FEEDBACK
         beq @context
         dec FEEDBACK
-        lda MESSAGE
+        bne :+
+        ldx MESSAGE            ; a probe line that runs on into the next one
+        lda chain,x
+        beq :+
+        sta MESSAGE
+        lda #96
+        sta FEEDBACK
+:       lda MESSAGE
         jmp @message
 @context:
         lda ROOM
         beq @workroom
         cmp #1
         beq @powerroom
-        lda #23                ; SECURITY UNIT REBOOTING...
+        cmp #3
+        bne :+
+        ldx NEAR
+        lda labctx,x
+        jmp @message
+:       lda #23                ; SECURITY UNIT REBOOTING...
         ldx GSTATE
         cpx #1
         beq @message
@@ -843,8 +1032,11 @@ interaction:
 @patch:
         ; Mutable canonical background is the sole restoration source.
         lda ROOM
+        beq :++
+        cmp #2
         beq :+
-        rts                    ; only the workshop has repair patches
+        rts
+:       jmp secpatch           ; security: the lab-door lock lamp
 :       ldx #PATCH_COUNT-1
 @byte:  lda patchlo,x
         sta BG
@@ -923,6 +1115,88 @@ fill_page:
 
 ; Small repair: inspect the fault, explicitly reconnect with R, watch it boot.
 ; A different confirmation key means held/repeating Space cannot solve it.
+secpatch:
+        ldx #SECPATCH_COUNT-1
+@byte:  lda secpatchlo,x
+        sta BG
+        lda secpatchhi,x
+        ora #$80
+        sta BG+1
+        lda LABOPEN
+        beq @off
+        lda secpatch_on,x
+        jmp @store
+@off:   lda secpatch_off,x
+@store: ldy #0
+        sta (BG),y
+        dex
+        bpl @byte
+        rts
+
+; Lab: what is G-Bot standing near? 3 the (visible) scientist, 1 the chamber,
+; 2 the parking bay, 4 the consoles.
+labnear:
+        lda ACTVIS
+        beq @fixed
+        lda PY                 ; feet within 17 rows of hers?
+        clc
+        adc #4
+        sec
+        sbc ACTY
+        bcs :+
+        eor #$FF
+        adc #1
+:       cmp #18
+        bcs @fixed
+        lda ACTX
+        asl a
+        asl a
+        asl a
+        sec
+        sbc ACTX
+        sta TMPX
+        clc
+        adc #30
+        cmp PX
+        beq @fixed
+        bcc @fixed
+        lda TMPX
+        sec
+        sbc PX
+        bcc @sci
+        cmp #44
+        bcs @fixed
+@sci:   lda #3
+        sta NEAR
+        rts
+@fixed: lda PX
+        cmp #60
+        bcs @nc
+        lda PY
+        cmp #62
+        bcs @none
+        lda #4
+        sta NEAR
+        rts
+@nc:    cmp #180
+        bcc @nb
+        lda PY
+        cmp #72
+        bcs @none
+        lda #2
+        sta NEAR
+        rts
+@nb:    cmp #80
+        bcc @none
+        cmp #161
+        bcs @none
+        lda PY
+        cmp #67
+        bcs @none
+        lda #1
+        sta NEAR
+@none:  rts
+
 ; Called AFTER old robot restoration and BEFORE new robot compositing.
 ; Each page receives the current diagnostics/visual state independently.
 draw_diagnostics:
@@ -956,6 +1230,21 @@ draw_diagnostics:
         sta (DST),y
         dex
         bpl @patch
+        ldx #SECPATCH_COUNT-1
+@sp:    lda secpatchlo,x
+        sta BG
+        sta DST
+        lda secpatchhi,x
+        ora #$80
+        sta BG+1
+        lda secpatchhi,x
+        ora PAGEHI
+        sta DST+1
+        ldy #0
+        lda (BG),y
+        sta (DST),y
+        dex
+        bpl @sp
         rts
 
 ; Pick an expressive pose and construct the 7-byte-wide shifted sprite.
@@ -1106,13 +1395,15 @@ render: ldx PAGE
         bne @restore
         lda ROOM
         cmp #2
-        bne @diag
+        bcc @diag
         ldx PAGE
         lda GOLD,x
         sta OX
+        lda GOLDY,x
+        sta OY
         lda #0
         sta ROW
-@grest: lda #GY
+@grest: lda OY
         clc
         adc ROW
         tax
@@ -1124,7 +1415,7 @@ render: ldx PAGE
         bpl @gcopy
         inc ROW
         lda ROW
-        cmp #30
+        cmp ACTH
         bne @grest
 @diag:  jsr draw_diagnostics
         ldx PAGE
@@ -1137,13 +1428,24 @@ render: ldx PAGE
         sta OLDY,x
         lda ROOM
         cmp #2
-        beq :+
+        bcs :+
         jmp blit_gbot
 :       ldx PAGE
-        lda GX
+        lda ACTX
         sta GOLD,x
+        lda ACTY
+        sta GOLDY,x
+        lda ACTVIS
+        bne :+
+        jmp blit_gbot
+:       lda ACTY               ; G-Bot's feet at or below the actor's: in front
+        clc
+        adc ACTH
+        sec
+        sbc #44
+        sta TMPY
         lda PY
-        cmp #122-43            ; G-Bot's feet at or below the guard's: in front
+        cmp TMPY
         bcs @front
         jsr blit_gbot
         jmp blit_guard
@@ -1193,18 +1495,19 @@ blit_gbot:
         bne @blit
         rts
 
-; Guard: 4 bytes x 30 rows, byte-aligned (no shifting), parity-matched frame.
+; Actor (guard or scientist): 4 bytes wide, byte-aligned (no shifting),
+; parity-matched frame, ACTH rows from ACTY.
 blit_guard:
-        lda GX
+        lda ACTX
         sta OX
-        ldx GSHOW
-        lda gframelo,x
+        ldx ACTSHOW
+        lda actframelo,x
         sta FP
-        lda gframehi,x
+        lda actframehi,x
         sta FP+1
         lda #0
         sta ROW
-@row:   lda #GY
+@row:   lda ACTY
         clc
         adc ROW
         tax
@@ -1241,7 +1544,7 @@ blit_guard:
         inc FP+1
 :       inc ROW
         lda ROW
-        cmp #30
+        cmp ACTH
         bne @row
         rts
 
@@ -1276,16 +1579,30 @@ advance_buffers:
 
         .segment "RODATA"
         .include "interaction.inc"
-jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR
-busymsg: .byte 3,17,3
-roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,SECURITY_TRACK
-gframelo:
+        .include "security.inc"
+jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
+busymsg: .byte 3,17,3,3
+roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,SECURITY_TRACK,LAB_TRACK
+actortrack: .byte GUARD_TRACK,SCI_TRACK
+labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
+labctx: .byte 31,32,34,37,40
+phasetime: .byte 28,6,40,6
+phasevis: .byte 0,1,1,1
+spotx: .byte 4,25,9               ; scientist spots (byte column, top row)
+spoty: .byte 92,100,60
+actframelo:                       ; 6 guard frames (270 bytes), 4 scientist (360)
 .repeat 6,I
  .byte <(GUARDART+I*270)
 .endrepeat
-gframehi:
+.repeat 4,I
+ .byte <(GUARDART+I*360)
+.endrepeat
+actframehi:
 .repeat 6,I
  .byte >(GUARDART+I*270)
+.endrepeat
+.repeat 4,I
+ .byte >(GUARDART+I*360)
 .endrepeat
 dx: .byte 0,254,2,0
 dy: .byte 2,0,0,254
@@ -1349,3 +1666,10 @@ guard_frames: .incbin "../art/guard-sprites.bin"
 guard_end:
 .assert guard_frames = GUARDART, lderror, "Guard art must sit at $1800"
 .assert guard_end <= $2000, lderror, "Guard art overflows into HGR page 1"
+        .segment "LABROOM"     ; tracks 14-15
+lab_room: .incbin "../art/lab-room.hgr"
+        .segment "SCIART"      ; track 16, read to $1000-$1FFF on entering the lab
+sci_frames: .incbin "../art/scientist-sprites.bin"
+sci_end:
+.assert sci_frames = GUARDART, lderror, "Scientist art must sit at $1800"
+.assert sci_end <= $2000, lderror, "Scientist art overflows into HGR page 1"

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Bounded, real Disk II boot and frame-by-frame integration tests in Bobbin:
 workshop repair, rear door, streamed power room, fuse hunt, lit power room,
-security room with its patrolling guard, and round trips through all rooms.
+security room with its patrolling guard, the lab with its flickering scientist,
+and round trips through all four rooms.
 Usage: python3 tests/workshop_test.py enhanced|plus [--bobbin /path/bobbin-ai]
 Pillow supplies the independent art oracle and screenshot export.
 """
@@ -11,13 +12,13 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def offset(y):return (y&7)*1024+((y>>3)&7)*128+(y//64)*40
 
-def put_guard(out,guards,gx,n):
-    f=guards[n*270:(n+1)*270]
-    for r in range(30):
+def put_actor(out,frames,size,ax,ay,rows,n):
+    f=frames[n*size:(n+1)*size]
+    for r in range(rows):
         row=f[r*9:r*9+9]
         for b in range(4):
             if row[b]:
-                at=offset(93+r)+gx+b
+                at=offset(ay+r)+ax+b
                 out[at]=(out[at]&(~row[b]&127))|row[4+b]|row[8]
 
 def expected(room,sprites,x,y,frame):
@@ -39,10 +40,14 @@ def main():
     from gen_workshop import room as room_art,status_rows
     from gen_power_room import room as power_art
     from gen_security import room as security_art
-    arts={(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art()}
+    from gen_lab import room as lab_art,frames as sci_art
+    arts={(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art()}
     guards=(ROOT/'art/guard-sprites.bin').read_bytes()
-    def background(repair=0,msg=0,where=0,fuse=0,lit=False):
-        out=bytearray(room_art(repair==3) if where==0 else arts[(where,lit and where==1)])
+    scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
+    assert scis==sci_art()
+    def background(repair=0,msg=0,where=0,fuse=0,lit=False,labopen=False):
+        flag=(lit and where==1) or (labopen and where==2)
+        out=bytearray(room_art(repair==3) if where==0 else arts[(where,bool(flag))])
         for row,data in enumerate(status_rows(msg,fuse==1)):
             out[offset(177+row):offset(177+row)+40]=data
         return bytes(out)
@@ -59,7 +64,7 @@ def main():
         proc=subprocess.Popen([args.bobbin,'--simple','--remain','--no-turbo','-m',args.machine,'--disk',disk,'--control-socket',sock],stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
         def q(cmd):
             with socket.socket(socket.AF_UNIX) as s:
-                s.settimeout(10);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
+                s.settimeout(30);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
                 while not out.endswith(b'\n'):out+=s.recv(65536)
             result=json.loads(out)
             if not result.get('ok'):raise RuntimeError(result)
@@ -82,14 +87,18 @@ def main():
             return where()==1 and panel==3 and transit==0
         def current_bg():
             repair,near,msg=peek(0x83,3)
-            return background(repair,msg,where(),peek(0x8D,1)[0],lit())
+            return background(repair,msg,where(),peek(0x8D,1)[0],lit(),peek(0x9D,1)[0]==1)
+        def actor():return peek(0x9F,5)   # ACTX ACTY ACTH ACTSHOW ACTVIS
         def compose(bg,st):
-            if where()!=2:return expected(bg,sprites,st[0],st[1],st[7])
-            gx,gshow=peek(0x8F,1)[0],peek(0x95,1)[0]
+            if where()<2:return expected(bg,sprites,st[0],st[1],st[7])
+            ax,ay,ah,show,vis=actor()
+            if not vis:return expected(bg,sprites,st[0],st[1],st[7])
+            art,size=(guards,270) if show<6 else (scis,360)
+            n=show if show<6 else show-6
             out=bytearray(bg)
-            if st[1]>=79:   # G-Bot's feet nearer the viewer: guard drawn first
-                put_guard(out,guards,gx,gshow);return expected(bytes(out),sprites,st[0],st[1],st[7])
-            out=bytearray(expected(bg,sprites,st[0],st[1],st[7]));put_guard(out,guards,gx,gshow);return bytes(out)
+            if st[1]>=ay+ah-44:   # G-Bot's feet nearer the viewer: actor drawn first
+                put_actor(out,art,size,ax,ay,ah,n);return expected(bytes(out),sprites,st[0],st[1],st[7])
+            out=bytearray(expected(bg,sprites,st[0],st[1],st[7]));put_actor(out,art,size,ax,ay,ah,n);return bytes(out)
         pages={0:expected(background(),sprites,126,104,0),1:expected(background(),sprites,126,104,0)}
         cycles=[];poses=set();shifts=set();checks=0
         def verify():
@@ -320,6 +329,12 @@ def main():
             poke(0x8F,[16,0,0]);position(112,80,1)
             ok(tuple(state()[:3])==(224,104,1) and peek(0x85,1)==bytes([24]),'touching the guard returns G-Bot to the entry checkpoint')
             capture('caught','security')
+            # The new north lab door is sealed until the desk is probed.
+            poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
+            ok(where()==2 and tuple(state()[:2])==(122,48) and peek(0x85,1)==bytes([29]) and peek(0x9D,1)==b'\0','lab door sealed before the desk: LAB DOOR LOCKED - TRY THE DESK')
+            ok(peek(0x8000,8192)==background(3,29,2,2,labopen=False),'lab-door lock lamp is orange while sealed')
+            capture('labdoor_locked','security')
+            position(224,104,1)
             # Cross the lane with real controls while the guard is away east.
             poke(0x8F,[3,1,0]);frame()
             for _ in range(15):press('A',4)
@@ -328,6 +343,13 @@ def main():
             ok(tuple(state()[:2])==(72,56) and peek(0x84,1)==b'\x01' and peek(0x85,1)==bytes([26]),'timed crossing reaches the security desk safely')
             press(' ',4);ok(peek(0x85,1)==bytes([27]),'probing the desk: MONITORS: EVERY CAMERA SHOWS NOBODY')
             capture('desk','security')
+            ok(peek(0x9D,1)==b'\x01','probing the desk releases the lab door (LABOPEN)')
+            ok(peek(0x8000,8192)==background(3,27,2,2,labopen=True),'lock lamp on the security art turns green')
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([30]):break
+            ok(peek(0x85,1)==bytes([30]),'desk line runs on: ...AND THE LAB DOOR CLICKS OPEN')
+            capture('labdoor_open','security')
             position(60,54,3);press('W');ok(tuple(state()[:2])==(60,54),'security desk is solid')
             # Round trips through all three rooms.
             position(224,104,2);press('D',4)
@@ -338,7 +360,81 @@ def main():
             ok(where()==0 and peek(0x83,1)==b'\x03' and peek(0x8000,8192)==background(3,4),'power -> workshop with every repair kept')
             press('W',4);ok(where()==1 and lit(),'workshop -> lit power room')
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
-            ok(0<min(transitions) and len(transitions)>=14,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
+            # ---- THE LAB ----
+            poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
+            ok(where()==3 and tuple(state()[:3])==(122,114,3),'open north door streams in the lab from tracks 14-15')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 16')
+            ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
+            for _ in range(3):frame()
+            capture('arrive','lab')
+            # Flicker: hidden -> ghost -> solid -> ghost -> next spot; every frame exact.
+            phases=set();shows=set();spots=set();hidden=False;shot=set()
+            for _ in range(250):
+                frame()
+                spot,timer,phase=peek(0xA6,3);ax,ay,ah,show,vis=actor()
+                phases.add(phase);hidden|=vis==0
+                if vis:shows.add(show);spots.add(spot)
+                if phase==2 and 'scientist' not in shot and timer<30:capture('scientist','lab');shot.add('scientist')
+                if phase in (1,3) and show in (8,9) and 'flicker' not in shot:capture('flicker','lab');shot.add('flicker')
+            ok(phases=={0,1,2,3} and hidden,'scientist cycles gone / flickering in / here / flickering out')
+            ok({6,7}&shows and {8,9}&shows,'solid and ghost (alternate-row) scientist frames both drawn')
+            ok(len(spots)>=2,'she reappears at a different spot (%d spots seen)'%len(spots))
+            ok(tuple(state()[:2])==(122,114),'harmless: G-Bot is never moved by her')
+            # Fixed probes, scientist out of sync (hidden).
+            def hide():poke(0xA6,[0,250,0]);poke(0x88,[0])   # scientist away; last line expired
+            hide();position(30,56,3)
+            ok(peek(0x84,1)==b'\x04' and peek(0x85,1)==bytes([40]),'consoles prompt')
+            press(' ',4);ok(peek(0x85,1)==bytes([41]),'CONSOLE: LOOP 4,817. ALL NOMINAL!')
+            capture('consoles','lab')
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([42]):break
+            ok(peek(0x85,1)==bytes([42]),'console line runs on: LAB CLOCK SAYS 6:02. NOBODY AGREES.')
+            hide();position(122,58,3);press('W');ok(tuple(state()[:2])==(122,58),'time-chamber dais is solid (front)')
+            hide();position(176,50,1);press('A');ok(tuple(state()[:2])==(176,50),'time-chamber dais is solid (side)')
+            hide();position(122,60,3)
+            ok(peek(0x84,1)==b'\x01' and peek(0x85,1)==bytes([32]),'time chamber prompt')
+            press(' ',4);ok(peek(0x85,1)==bytes([33]),'CHAMBER: LOOP ACTIVE. DO NOT DISTURB')
+            capture('chamber','lab')
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([43]):break
+            ok(peek(0x85,1)==bytes([43]),'chamber line runs on: THE RING HUMS. IT KNOWS YOU.')
+            hide();position(200,56,3)
+            ok(peek(0x84,1)==b'\x02' and peek(0x85,1)==bytes([34]),'parking bay recognises him: WELCOME BACK, G-BOT')
+            capture('bay','lab')
+            press(' ',4);ok(peek(0x85,1)==bytes([35]),'BAY: G-BOT. LAST SERVICE: TONIGHT.')
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([36]):break
+            ok(peek(0x85,1)==bytes([36]),'bay line runs on: ...AND TONIGHT. AND TONIGHT.')
+            hide();position(122,100,0);frame(' ');ok(peek(0x84,1)==b'\0' and peek(0x85,1)==bytes([28]),'empty floor: NOTHING TO PROBE HERE')
+            for _ in range(10):frame()
+            # The scientist herself, pinned visible at spot 1.
+            poke(0xA6,[1,250,2]);poke(0x88,[0]);position(140,100,2)
+            ok(peek(0x84,1)==b'\x03' and peek(0x85,1)==bytes([37]),'scientist nearby: SCIENTIST! SPACE TO SAY HELLO')
+            press(' ',4);ok(peek(0x85,1)==bytes([38]),'SCIENTIST: ...BEFORE THE MORNING SHI-')
+            capture('hello','lab')
+            poke(0xA6,[1,4,3])
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([39]):break
+            ok(peek(0x85,1)==bytes([39]),'...AND SHE FLICKERED OUT MID-WORD')
+            # Back out: guard frames reload, state persists.
+            position(122,106,0);press('S',4);press('S',4)
+            ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
+            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 13')
+            ok(peek(0x92,1)==b'\x02' and peek(0x9D,1)==b'\x01','guard still patrolling, lab door still open')
+            frame();capture('from_lab','security')
+            press('W',4);ok(where()==3,'security -> lab again')
+            position(122,106,0);press('S',4);press('S',4);ok(where()==2,'lab -> security')
+            poke(0x8F,[3,1,0]);position(224,104,2);press('D',4);ok(where()==1 and lit(),'security -> lit power room')
+            position(122,106,0);press('S',4);press('S',4);ok(where()==0 and peek(0x8000,8192)==background(3,4),'-> workshop, repairs kept')
+            press('W',4);ok(where()==1 and lit(),'workshop -> power')
+            position(14,90,1);press('A',4);ok(where()==2 and peek(0x9D,1)==b'\x01','power -> security, lab door still unlocked')
+            poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
+            ok(where()==3 and peek(0x83,1)==b'\x03' and peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and peek(0x1800,1440)==scis,'full round trip: back in the lab with every state kept')
+            ok(0<min(transitions) and len(transitions)>=24,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
             cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))

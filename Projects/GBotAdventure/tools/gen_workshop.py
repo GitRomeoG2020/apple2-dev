@@ -143,6 +143,12 @@ REPAIR_FONT={
  ' ':['000']*5, '-':['000','000','111','000','000'],
  '/':['001','001','010','100','100'], ':':['000','010','000','010','000'],
  '.':['000','000','000','000','010'], '!':['010','010','010','000','010'],
+ ',':['000','000','000','010','100'],
+ '0':['111','101','101','101','111'], '1':['010','110','010','010','111'],
+ '2':['111','001','111','100','111'], '3':['111','001','011','001','111'],
+ '4':['101','101','111','001','001'], '5':['111','100','111','001','111'],
+ '6':['111','100','111','101','111'], '7':['111','001','010','010','010'],
+ '8':['111','101','111','101','111'], '9':['111','101','111','001','111'],
 }
 # Status line text, indexed by MESSAGE ($85). 0-7 workshop, 8-12 power room/door.
 MESSAGES=[
@@ -175,7 +181,24 @@ MESSAGES=[
     'SECURITY DESK: SPACE TO PROBE',          # 26
     'MONITORS: EVERY CAMERA SHOWS NOBODY',    # 27
     'NOTHING TO PROBE HERE',                  # 28
+    'LAB DOOR LOCKED - TRY THE DESK',         # 29
+    '...AND THE LAB DOOR CLICKS OPEN',        # 30
+    'THE LAB: SOMETHING IS STILL RUNNING',    # 31
+    'TIME CHAMBER: SPACE TO PROBE',           # 32
+    'CHAMBER: LOOP ACTIVE. DO NOT DISTURB',   # 33
+    'PARKING BAY: WELCOME BACK, G-BOT',       # 34
+    'BAY: G-BOT. LAST SERVICE: TONIGHT.',     # 35
+    '...AND TONIGHT. AND TONIGHT.',           # 36
+    'SCIENTIST! SPACE TO SAY HELLO',          # 37
+    'SCIENTIST: ...BEFORE THE MORNING SHI-',  # 38
+    '...AND SHE FLICKERED OUT MID-WORD',      # 39
+    'CONSOLES: SPACE TO PROBE',               # 40
+    'CONSOLE: LOOP 4,817. ALL NOMINAL!',      # 41
+    'LAB CLOCK SAYS 6:02. NOBODY AGREES.',    # 42
+    '...THE RING HUMS. IT KNOWS YOU.',        # 43
 ]
+# A probe line that runs on: when its feedback time ends, the next one shows.
+CHAIN={27:30,33:43,35:36,38:39,41:42}
 def message_pixels(text):
     assert len(text)<=40
     text=text.center(40)
@@ -222,6 +245,7 @@ def interaction_art():
               'fonthi:','.byte '+','.join(f'>fontrow{r}' for r in range(5))]
     for r in range(5):
         lines += [f'fontrow{r}:','.byte '+','.join(str(message_pixels(ch)[r][19]) for ch in glyphs)]
+    lines += ['chain:','.byte '+','.join(str(CHAIN.get(i,0)) for i in range(len(messages)))]
     icon=fuse_icon()
     lines += ['iconl:','.byte '+','.join(str(r[0]) for r in icon),'iconr:','.byte '+','.join(str(r[1]) for r in icon)]
     # Self-check: glyph lookup reproduces message_pixels exactly.

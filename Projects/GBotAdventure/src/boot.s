@@ -4,7 +4,8 @@
 ; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
 ; room background (two whole tracks) into $8000 on a room transition.
 ; Disk map: T3-4 workshop room (part of the boot load), T7-8 dark power room,
-; T9-10 lit power room, T11-12 security room, T13 guard art (-> $1000 at boot).
+; T9-10 lit power room, T11-12 security room, T13 guard art (-> $1000 at boot),
+; T14-15 lab, T16 scientist art (-> $1000 when the lab is entered).
         .setcpu "6502"
 WAIT=$FCA8
 SLOT=$2B
@@ -20,6 +21,7 @@ LEFT=$45
 PAGE0=$46
 CNT=$47
 LASTT=$48                        ; first track NOT to read
+NREAD=$49
 DONE=$0D60
 NBUF1=$0C00
 NBUF2=$0D00
@@ -29,6 +31,7 @@ GAME=$6000
         jmp start
 ntracks:.byte 6                  ; $0804: tracks in the boot load
         jmp loadroom             ; $0805: LOADROOM entry used by the game
+        jmp loadone              ; $0808: LOADONE, a single 4K track
 start:  cld
         stx SLOT
         jsr $FC58
@@ -88,13 +91,18 @@ readtracks:
         bcc @track
         rts
 
-; loadroom: A = first track, Y = destination page. Reads two tracks (8K),
-; read-only: motor on, drive 1, read mode; motor off again before returning.
+; loadroom: A = first track, Y = destination page. Reads two tracks (8K);
+; loadone reads one (4K). Read-only: motor on, drive 1, read mode; motor off
+; again before returning.
 loadroom:
+        ldx #2
+        bne loadn
+loadone:ldx #1
+loadn:  stx NREAD
         sta TRK
         sty PAGE0
         clc
-        adc #2
+        adc NREAD
         sta LASTT
         ldx SLOT
         lda $C089,x              ; motor on

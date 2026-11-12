@@ -1,9 +1,10 @@
 # G-Bot: After Hours
 
-![G-Bot in the security room while the guard bot patrols, captured from the Apple IIe emulator's actual HGR page](screenshots/security_patrol_enhanced.png)
+![G-Bot says hello to the flickering scientist in the lab, captured from the Apple IIe emulator's actual HGR page](screenshots/lab_hello_enhanced.png)
 
-**Fourth playable milestone: find the fuse, bring the power room back to life,
-and get past the security room's guard bot.** Three connected rooms.
+**Fifth playable milestone: THE LAB.** Fix the workshop, find the fuse, light the
+power room, slip past the security room's guard bot, and use the security desk to
+unlock the lab, where something is still running. Four connected rooms.
 The official title is **G-Bot: After Hours**; the stable project folder remains
 `Projects/GBotAdventure`.
 
@@ -49,13 +50,29 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   steadily back and forth along the lane. Touching it sends G-Bot back to the
   room's entry door (**GUARD: WORK ORDER NOT RECOGNIZED**). There are no lives, damage or
   game over. You can cross the lane safely by timing it.
-- Every door works both ways, and the repair, fuse and power states are kept as
-  G-Bot moves between all three rooms.
+- **The lab door.** A new door in the security room's back wall, marked **LAB**,
+  with an orange lock lamp. Walking into it says
+  **LAB DOOR LOCKED - TRY THE DESK**. Probing the security desk releases it:
+  the lamp turns green and the desk's line runs on with
+  **...AND THE LAB DOOR CLICKS OPEN**.
+- **THE LAB**: a time-chamber ring humming on its dais, a bank of consoles, a lab
+  clock showing yet another time (about 6:02), a dropped clipboard page and cup,
+  and a robot **parking bay** with "G-BOT" over a dotted outline exactly his
+  shape, a charging arm and a CHARGE lamp.
+- **The flickering scientist.** A masked, double-buffered sprite in a lab coat with a
+  clipboard. She is never quite in sync: she flickers in (alternate scanlines only),
+  stays about three seconds, flickers out, and turns up somewhere else a few
+  seconds later. She is harmless and never moves G-Bot.
+- **Probe everything.** The chamber, the bay, the consoles and the scientist each
+  give a short clue, and some lines run on into a second one. The bay recognizes
+  G-Bot. See the walkthrough below.
+- Every door works both ways, and the repair, fuse, power and lab-door states are
+  kept as G-Bot moves between all four rooms.
 - The original robot size, readable face, walking, blink and probe pose remain intact.
 
-This is a **three-room prototype**, not the finished adventure. There is no
-combat, lives, saves or story twist in this build. The guard and a camera feed or
-two only hint at the mystery; the underlying truth is not finalized.
+This is a **four-room prototype**, not the finished adventure. There is no
+combat, lives, saves, lab puzzle or story choice in this build yet. The clocks,
+the empty cameras, the scientist and the bay only hint at what happened here.
 
 ## Play the included disk
 
@@ -87,7 +104,7 @@ while playing: each room change reads that room from the disk.
 | A / Left | Walk left |
 | S / Down | Walk toward the front |
 | D / Right | Walk right |
-| Space | Extend probe; inspect the workbench, locker, breaker panel or security desk |
+| Space | Extend probe; inspect the workbench, locker, breaker panel, security desk, or anything in the lab |
 | R | Reconnect the loose lead / fit the fuse after inspection |
 | Escape | Cancel inspection (walking away also cancels) |
 
@@ -175,6 +192,41 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 
 ![At the security desk](screenshots/security_desk_enhanced.png)
 
+### The lab
+
+1. The **LAB** door is in the middle of the security room's back wall, with a
+   small lamp to its right. Before you probe the desk, walking into it says
+   **LAB DOOR LOCKED - TRY THE DESK**.
+2. Probe the **security desk**. After the monitors line, the footer adds
+   **...AND THE LAB DOOR CLICKS OPEN** and the lamp turns green.
+3. From the desk, walk **right** along the back strip, which is safe from the guard,
+   to the door's middle. Then keep walking **up**. The lab loads from disk, and
+   G-Bot arrives at its bottom doorway: **THE LAB: SOMETHING IS STILL RUNNING**.
+4. Look around and probe:
+   - **Consoles** (back left): **CONSOLE: LOOP 4,817. ALL NOMINAL!** then
+     **LAB CLOCK SAYS 6:02. NOBODY AGREES.**
+   - **Time chamber** (walk up to the front of the dais; the dais is solid):
+     **CHAMBER: LOOP ACTIVE. DO NOT DISTURB** then **...THE RING HUMS. IT KNOWS YOU.**
+   - **Parking bay** (back right): just standing there gives
+     **PARKING BAY: WELCOME BACK, G-BOT**. Probe it for
+     **BAY: G-BOT. LAST SERVICE: TONIGHT.** then **...AND TONIGHT. AND TONIGHT.**
+   - **The scientist**: walk close while she is visible:
+     **SCIENTIST! SPACE TO SAY HELLO**. Probe for
+     **SCIENTIST: ...BEFORE THE MORNING SHI-**. When she flickers away, it adds
+     **...AND SHE FLICKERED OUT MID-WORD**.
+5. To leave, walk to the **middle of the bottom edge** and keep walking **down**.
+   You arrive back at the security room's lab door, on the guard-free back strip.
+
+![The scientist, solid for a moment](screenshots/lab_scientist_enhanced.png)
+
+![Flickering out of sync (ghost frame)](screenshots/lab_flicker_enhanced.png)
+
+![The parking bay recognizes G-Bot](screenshots/lab_bay_enhanced.png)
+
+![Probing the time chamber](screenshots/lab_chamber_enhanced.png)
+
+![The lab door unlocked from the desk](screenshots/security_labdoor_open_enhanced.png)
+
 ## Build
 
 Uses the workshop's existing **ca65 / ld65** installation. No WSL, Java,
@@ -208,6 +260,7 @@ With Python 3 and Pillow installed:
 python Projects/GBotAdventure/tools/gen_workshop.py
 python Projects/GBotAdventure/tools/gen_power_room.py
 python Projects/GBotAdventure/tools/gen_security.py
+python Projects/GBotAdventure/tools/gen_lab.py
 python Projects/GBotAdventure/tools/gen_concept.py
 ```
 
@@ -216,7 +269,10 @@ animation frames, plus `src/interaction.inc` (diagnostic pixels and visual patch
 lookup tables, and every status-line message). `gen_power_room.py` authors the
 dark and lit power rooms (`art/power-room.hgr`, `art/power-room-lit.hgr`).
 `gen_security.py` authors the security room and the guard's six masked frames
-(`art/security-room.hgr`, `art/guard-sprites.bin`). `gen_concept.py` regenerates the original portrait without
+(`art/security-room.hgr`, `art/guard-sprites.bin`), plus `src/security.inc`
+(the lab-door lamp bytes). `gen_lab.py` authors the lab and the scientist's four
+frames (`art/lab-room.hgr`, `art/scientist-sprites.bin`: solid and ghost, each
+for even and odd columns). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
 after regenerating workshop art. The checked-in `.hgr` and sprite `.bin` are
 required native build inputs, not modern images loaded by the game.
@@ -225,29 +281,37 @@ required native build inputs, not modern images loaded by the game.
 
 - Full-screen **280 × 192 HGR**, with the room above row 160 and native HGR title
   and controls below. No text-page switching or IIe-only video features.
-- `$0800–$0A00`: read-only bootloader, **kept resident** as the room loader
-  (`LOADROOM` entry at `$0805`); `$0C00–$0D6F`: disk decoding scratch.
+- `$0800–$0A1A`: read-only bootloader, **kept resident** as the room loader
+  (`LOADROOM` at `$0805` reads two tracks, `LOADONE` at `$0808` one);
+  `$0C00–$0D6F`: disk decoding scratch.
   No high-score sector, write routine or Rockfall runtime is carried over.
 - `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
   `$1400–$142B`: row palette phases (all three rebuilt every frame).
-  `$1800–$1E53`: the guard's 6 masked frames (1,620 bytes), read from track 13
-  at boot along with the 24 KB load. `$1E54–$1FFF`: 428 spare bytes.
-- `$50–$9C`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
-  `$8D` fuse, `$8F–$97` guard); `$26`, `$2B`, `$3C–$48`: loader zero page.
+  `$1800–$1FFF`: the **current room's actor frames**. Either the guard's 6 masked
+  frames (1,620 bytes, track 13, read at boot and again when G-Bot comes back
+  from the lab) or the scientist's 4 (1,440 bytes, track 16, read on entering the
+  lab). Both use the same 9-byte-per-row masked format and the same blitter.
+- `$50–$A8`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
+  `$8D` fuse, `$8F–$97` guard, `$9D` lab door, `$9E` which actor is loaded,
+  `$9F–$A5` the current actor, `$A6–$A8` scientist); `$26`, `$2B`, `$3C–$49`:
+  loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$797F`: engine, lookup tables, a 32-glyph status font and 29 status
-  messages (40 bytes each), including alignment padding. `$7980–$7FFF` remains
-  available: **1,664 bytes**. Status lines used to be stored as 200 bytes of
-  pre-drawn pixels each; storing glyph numbers instead is what made room for this
-  milestone's code.
+- `$6000–$6AC0` engine code, `$6B00–$7E7F` lookup tables, a 43-glyph status
+  font (now with digits and a comma) and 43 status messages (40 bytes each).
+  `$7E80–$7FFF` remains available: **384 bytes** (plus 63 bytes of alignment gap
+  at `$6AC1`). The 1,280 bytes this milestone used went on the lab's 15 new
+  messages (600 bytes), the generic actor/scientist code and the lab logic. The
+  next room should move messages into a disk-loaded per-room bank, or pack them
+  more tightly.
 - `$8000–$9FFF`: the **current** room's canonical native background (8,192 bytes;
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
-  `$BF48–$BFFF`: 184 spare bytes. Total slack: **1,848 bytes** in the main
-  layout, plus 428 beside the guard frames.
+  `$BF48–$BFFF`: 184 spare bytes. Total slack: **631 bytes** in the main
+  layout, plus 428 beside the guard frames or 608 beside the scientist's.
 - Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
   tracks 3–4); **7–8 dark power room, 9–10 lit power room, 11–12 security room,
-  13 guard frames**. The complete disk is 143,360 bytes; tracks 14–34 are free.
+  13 guard frames, 14–15 lab, 16 scientist frames**. The complete disk is
+  143,360 bytes; tracks 17–34 are free.
   No language card, auxiliary RAM or expansion sound hardware is needed.
 
 **Why rooms load from disk.** Each HGR background is a full 8 KB and only one fits
@@ -263,11 +327,16 @@ This scales to more rooms (two tracks each) and keeps the art uncompressed and
 exact. The cost is a short pause at each door (measured below). The disk is
 only ever read.
 
+Each room has at most one moving "actor": the guard in the security room, the
+scientist in the lab. Both share one byte-aligned masked blitter (4 bytes wide;
+30 rows for the guard, 40 for the scientist). Her ghost frames have every other
+row fully transparent, so the flicker costs nothing extra and erases cleanly.
+
 Before drawing, only the **offscreen page's previous 7-byte × 44-line rectangle**
-(and, in the security room, the guard's previous 4-byte × 30-line rectangle) is
+(and the actor's previous 4-byte rectangle, at its own height and spot) is
 restored from the canonical room. The diagnostic strip and 52 changed visual
 bytes are then synchronized to that offscreen page before the sprites are drawn.
-With both old rectangles restored first, G-Bot and the guard are composited
+With both old rectangles restored first, G-Bot and the actor are composited
 **back to front by where their feet are**, each masked over what the page already
 holds, so they can pass in front of each other without trails. The guard moves a
 whole byte (7 pixels) per step and needs no shifting. Each pose is stored for
