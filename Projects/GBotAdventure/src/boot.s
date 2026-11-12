@@ -3,7 +3,8 @@
 ; ROM loads T0 physical sectors 0..3 at $0800. Tracks 1..6 -> $6000..$BFFF.
 ; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
 ; room background (two whole tracks) into $8000 on a room transition.
-; Disk map: T3-4 workshop room (part of the boot load), T7-8 dark power room.
+; Disk map: T3-4 workshop room (part of the boot load), T7-8 dark power room,
+; T9-10 lit power room, T11-12 security room, T13 guard art (-> $1000 at boot).
         .setcpu "6502"
 WAIT=$FCA8
 SLOT=$2B
@@ -51,6 +52,13 @@ start:  cld
         ldx ntracks
         inx
         stx LASTT
+        jsr readtracks
+        lda #13                  ; guard art track -> $1000-$1FFF
+        sta TRK
+        lda #14
+        sta LASTT
+        lda #$10
+        sta PAGE0
         jsr readtracks
         ldx SLOT
         jmp GAME

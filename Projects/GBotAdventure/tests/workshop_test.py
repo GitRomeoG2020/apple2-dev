@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded, real Disk II boot and frame-by-frame integration tests in Bobbin:
-workshop repair, rear door, streamed DARK POWER ROOM and the trip back.
+workshop repair, rear door, streamed power room, fuse hunt, lit power room,
+security room with its patrolling guard, and round trips through all rooms.
 Usage: python3 tests/workshop_test.py enhanced|plus [--bobbin /path/bobbin-ai]
 Pillow supplies the independent art oracle and screenshot export.
 """
@@ -9,6 +10,15 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
 def offset(y):return (y&7)*1024+((y>>3)&7)*128+(y//64)*40
+
+def put_guard(out,guards,gx,n):
+    f=guards[n*270:(n+1)*270]
+    for r in range(30):
+        row=f[r*9:r*9+9]
+        for b in range(4):
+            if row[b]:
+                at=offset(93+r)+gx+b
+                out[at]=(out[at]&(~row[b]&127))|row[4+b]|row[8]
 
 def expected(room,sprites,x,y,frame):
     out=bytearray(room); f=sprites[frame*572:(frame+1)*572]
@@ -26,12 +36,14 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('machine',choices=['plus','enhanced'],default='enhanced',nargs='?')
     ap.add_argument('--bobbin',default='/workspace/apple2/bin/bobbin-ai');args=ap.parse_args()
     sys.path.insert(0,str(ROOT/"tools"))
-    from gen_workshop import room as room_art,message_pixels,MESSAGES as messages
+    from gen_workshop import room as room_art,status_rows
     from gen_power_room import room as power_art
-    power=power_art()
-    def background(repair=0,msg=0,where=0):
-        out=bytearray(power if where else room_art(repair==3))
-        for row,data in enumerate(message_pixels(messages[msg])):
+    from gen_security import room as security_art
+    arts={(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art()}
+    guards=(ROOT/'art/guard-sprites.bin').read_bytes()
+    def background(repair=0,msg=0,where=0,fuse=0,lit=False):
+        out=bytearray(room_art(repair==3) if where==0 else arts[(where,lit and where==1)])
+        for row,data in enumerate(status_rows(msg,fuse==1)):
             out[offset(177+row):offset(177+row)+40]=data
         return bytes(out)
     failures=[]
@@ -47,7 +59,7 @@ def main():
         proc=subprocess.Popen([args.bobbin,'--simple','--remain','--no-turbo','-m',args.machine,'--disk',disk,'--control-socket',sock],stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
         def q(cmd):
             with socket.socket(socket.AF_UNIX) as s:
-                s.settimeout(3);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
+                s.settimeout(10);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
                 while not out.endswith(b'\n'):out+=s.recv(65536)
             result=json.loads(out)
             if not result.get('ok'):raise RuntimeError(result)
@@ -65,15 +77,27 @@ def main():
         def poke(a,d):q({'cmd':'poke','addr':a,'data':d})
         def state():return peek(0x70,20)
         def where():return peek(0x8A,1)[0]
+        def lit():
+            transit,panel=peek(0x8B,2)
+            return where()==1 and panel==3 and transit==0
+        def current_bg():
+            repair,near,msg=peek(0x83,3)
+            return background(repair,msg,where(),peek(0x8D,1)[0],lit())
+        def compose(bg,st):
+            if where()!=2:return expected(bg,sprites,st[0],st[1],st[7])
+            gx,gshow=peek(0x8F,1)[0],peek(0x95,1)[0]
+            out=bytearray(bg)
+            if st[1]>=79:   # G-Bot's feet nearer the viewer: guard drawn first
+                put_guard(out,guards,gx,gshow);return expected(bytes(out),sprites,st[0],st[1],st[7])
+            out=bytearray(expected(bg,sprites,st[0],st[1],st[7]));put_guard(out,guards,gx,gshow);return bytes(out)
         pages={0:expected(background(),sprites,126,104,0),1:expected(background(),sprites,126,104,0)}
         cycles=[];poses=set();shifts=set();checks=0
         def verify():
             nonlocal checks
             st=state();page=st[6]
-            repair,near,msg=peek(0x83,3)
-            canonical=background(repair,msg,where())
-            if peek(0x8000,8192)!=canonical:raise AssertionError("canonical background not expected repair/status art")
-            pages[page]=expected(canonical,sprites,st[0],st[1],st[7])
+            canonical=current_bg()
+            if peek(0x8000,8192)!=canonical:raise AssertionError("canonical background not expected room/status art")
+            pages[page]=compose(canonical,st)
             for n in (0,1):
                 actual=peek(0x2000+n*8192,8192)
                 if actual!=pages[n]:
@@ -84,17 +108,16 @@ def main():
         transitions=[]
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
-            room_before=where()
+            room_before=(where(),lit())
             before=q({'cmd':'cpu'});q({'cmd':'resume'})
             # A room change streams 8K from the emulated Disk II: allow seconds.
             if not wait(lambda:q({'cmd':'cpu'})['paused'],12):raise RuntimeError('frame deadline exceeded')
             after=q({'cmd':'cpu'})
-            if where()!=room_before:
+            if (where(),lit())!=room_before:
                 # Transition rebuilt BOTH pages from the new room, robot on each.
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
-                st=state();repair,near,msg=peek(0x83,3)
-                both=expected(background(repair,msg,where()),sprites,st[0],st[1],st[7])
-                pages[0]=pages[1]=both
+                st=state()
+                pages[0]=pages[1]=compose(current_bg(),st)
                 return verify() if check else st
             # Bobbin resets cycle_count at each video frame AND on resume.
             # Completed video frames plus the final partial frame approximate
@@ -203,7 +226,7 @@ def main():
             workshop_cycles=list(cycles)
             position(122,64);press('W',4);press('W',4);press('W',4)
             ok(where()==1 and tuple(state()[:3])==(122,114,3),'unlocked door: walking north into it streams in the power room')
-            ok(peek(0x8000,8192)==background(3,8,1),'power room loaded from tracks 7-8 with its own status line')
+            ok(peek(0x8000,8192)==background(3,8,1),'dark power room loaded from tracks 7-8 with its own status line')
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
             capture('arrive','power')
@@ -238,8 +261,85 @@ def main():
             press('W',4);press('W',4);press('W',4);press('W',4)
             ok(where()==1,'second trip into the power room')
             press('S',4);ok(where()==0,'and back again')
-            ok(0<min(transitions) and len(transitions)==4,'four room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(max(transitions),max(transitions)/1020484))
-            cycles[:]=[c for c in cycles if c<100000 or c not in transitions]
+            # ---- Fuse hunt, lit power room, security room and its guard ----
+            press('W',4)
+            ok(where()==1 and tuple(state()[:3])==(122,114,3),'back in the dark power room')
+            position(14,90,1);after=press('A')
+            ok(where()==1 and tuple(after[:2])==(14,90) and peek(0x85,1)==bytes([21]),'west security door sealed without power')
+            position(50,50);press(' ',4)
+            ok(peek(0x85,1)==b'\x0a' and peek(0x8C,1)==b'\0','panel without a fuse: NO POWER - FIND FUSE, nothing to fit')
+            frame('R');ok(peek(0x8C,1)==b'\0','R cannot fit a fuse G-Bot does not have')
+            for _ in range(12):frame()
+            # Real controls from the doorway to the locker.
+            position(122,114,3)
+            for _ in range(8):press('W',4)
+            ok(tuple(state()[:2])==(122,50) and peek(0x84,1)==b'\x02' and peek(0x85,1)==bytes([13]),'locker prompt: OLD LOCKER: SPACE TO PROBE')
+            capture('locker','power')
+            press(' ',4)
+            ok(peek(0x8D,1)==b'\x01' and peek(0x85,1)==bytes([14]),'probing the locker finds the fuse')
+            ok(peek(0x8000,8192)==background(3,14,1,1),'carried fuse shown in the status-line HUD')
+            capture('fuse','power')
+            for _ in range(10):frame()
+            press(' ',4);ok(peek(0x85,1)==bytes([15]) and peek(0x8D,1)==b'\x01','locker is empty afterwards')
+            for _ in range(9):press('A',4)
+            ok(tuple(state()[:2])==(50,50) and peek(0x84,1)==b'\x01','walk to the panel carrying the fuse')
+            press(' ',4)
+            ok(peek(0x8C,1)==b'\x01' and peek(0x85,1)==bytes([16]),'panel offers FUSE FITS: R TO FIT / ESC CANCEL')
+            frame('\x1B');ok(peek(0x8C,1)==b'\0' and peek(0x8D,1)==b'\x01','Escape cancels; the fuse stays carried')
+            for _ in range(12):frame(' ')
+            ok(peek(0x8C,1)==b'\x01','held/repeating Space never fits the fuse')
+            frame('R');ok(peek(0x8C,1)==b'\x02' and peek(0x85,1)==bytes([17]),'R starts FITTING FUSE')
+            for _ in range(8):frame('A')
+            ok(tuple(state()[:2])==(50,50),'fitting holds G-Bot in place')
+            for _ in range(24):frame()
+            ok(peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and lit(),'fuse fitted: power restored')
+            ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room streamed from tracks 9-10, POWER RESTORED message, HUD fuse gone')
+            for _ in range(4):frame()
+            capture('lit','power')
+            press(' ',4);ok(peek(0x85,1)==bytes([20]),'probing the live panel: PANEL ONLINE')
+            # Lit state persists across a trip to the workshop and back.
+            position(122,114,0);press('S',4)
+            ok(where()==0 and peek(0x83,1)==b'\x03','power room -> workshop after the fit')
+            press('W',4);press('W',4)
+            ok(where()==1 and lit() and peek(0x8000,8192)==background(3,peek(0x85,1)[0],1,2,True),'power room stays lit after leaving and returning')
+            # Security room: the west door now opens.
+            position(14,90,1);press('A',4)
+            ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
+            ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
+            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 13')
+            frame();capture('arrive','security')
+            gxs=[]
+            for _ in range(45):frame();gxs.append(peek(0x8F,1)[0])
+            ok(peek(0x92,1)==b'\x02','guard wakes and starts patrolling')
+            for i in range(190):
+                frame();gxs.append(peek(0x8F,1)[0])
+                if i==20:capture('patrol','security')
+            steps=[b-a for a,b in zip(gxs,gxs[1:])]
+            ok(set(steps)<={-1,0,1} and min(gxs)==2 and max(gxs)==30 and tuple(state()[:2])==(224,104),'readable patrol: one byte at a time, bounces at both ends, spawn is safe')
+            # Touching the guard: back to the checkpoint with a message, no lives.
+            poke(0x8F,[16,0,0]);position(112,80,1)
+            ok(tuple(state()[:3])==(224,104,1) and peek(0x85,1)==bytes([24]),'touching the guard returns G-Bot to the entry checkpoint')
+            capture('caught','security')
+            # Cross the lane with real controls while the guard is away east.
+            poke(0x8F,[3,1,0]);frame()
+            for _ in range(15):press('A',4)
+            for _ in range(6):press('W',4)
+            for _ in range(4):press('A',4)
+            ok(tuple(state()[:2])==(72,56) and peek(0x84,1)==b'\x01' and peek(0x85,1)==bytes([26]),'timed crossing reaches the security desk safely')
+            press(' ',4);ok(peek(0x85,1)==bytes([27]),'probing the desk: MONITORS: EVERY CAMERA SHOWS NOBODY')
+            capture('desk','security')
+            position(60,54,3);press('W');ok(tuple(state()[:2])==(60,54),'security desk is solid')
+            # Round trips through all three rooms.
+            position(224,104,2);press('D',4)
+            ok(where()==1 and tuple(state()[:3])==(14,90,2) and lit(),'east door returns to the lit power room')
+            press('A',4);ok(where()==2 and peek(0x92,1)==b'\x02','re-entering: guard keeps patrolling (no second reboot)')
+            press('D',4);ok(where()==1,'security -> power')
+            position(122,106,0);press('S',4);press('S',4)
+            ok(where()==0 and peek(0x83,1)==b'\x03' and peek(0x8000,8192)==background(3,4),'power -> workshop with every repair kept')
+            press('W',4);ok(where()==1 and lit(),'workshop -> lit power room')
+            position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
+            ok(0<min(transitions) and len(transitions)>=14,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
+            cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))
             print('EXACT PAGE CHECKS',checks,'BOTH PAGES, 8192 bytes each',flush=True)

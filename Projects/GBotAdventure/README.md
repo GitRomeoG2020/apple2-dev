@@ -1,8 +1,9 @@
 # G-Bot: After Hours
 
-![G-Bot arrives in the dark power room, captured from the Apple IIe emulator's actual HGR page](screenshots/power_arrive_enhanced.png)
+![G-Bot in the security room while the guard bot patrols, captured from the Apple IIe emulator's actual HGR page](screenshots/security_patrol_enhanced.png)
 
-**Third playable milestone: the repaired workshop door opens into the DARK POWER ROOM.**
+**Fourth playable milestone: find the fuse, bring the power room back to life,
+and get past the security room's guard bot.** Three connected rooms.
 The official title is **G-Bot: After Hours**; the stable project folder remains
 `Projects/GBotAdventure`.
 
@@ -32,14 +33,29 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   **breaker panel**. The only light is a warm wedge spilling through the doorway
   behind him, the panel's orange standby lamp and two sleeping controller LEDs.
 - Probing the breaker panel reports **NO POWER - FIND FUSE** (its fuse holder is
-  visibly empty). That is a hint of the next goal, not a puzzle yet.
-- Walking south through the lit doorway returns to the workshop, in front of the
-  rear door, with the repair (lights, terminal, green indicator) kept.
+  visibly empty). One small white glint in the old locker gives the fuse away.
+- **The fuse.** Probing the locker finds it: **FOUND A FUSE!** A little fuse icon
+  appears at the right end of the status line while G-Bot carries it.
+- **Fitting it** works like the workbench: Space at the panel offers
+  **R TO FIT / ESC CANCEL**; R fits it during a short, bounded pause. The lights
+  come on: a **lit power room** with solid outlines, the bulb glowing, breakers set
+  and green, the fuse seated, the generator's gauge needle up and the west
+  security door unlocked. It stays lit for the rest of the session.
+- **The SECURITY ROOM**, through that west door (sealed until the power is back):
+  a monitor wall of camera feeds, the security desk with phone and mug, ceiling
+  cameras, evidence lockers, a wall clock that doesn't agree with the workshop's,
+  and a striped patrol lane across the floor.
+- **One guard bot.** It is still rebooting when G-Bot first walks in, then rolls
+  steadily back and forth along the lane. Touching it sends G-Bot back to the
+  room's entry door (**GUARD: WORK ORDER NOT RECOGNIZED**). There are no lives, damage or
+  game over. You can cross the lane safely by timing it.
+- Every door works both ways, and the repair, fuse and power states are kept as
+  G-Bot moves between all three rooms.
 - The original robot size, readable face, walking, blink and probe pose remain intact.
 
-This is a **two-room prototype**, not the finished adventure. There are no
-enemies, combat, lives, checkpoints, saves or story reveals in this build. Those
-belong to later collaboration; the underlying mystery and twists are not finalized.
+This is a **three-room prototype**, not the finished adventure. There is no
+combat, lives, saves or story twist in this build. The guard and a camera feed or
+two only hint at the mystery; the underlying truth is not finalized.
 
 ## Play the included disk
 
@@ -71,8 +87,8 @@ while playing: each room change reads that room from the disk.
 | A / Left | Walk left |
 | S / Down | Walk toward the front |
 | D / Right | Walk right |
-| Space | Extend probe; inspect the left workbench / breaker panel when in range |
-| R | Reconnect the loose lead after inspection |
+| Space | Extend probe; inspect the workbench, locker, breaker panel or security desk |
+| R | Reconnect the loose lead / fit the fuse after inspection |
 | Escape | Cancel inspection (walking away also cancels) |
 
 The Apple II keyboard reports **key events, not independent held-key states**.
@@ -124,6 +140,41 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 
 ![Back in the workshop, repair kept](screenshots/workshop_return_enhanced.png)
 
+### The fuse and the lights
+
+1. In the dark power room, walk to the **middle of the back wall**, to the old
+   locker with the tiny glint (from the doorway, just keep walking **up**). The
+   footer reads **OLD LOCKER: SPACE TO PROBE**. Tap **Space**: **FOUND A FUSE!**
+   The fuse icon appears at the end of the status line.
+2. Walk **left** along the back wall to the breaker panel. Tap **Space**:
+   **FUSE FITS: R TO FIT / ESC CANCEL**. Press **R**. After **FITTING FUSE...**
+   the room reloads lit: **POWER RESTORED - WEST DOOR OPEN**.
+
+![The fuse found: status-line icon](screenshots/power_fuse_enhanced.png)
+
+![The power room with the lights back on](screenshots/power_lit_enhanced.png)
+
+### The security room and its guard
+
+1. Walk to the **left wall, lower half** (the door marked **SEC**, lamp green
+   now) and keep walking **left**. Before the fuse is fitted it says
+   **SECURITY DOOR SEALED - NO POWER**.
+2. G-Bot arrives at the security room's **east door** (bottom right): the room's
+   checkpoint. The guard is booting for about three seconds, then patrols the
+   striped lane, one step at a time, end to end (a round trip takes ~12 s).
+3. G-Bot is only caught when he is **on the lane** (roughly the middle band of
+   the floor) and overlaps the guard. The back wall strip and the front strip are
+   safe. Wait until the guard rolls away, then cross. If it touches him he's sent
+   back to the east door; nothing else is lost.
+4. Visit the **security desk** (back left; the desk itself is solid). Its footer
+   reads **SECURITY DESK: SPACE TO PROBE**. Space shows what the monitors see.
+5. Leave by walking **right** into the east door from the front strip. You arrive
+   at the power room's west door. Every door can be used again in either direction.
+
+![Caught: back to the checkpoint](screenshots/security_caught_enhanced.png)
+
+![At the security desk](screenshots/security_desk_enhanced.png)
+
 ## Build
 
 Uses the workshop's existing **ca65 / ld65** installation. No WSL, Java,
@@ -156,13 +207,16 @@ With Python 3 and Pillow installed:
 ```powershell
 python Projects/GBotAdventure/tools/gen_workshop.py
 python Projects/GBotAdventure/tools/gen_power_room.py
+python Projects/GBotAdventure/tools/gen_security.py
 python Projects/GBotAdventure/tools/gen_concept.py
 ```
 
 `gen_workshop.py` authors the separate, **robot-free background** and 14 masked
 animation frames, plus `src/interaction.inc` (diagnostic pixels and visual patch
 lookup tables, and every status-line message). `gen_power_room.py` authors the
-dark power room (`art/power-room.hgr`). `gen_concept.py` regenerates the original portrait without
+dark and lit power rooms (`art/power-room.hgr`, `art/power-room-lit.hgr`).
+`gen_security.py` authors the security room and the guard's six masked frames
+(`art/security-room.hgr`, `art/guard-sprites.bin`). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
 after regenerating workshop art. The checked-in `.hgr` and sprite `.bin` are
 required native build inputs, not modern images loaded by the game.
@@ -175,17 +229,25 @@ required native build inputs, not modern images loaded by the game.
   (`LOADROOM` entry at `$0805`); `$0C00–$0D6F`: disk decoding scratch.
   No high-score sector, write routine or Rockfall runtime is carried over.
 - `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
-  `$1400–$142B`: row palette phases; `$50–$8B`: engine zero-page state/scratch
-  (`$8A` current room); `$26`, `$2B`, `$3C–$48`: loader zero page.
+  `$1400–$142B`: row palette phases (all three rebuilt every frame).
+  `$1800–$1E53`: the guard's 6 masked frames (1,620 bytes), read from track 13
+  at boot along with the 24 KB load. `$1E54–$1FFF`: 428 spare bytes.
+- `$50–$9C`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
+  `$8D` fuse, `$8F–$97` guard); `$26`, `$2B`, `$3C–$48`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$7A7F`: engine, lookup tables and 13 status messages (including
-  alignment padding). `$7A80–$7FFF` remains available: 1,408 bytes.
+- `$6000–$797F`: engine, lookup tables, a 32-glyph status font and 29 status
+  messages (40 bytes each), including alignment padding. `$7980–$7FFF` remains
+  available: **1,664 bytes**. Status lines used to be stored as 200 bytes of
+  pre-drawn pixels each; storing glyph numbers instead is what made room for this
+  milestone's code.
 - `$8000–$9FFF`: the **current** room's canonical native background (8,192 bytes;
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
-  `$BF48–$BFFF`: 184 spare bytes. Total current layout slack: **1,592 bytes**.
+  `$BF48–$BFFF`: 184 spare bytes. Total slack: **1,848 bytes** in the main
+  layout, plus 428 beside the guard frames.
 - Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
-  tracks 3–4); tracks **7–8 the power room**. The complete disk is 143,360 bytes.
+  tracks 3–4); **7–8 dark power room, 9–10 lit power room, 11–12 security room,
+  13 guard frames**. The complete disk is 143,360 bytes; tracks 14–34 are free.
   No language card, auxiliary RAM or expansion sound hardware is needed.
 
 **Why rooms load from disk.** Each HGR background is a full 8 KB and only one fits
@@ -195,24 +257,34 @@ change re-uses the boot loader, which is already resident: it spins up the drive
 reads the next room's two tracks straight into `$8000`, and turns the motor off.
 Leaving the power room reloads the pristine workshop from tracks 3–4; the repair
 patches and status line are then re-applied from RAM state, so nothing is lost.
+Fitting the fuse simply reloads the power room from its lit tracks, and every
+later visit picks lit or dark from the panel state.
 This scales to more rooms (two tracks each) and keeps the art uncompressed and
 exact. The cost is a short pause at each door (measured below). The disk is
 only ever read.
 
 Before drawing, only the **offscreen page's previous 7-byte × 44-line rectangle**
-is restored from the canonical room. The diagnostic strip and 52 changed visual
-bytes are then synchronized to that offscreen page before the next robot is drawn. The next sprite is shifted in software and
+(and, in the security room, the guard's previous 4-byte × 30-line rectangle) is
+restored from the canonical room. The diagnostic strip and 52 changed visual
+bytes are then synchronized to that offscreen page before the sprites are drawn.
+With both old rectangles restored first, G-Bot and the guard are composited
+**back to front by where their feet are**, each masked over what the page already
+holds, so they can pass in front of each other without trails. The guard moves a
+whole byte (7 pixels) per step and needs no shifting. Each pose is stored for
+even and odd columns so its colors never flip. The next sprite is shifted in software and
 mask-composited, then the completed page is selected. Every horizontal position
 is even, preserving artifact color parity at all seven byte alignments. At an
 opaque edge, the sprite selects that byte's palette phase; the underlying room
 bytes are restored exactly when it moves away. The two display pages normally
 show successive animation states, not identical frames.
 
-Measured game ticks average approximately **69,060 cycles (~14.5 updates/second
-at 1 MHz)** on both Bobbin models, including repair/status synchronization. The
-worst sampled normal tick was **73,478 cycles**; the reconnect lasts about 1.7 seconds.
-A room change (door beat, disk spin-up, seek, two-track read, both pages rebuilt)
-took at most **2.35 million cycles (~2.3 s)** in Bobbin's Disk II emulation.
+Measured game ticks average approximately **70,600 cycles (~14.2 updates/second
+at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
+**86,439 cycles**, in the security room with both sprites; the workshop and
+power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
+each last about 1.7 seconds. A room change (door beat, disk spin-up, seek,
+two-track read, both pages rebuilt) took at most **2.48 million cycles (~2.4 s)**
+in Bobbin's Disk II emulation.
 
 There is no IIe-only vertical-blank wait: the II+ uses the same bounded software
 loop. Page selection is not beam-synchronized, so a CRT can show a slight transition
@@ -225,7 +297,10 @@ tear, but no partially erased sprite is deliberately displayed.
 [Probe gesture](screenshots/workshop_probe_enhanced.png) ·
 [II+ workshop](screenshots/workshop_idle_plus.png) ·
 [Power room arrival, native 280 × 192](screenshots/power_arrive_enhanced-280.png) ·
-[II+ power room](screenshots/power_arrive_plus.png)
+[II+ power room](screenshots/power_arrive_plus.png) ·
+[Locker prompt](screenshots/power_locker_enhanced.png) ·
+[Security room arrival, guard rebooting](screenshots/security_arrive_enhanced.png) ·
+[II+ security room](screenshots/security_patrol_plus.png)
 
 Screenshots are decoded **from actual Bobbin HGR RAM after booting this disk**,
 not the generator's concept preview. Enlargements use nearest-neighbor pixels.
@@ -253,14 +328,25 @@ controls, its prompt and **NO POWER - FIND FUSE**; that standing in the doorway
 doesn't leave; and that walking out restores the workshop with the repair kept.
 A second round trip follows. Both pages are rebuilt and compared after every
 transition, so leftover robots or trails from the previous room would fail.
-The IIe run checked **931 frames**, the II+ run **925**, with both full pages
+
+This milestone's tests cover the sealed security door; the panel without a fuse
+(and R doing nothing); walking to the locker, the fuse pickup, the HUD icon and the
+empty locker afterwards; Escape, Space repeat and R at the panel; the fit and the
+lit room streamed from tracks 9–10; the lit room still lit after a trip to the
+workshop; the security door opening at its checkpoint; the guard rebooting,
+waking, and patrolling one byte at a time to both ends while the checkpoint stays
+safe; a touch sending G-Bot back; a timed crossing with real controls to the desk;
+the desk probe and solidity; and round trips through all three rooms (15
+transitions). The independent compositor also draws the guard, with the same
+depth ordering, so every frame checks both sprites on both pages. The IIe run
+checked **1,513 frames**, the II+ run **1,507**, with both full pages
 compared each time. Frame-cost checks
 combine Bobbin's completed video-frame count and partial-frame cycle count.
 
 ```sh
 # Build first, then (each run is bounded by the caller):
-timeout 600 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
-timeout 600 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+timeout 900 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
+timeout 900 python3 Projects/GBotAdventure/tests/workshop_test.py plus
 ```
 
 These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
@@ -275,8 +361,8 @@ their launch/build instructions follow the workshop's existing native layout.
 [280 × 192 portrait](art/gbot-workshop-280.png)
 
 G-Bot is a curious repair robot, not a combat tank. The wider idea remains a
-room-to-room repair adventure: the workshop and dark power room now exist; finding
-the missing fuse and a security room are potential next steps, with repairs that affect other rooms and gradually
-reveal the facility's story. Room checkpoints rather than limited lives are the
-current direction. Two disks remain an option **if the world earns them**, not a
+room-to-room repair adventure: the workshop, power room and security room now
+exist, with repairs that affect other rooms and gradually reveal the facility's
+story. Room checkpoints rather than limited lives are the direction already used
+for the guard. Two disks remain an option **if the world earns them**, not a
 requirement to fill space.
