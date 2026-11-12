@@ -1,6 +1,9 @@
 ; G-Bot: After Hours -- read-only Disk II loader, derived from the workshop's
 ; Rockfall loader. NO write routine, score sector or game-specific persistence.
 ; ROM loads T0 physical sectors 0..3 at $0800. Tracks 1..6 -> $6000..$BFFF.
+; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
+; room background (two whole tracks) into $8000 on a room transition.
+; Disk map: T3-4 workshop room (part of the boot load), T7-8 dark power room.
         .setcpu "6502"
 WAIT=$FCA8
 SLOT=$2B
@@ -15,6 +18,7 @@ TMP=$44
 LEFT=$45
 PAGE0=$46
 CNT=$47
+LASTT=$48                        ; first track NOT to read
 DONE=$0D60
 NBUF1=$0C00
 NBUF2=$0D00
@@ -22,7 +26,8 @@ GAME=$6000
         .segment "BOOT"
         .byte 4
         jmp start
-ntracks:.byte 6
+ntracks:.byte 6                  ; $0804: tracks in the boot load
+        jmp loadroom             ; $0805: LOADROOM entry used by the game
 start:  cld
         stx SLOT
         jsr $FC58
@@ -43,6 +48,15 @@ start:  cld
         sta PAGE0
         lda #1
         sta TRK
+        ldx ntracks
+        inx
+        stx LASTT
+        jsr readtracks
+        ldx SLOT
+        jmp GAME
+
+; readtracks: read whole tracks TRK..LASTT-1 into pages PAGE0.. (16 per track).
+readtracks:
 @track: lda TRK
         jsr seek
         ldy #15
@@ -62,12 +76,28 @@ start:  cld
         sta PAGE0
         inc TRK
         lda TRK
-        sec
-        sbc #1
-        cmp ntracks
+        cmp LASTT
         bcc @track
+        rts
+
+; loadroom: A = first track, Y = destination page. Reads two tracks (8K),
+; read-only: motor on, drive 1, read mode; motor off again before returning.
+loadroom:
+        sta TRK
+        sty PAGE0
+        clc
+        adc #2
+        sta LASTT
         ldx SLOT
-        jmp GAME
+        lda $C089,x              ; motor on
+        lda $C08A,x              ; drive 1
+        lda $C08E,x              ; read mode (never write mode)
+        lda #$C0                 ; ~90 ms spin-up; bad reads simply retry
+        jsr WAIT
+        jsr readtracks
+        ldx SLOT
+        lda $C088,x              ; motor off
+        rts
 
 ; rdsect: read the next sector that passes under the head on track TRK.
 ; If its DONE flag is clear, decode it to page PAGE0+sector, set DONE, C=0.

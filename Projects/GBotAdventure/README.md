@@ -1,8 +1,8 @@
 # G-Bot: After Hours
 
-![G-Bot in the playable workshop, captured from the Apple IIe emulator's actual HGR page](screenshots/workshop_restored_enhanced.png)
+![G-Bot arrives in the dark power room, captured from the Apple IIe emulator's actual HGR page](screenshots/power_arrive_enhanced.png)
 
-**Second playable milestone: G-Bot makes his first real repair.**
+**Third playable milestone: the repaired workshop door opens into the DARK POWER ROOM.**
 The official title is **G-Bot: After Hours**; the stable project folder remains
 `Projects/GBotAdventure`.
 
@@ -22,13 +22,24 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   bench front, contextual diagnostics and a small inspect/reconnect interaction.
 - Restoring the connection boots the terminal's green waveform, energizes the
   ceiling conduit/task light and changes the rear door indicator from orange to
-  green. The door itself does **not** open yet. Power stays on for this session.
+  green. Power stays on for this session.
+- **The rear door.** Before the repair, walking into it reports
+  **DOOR SEALED - FIX WORKBENCH FIRST**. Afterwards, walking north into it slides
+  the door open and G-Bot steps through into the second room.
+- **The DARK POWER ROOM**: an original, almost-black HGR room made of sparse, dim,
+  dotted outlines G-Bot can barely make out: pipe runs, a dead bulb, a locker, a
+  big dead generator with its gauge needle on zero, and a feed cable to a
+  **breaker panel**. The only light is a warm wedge spilling through the doorway
+  behind him, the panel's orange standby lamp and two sleeping controller LEDs.
+- Probing the breaker panel reports **NO POWER - FIND FUSE** (its fuse holder is
+  visibly empty). That is a hint of the next goal, not a puzzle yet.
+- Walking south through the lit doorway returns to the workshop, in front of the
+  rear door, with the repair (lights, terminal, green indicator) kept.
 - The original robot size, readable face, walking, blink and probe pose remain intact.
 
-This is a **single-room repair prototype**, not the finished adventure. The rear
-room door remains decorative. There are no other rooms, enemies, combat,
-lives, checkpoints, saves or story reveals in this build. Those belong to later
-collaboration; the underlying mystery and twists are not finalized here.
+This is a **two-room prototype**, not the finished adventure. There are no
+enemies, combat, lives, checkpoints, saves or story reveals in this build. Those
+belong to later collaboration; the underlying mystery and twists are not finalized.
 
 ## Play the included disk
 
@@ -49,7 +60,8 @@ git pull
 
 For II+, use `apple2p` instead of `apple2e`. In AppleWin, insert this `.dsk` in
 Drive 1 and boot an Apple II+/IIe with at least 48 KB. The disk is a raw boot disk,
-not a DOS filesystem. The program never writes to it.
+not a DOS filesystem. The program never writes to it. Keep the disk in drive 1
+while playing: each room change reads that room from the disk.
 
 ### Controls
 
@@ -59,7 +71,7 @@ not a DOS filesystem. The program never writes to it.
 | A / Left | Walk left |
 | S / Down | Walk toward the front |
 | D / Right | Walk right |
-| Space | Extend probe; inspect the left workbench when in range |
+| Space | Extend probe; inspect the left workbench / breaker panel when in range |
 | R | Reconnect the loose lead after inspection |
 | Escape | Cancel inspection (walking away also cancels) |
 
@@ -93,6 +105,25 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 
 ![Workshop restored after the first repair](screenshots/workshop_restored_enhanced.png)
 
+### Into the dark power room
+
+1. After the repair, walk to the **middle of the back wall** and keep walking
+   **up** into the rear door (its indicator is green). From the starting spot,
+   he is already lined up: just keep tapping or holding **W**. The door slides open, there is
+   a short pause while the room loads from disk (about 1½-2½ seconds), and G-Bot
+   arrives at the lit doorway at the bottom of the power room, facing in.
+2. Walk **left and up** to the breaker panel on the back wall (top left). The
+   footer changes to **BREAKER PANEL: SPACE TO PROBE**. Tap **Space**:
+   **NO POWER - FIND FUSE**. Space elsewhere reports that it is too dark.
+   The generator on the right is solid.
+3. To go back, walk to the **middle of the bottom edge** (the lit doorway) and keep
+   walking **down**. G-Bot returns to the workshop facing out of the rear door, with
+   power still on. You can go back and forth as often as you like.
+
+![Probing the dead breaker panel](screenshots/power_panel_enhanced.png)
+
+![Back in the workshop, repair kept](screenshots/workshop_return_enhanced.png)
+
 ## Build
 
 Uses the workshop's existing **ca65 / ld65** installation. No WSL, Java,
@@ -124,12 +155,14 @@ With Python 3 and Pillow installed:
 
 ```powershell
 python Projects/GBotAdventure/tools/gen_workshop.py
+python Projects/GBotAdventure/tools/gen_power_room.py
 python Projects/GBotAdventure/tools/gen_concept.py
 ```
 
 `gen_workshop.py` authors the separate, **robot-free background** and 14 masked
 animation frames, plus `src/interaction.inc` (diagnostic pixels and visual patch
-lookup tables). `gen_concept.py` regenerates the original portrait without
+lookup tables, and every status-line message). `gen_power_room.py` authors the
+dark power room (`art/power-room.hgr`). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
 after regenerating workshop art. The checked-in `.hgr` and sprite `.bin` are
 required native build inputs, not modern images loaded by the game.
@@ -138,18 +171,33 @@ required native build inputs, not modern images loaded by the game.
 
 - Full-screen **280 × 192 HGR**, with the room above row 160 and native HGR title
   and controls below. No text-page switching or IIe-only video features.
-- `$0800–$0BFF`: read-only bootloader; `$0C00–$0D6F`: boot decoding scratch.
+- `$0800–$0A00`: read-only bootloader, **kept resident** as the room loader
+  (`LOADROOM` entry at `$0805`); `$0C00–$0D6F`: disk decoding scratch.
   No high-score sector, write routine or Rockfall runtime is carried over.
 - `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
-  `$1400–$142B`: row palette phases; `$50–$89`: engine zero-page state/scratch.
+  `$1400–$142B`: row palette phases; `$50–$8B`: engine zero-page state/scratch
+  (`$8A` current room); `$26`, `$2B`, `$3C–$48`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$757F`: engine and lookup tables (including alignment padding).
-  `$7580–$7FFF` remains available: 2,688 bytes.
-- `$8000–$9FFF`: canonical native room (8,192 bytes; repair/status changes update it in RAM).
+- `$6000–$7A7F`: engine, lookup tables and 13 status messages (including
+  alignment padding). `$7A80–$7FFF` remains available: 1,408 bytes.
+- `$8000–$9FFF`: the **current** room's canonical native background (8,192 bytes;
+  repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
-  `$BF48–$BFFF`: 184 spare bytes. Total current layout slack: **2,872 bytes**.
-- A fixed 24 KB load fills tracks 1–6; the complete disk is 143,360 bytes.
+  `$BF48–$BFFF`: 184 spare bytes. Total current layout slack: **1,592 bytes**.
+- Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
+  tracks 3–4); tracks **7–8 the power room**. The complete disk is 143,360 bytes.
   No language card, auxiliary RAM or expansion sound hardware is needed.
+
+**Why rooms load from disk.** Each HGR background is a full 8 KB and only one fits
+beside the two display pages, engine and sprites. Rather than compress rooms (and
+squeeze a decompressor plus a compressed workshop into the 1.4 KB left), a room
+change re-uses the boot loader, which is already resident: it spins up the drive,
+reads the next room's two tracks straight into `$8000`, and turns the motor off.
+Leaving the power room reloads the pristine workshop from tracks 3–4; the repair
+patches and status line are then re-applied from RAM state, so nothing is lost.
+This scales to more rooms (two tracks each) and keeps the art uncompressed and
+exact. The cost is a short pause at each door (measured below). The disk is
+only ever read.
 
 Before drawing, only the **offscreen page's previous 7-byte × 44-line rectangle**
 is restored from the canonical room. The diagnostic strip and 52 changed visual
@@ -160,9 +208,11 @@ opaque edge, the sprite selects that byte's palette phase; the underlying room
 bytes are restored exactly when it moves away. The two display pages normally
 show successive animation states, not identical frames.
 
-Measured game ticks average approximately **69,400 cycles (~14.4 updates/second
+Measured game ticks average approximately **69,060 cycles (~14.5 updates/second
 at 1 MHz)** on both Bobbin models, including repair/status synchronization. The
-worst sampled tick was **73,099 cycles**; the reconnect lasts about 1.7 seconds.
+worst sampled normal tick was **73,478 cycles**; the reconnect lasts about 1.7 seconds.
+A room change (door beat, disk spin-up, seek, two-track read, both pages rebuilt)
+took at most **2.35 million cycles (~2.3 s)** in Bobbin's Disk II emulation.
 
 There is no IIe-only vertical-blank wait: the II+ uses the same bounded software
 loop. Page selection is not beam-synchronized, so a CRT can show a slight transition
@@ -173,7 +223,9 @@ tear, but no partially erased sprite is deliberately displayed.
 [IIe screenshot, native 280 × 192](screenshots/workshop_idle_enhanced-280.png) ·
 [Walking pose](screenshots/workshop_walking_enhanced.png) ·
 [Probe gesture](screenshots/workshop_probe_enhanced.png) ·
-[II+ workshop](screenshots/workshop_idle_plus.png)
+[II+ workshop](screenshots/workshop_idle_plus.png) ·
+[Power room arrival, native 280 × 192](screenshots/power_arrive_enhanced-280.png) ·
+[II+ power room](screenshots/power_arrive_plus.png)
 
 Screenshots are decoded **from actual Bobbin HGR RAM after booting this disk**,
 not the generator's concept preview. Enlargements use nearest-neighbor pixels.
@@ -191,14 +243,24 @@ faulted/online room bytes and each diagnostic, verifies the canonical buffer, an
 checks far probes, reaching the service position through real movement, inspection,
 Space repeat, cancel/walk-away, explicit R confirmation, bounded progress, online
 visuals on both pages, idempotent re-probing and movement afterward. It also checks
-unchanged source sprites, resident loader preservation and an unchanged disk. The IIe run checked **603 frames**, the II+ run **597**, with both full pages
+unchanged source sprites, resident loader preservation and an unchanged disk.
+
+The room tests check that the door is sealed before the repair; that walking
+into it afterwards streams in the power room byte-for-byte from tracks 7–8; all
+four power-room walls (including the closed bottom edge beside the doorway), the
+generator front and side; the far probe, walking to the breaker panel with real
+controls, its prompt and **NO POWER - FIND FUSE**; that standing in the doorway
+doesn't leave; and that walking out restores the workshop with the repair kept.
+A second round trip follows. Both pages are rebuilt and compared after every
+transition, so leftover robots or trails from the previous room would fail.
+The IIe run checked **931 frames**, the II+ run **925**, with both full pages
 compared each time. Frame-cost checks
 combine Bobbin's completed video-frame count and partial-frame cycle count.
 
 ```sh
 # Build first, then (each run is bounded by the caller):
-timeout 180 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
-timeout 180 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+timeout 600 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
+timeout 600 python3 Projects/GBotAdventure/tests/workshop_test.py plus
 ```
 
 These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
@@ -213,9 +275,8 @@ their launch/build instructions follow the workshop's existing native layout.
 [280 × 192 portrait](art/gbot-workshop-280.png)
 
 G-Bot is a curious repair robot, not a combat tank. The wider idea remains a
-room-to-room repair adventure: a workshop, a dark power room and a security room
-are potential next steps, with repairs that affect other rooms and gradually
+room-to-room repair adventure: the workshop and dark power room now exist; finding
+the missing fuse and a security room are potential next steps, with repairs that affect other rooms and gradually
 reveal the facility's story. Room checkpoints rather than limited lives are the
 current direction. Two disks remain an option **if the world earns them**, not a
-requirement to fill space. First, we can judge the robot's size, personality and
-movement together in this one room.
+requirement to fill space.

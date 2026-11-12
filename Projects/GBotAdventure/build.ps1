@@ -18,9 +18,9 @@ try {
 } finally { Pop-Location }
 # Same physical-sector mapping as tools/build.py. This disk has no DOS filesystem.
 $bin = [IO.File]::ReadAllBytes("$proj\build\gbot.bin")
-$game = $bin.Length - 4096
-if ($game -le 0 -or $game -gt 24576) { throw "Load image is $game bytes; expected 1..24576" }
-$bin[4] = [byte][Math]::Floor(($game + 4095) / 4096)
+# Boot track + 24K game load (tracks 1-6) + 8K power room (tracks 7-8).
+if ($bin.Length -ne 36864) { throw "Image is $($bin.Length) bytes; expected 36864" }
+if ($bin[4] -ne 6) { throw 'Boot must load exactly tracks 1-6' }
 $img = New-Object byte[] 143360
 $p2l = 0,7,14,6,13,5,12,4,11,3,10,2,9,1,8,15
 for ($i = 0; $i -lt $bin.Length; $i += 256) {
@@ -30,7 +30,7 @@ for ($i = 0; $i -lt $bin.Length; $i += 256) {
 }
 $dsk = "$proj\disk\gbot-after-hours.dsk"
 [IO.File]::WriteAllBytes($dsk, $img)
-Write-Host "Built $dsk (24576-byte 48K load; read-only 140K disk)"
+Write-Host "Built $dsk (24K boot load + 8K power room; read-only 140K disk)"
 if ($Run) {
   Push-Location (Split-Path $mame)
   try { & $mame $Machine -flop1 $dsk -window } finally { Pop-Location }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Bounded, real Disk II boot and frame-by-frame integration tests in Bobbin.
+"""Bounded, real Disk II boot and frame-by-frame integration tests in Bobbin:
+workshop repair, rear door, streamed DARK POWER ROOM and the trip back.
 Usage: python3 tests/workshop_test.py enhanced|plus [--bobbin /path/bobbin-ai]
 Pillow supplies the independent art oracle and screenshot export.
 """
@@ -25,13 +26,11 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('machine',choices=['plus','enhanced'],default='enhanced',nargs='?')
     ap.add_argument('--bobbin',default='/workspace/apple2/bin/bobbin-ai');args=ap.parse_args()
     sys.path.insert(0,str(ROOT/"tools"))
-    from gen_workshop import room as room_art,message_pixels
-    messages=["WORKBENCH OFFLINE - CHECK LEFT BENCH", "WORKBENCH: SPACE TO INSPECT",
-              "LOOSE LEAD: R RECONNECT / ESC CANCEL", "RECONNECTING... HOLD TIGHT LITTLE BOT",
-              "WORKSHOP ONLINE - NICE WORK G-BOT", "NO CONTACT - TRY LEFT BENCH SOCKET",
-              "TERMINAL ONLINE - ALL SET HERE", "MOVE CLOSER TO LEFT BENCH SOCKET"]
-    def background(repair=0,msg=0):
-        out=bytearray(room_art(repair==3))
+    from gen_workshop import room as room_art,message_pixels,MESSAGES as messages
+    from gen_power_room import room as power_art
+    power=power_art()
+    def background(repair=0,msg=0,where=0):
+        out=bytearray(power if where else room_art(repair==3))
         for row,data in enumerate(message_pixels(messages[msg])):
             out[offset(177+row):offset(177+row)+40]=data
         return bytes(out)
@@ -65,13 +64,14 @@ def main():
             return b''.join(bytes(q({'cmd':'peek','addr':a,'len':min(4096,addr+n-a)})['data']) for a in range(addr,addr+n,4096))
         def poke(a,d):q({'cmd':'poke','addr':a,'data':d})
         def state():return peek(0x70,20)
+        def where():return peek(0x8A,1)[0]
         pages={0:expected(background(),sprites,126,104,0),1:expected(background(),sprites,126,104,0)}
         cycles=[];poses=set();shifts=set();checks=0
         def verify():
             nonlocal checks
             st=state();page=st[6]
             repair,near,msg=peek(0x83,3)
-            canonical=background(repair,msg)
+            canonical=background(repair,msg,where())
             if peek(0x8000,8192)!=canonical:raise AssertionError("canonical background not expected repair/status art")
             pages[page]=expected(canonical,sprites,st[0],st[1],st[7])
             for n in (0,1):
@@ -81,11 +81,21 @@ def main():
                     raise AssertionError('page%d mismatch, %d bytes; first %s; state %s'%(n,len(diffs),diffs[:12],list(st)))
             poses.add(st[7]);shifts.add(st[0]%7);checks+=1
             return st
+        transitions=[]
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
+            room_before=where()
             before=q({'cmd':'cpu'});q({'cmd':'resume'})
-            if not wait(lambda:q({'cmd':'cpu'})['paused']):raise RuntimeError('frame deadline exceeded')
+            # A room change streams 8K from the emulated Disk II: allow seconds.
+            if not wait(lambda:q({'cmd':'cpu'})['paused'],12):raise RuntimeError('frame deadline exceeded')
             after=q({'cmd':'cpu'})
+            if where()!=room_before:
+                # Transition rebuilt BOTH pages from the new room, robot on each.
+                transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
+                st=state();repair,near,msg=peek(0x83,3)
+                both=expected(background(repair,msg,where()),sprites,st[0],st[1],st[7])
+                pages[0]=pages[1]=both
+                return verify() if check else st
             # Bobbin resets cycle_count at each video frame AND on resume.
             # Completed video frames plus the final partial frame approximate
             # this whole game tick (full-frame instruction overshoot <~18 cycles).
@@ -98,11 +108,11 @@ def main():
         def position(x,y,direction=0):
             # Controlled fixtures exercise obstacle edges, not alternative input.
             poke(0x70,[x,y,direction,0]);frame();frame()
-        def capture(name):
+        def capture(name,prefix='workshop'):
             import sys
             sys.path.insert(0,str(ROOT/'tools'));from gen_concept import decode
             st=state();mem=peek(0x2000+st[6]*8192,8192)
-            path=ROOT/'screenshots'/('workshop_'+name+'_'+args.machine+'.png')
+            path=ROOT/'screenshots'/(prefix+'_'+name+'_'+args.machine+'.png')
             image=decode(mem);image.save(path.with_name(path.stem+'-280.png'))
             from PIL import Image
             image.resize((1120,768),Image.Resampling.NEAREST).save(path)
@@ -139,6 +149,9 @@ def main():
             # Collision fixtures test every wall and both solid benches.
             for x,y,key,want,desc in [(14,104,'A',(14,104),'west wall'),(224,104,'D',(224,104),'east wall'),(126,48,'W',(126,48),'north wall'),(126,114,'S',(126,114),'south wall'),(56,64,'W',(56,64),'bench front'),(86,52,'A',(86,52),'bench side'),(210,70,'W',(210,70),'terminal front'),(190,52,'D',(190,52),'terminal side')]:
                 position(x,y);after=press(key);ok(tuple(after[:2])==want,desc+' blocks fairly with no sprite corruption')
+            # Before the repair the rear door stays sealed, with a reason.
+            position(122,50,3);after=press('W')
+            ok(tuple(after[:2])==(122,48) and where()==0 and peek(0x85,1)==b'\x0c','rear door is sealed before the workbench repair')
             position(126,104)
             # Real idle loop: one full blink period plus enough to catch both pages.
             before=state()[:2];blink=False
@@ -186,6 +199,47 @@ def main():
             capture('restored')
             ok({0,1,2,3,4,5,6,7,8,9,10,11,12,13}<=poses,'all 14 standing/walk/facing/blink/probe frames exercised')
             ok(peek(0x8000,8192)==background(3,4) and peek(0xA000,8008)==sprites,'canonical online background synchronized; source sprites unchanged')
+            # ---- Through the unlocked door into the DARK POWER ROOM ----
+            workshop_cycles=list(cycles)
+            position(122,64);press('W',4);press('W',4);press('W',4)
+            ok(where()==1 and tuple(state()[:3])==(122,114,3),'unlocked door: walking north into it streams in the power room')
+            ok(peek(0x8000,8192)==background(3,8,1),'power room loaded from tracks 7-8 with its own status line')
+            ok(peek(0x83,1)==b'\x03','repair state survives the room change')
+            for _ in range(4):frame()
+            capture('arrive','power')
+            # Collisions: walls, closed side of the south edge, dead generator.
+            for x,y,key,want,desc in [(14,104,'A',(14,104),'power west wall'),(224,104,'D',(224,104),'power east wall'),(90,48,'W',(90,48),'power north wall'),(40,114,'S',(40,114),'power south wall beside doorway'),(200,70,'W',(200,70),'generator front'),(148,52,'D',(148,52),'generator side')]:
+                position(x,y);after=press(key);ok(tuple(after[:2])==want and where()==1,desc+' blocks fairly with no sprite corruption')
+            position(126,96);frame(' ')
+            ok(peek(0x85,1)==b'\x0b','probing empty darkness reports nothing to probe')
+            for _ in range(12):frame()
+            # Real controls from the doorway to the breaker panel.
+            position(122,114,3)
+            for _ in range(9):press('A',4)
+            for _ in range(8):press('W',4)
+            ok(tuple(state()[:2])==(50,50) and peek(0x84,1)==b'\x01' and peek(0x85,1)==b'\x09','walk to breaker panel; prompt offers Space')
+            press(' ',4)
+            ok(peek(0x85,1)==b'\x0a' and where()==1,'probing breaker panel reports NO POWER - FIND FUSE')
+            capture('panel','power')
+            frame('R');ok(peek(0x83,1)==b'\x03','R in the power room changes nothing')
+            for _ in range(7):press('D',4)
+            for _ in range(7):press('A',4)
+            # Back through the lit doorway to the workshop.
+            for _ in range(9):press('D',4)
+            for _ in range(8):press('S',4)
+            ok(where()==1 and tuple(state()[:2])==(122,114),'standing in the doorway does not leave yet')
+            press('S',4)
+            ok(where()==0 and tuple(state()[:3])==(122,48,0),'walking south through the doorway returns to the workshop door')
+            ok(peek(0x83,1)==b'\x03' and peek(0x8000,8192)==background(3,4),'workshop reloaded with repair kept: online art, lights and status')
+            for _ in range(4):frame()
+            capture('return')
+            for _ in range(3):press('S',4)
+            ok(state()[1]==72 and where()==0,'normal workshop movement after return')
+            press('W',4);press('W',4);press('W',4);press('W',4)
+            ok(where()==1,'second trip into the power room')
+            press('S',4);ok(where()==0,'and back again')
+            ok(0<min(transitions) and len(transitions)==4,'four room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(max(transitions),max(transitions)/1020484))
+            cycles[:]=[c for c in cycles if c<100000 or c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))
             print('EXACT PAGE CHECKS',checks,'BOTH PAGES, 8192 bytes each',flush=True)
@@ -194,7 +248,7 @@ def main():
             try:proc.wait(timeout=3)
             except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=3)
             os.close(master)
-        ok(Path(disk).read_bytes()==original,'boot, walk, idle, probe and repair never write the disk')
+        ok(Path(disk).read_bytes()==original,'boot, walk, repair and room streaming never write the disk')
     print('RESULT: '+('FAIL' if failures else 'PASS'),flush=True)
     return bool(failures)
 if __name__=='__main__':raise SystemExit(main())

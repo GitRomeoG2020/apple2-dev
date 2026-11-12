@@ -23,12 +23,13 @@ def main():
         subprocess.run([tool('ca65'),name+'.s','-o',str(build/(name+'.o')),'-l',str(build/(name+'.lst'))],cwd=ROOT/'src',check=True)
     subprocess.run([tool('ld65'),'-C','gbot.cfg',str(build/'boot.o'),str(build/'gbot.o'),'-o',str(build/'gbot.bin'),'-m',str(build/'gbot.map'),'-Ln',str(build/'gbot.lbl')],cwd=ROOT/'src',check=True)
     disk=make_disk((build/'gbot.bin').read_bytes()); out=ROOT/'disk/gbot-after-hours.dsk'; out.write_bytes(disk)
-    print('Built',out,'(24576-byte load, read-only 140K disk)')
+    print('Built',out,'(24576-byte boot load + 8K power room on T7-8, read-only 140K disk)')
 
 def make_disk(binary):
-    b=bytearray(binary); size=len(b)-4096
-    assert 0<size<=24576
-    b[4]=(size+4095)//4096
+    # Boot track + 24K game load (T1-6) + 8K power room (T7-8, loaded later).
+    b=bytearray(binary)
+    assert len(b)==4096+24576+8192, len(b)
+    assert b[4]==6, 'boot loads exactly tracks 1-6'
     p2l=[0,7,14,6,13,5,12,4,11,3,10,2,9,1,8,15]
     out=bytearray(143360)
     for i in range(0,len(b),256):

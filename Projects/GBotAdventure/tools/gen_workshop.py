@@ -144,6 +144,22 @@ REPAIR_FONT={
  '/':['001','001','010','100','100'], ':':['000','010','000','010','000'],
  '.':['000','000','000','000','010'],
 }
+# Status line text, indexed by MESSAGE ($85). 0-7 workshop, 8-12 power room/door.
+MESSAGES=[
+    'WORKBENCH OFFLINE - CHECK LEFT BENCH',
+    'WORKBENCH: SPACE TO INSPECT',
+    'LOOSE LEAD: R RECONNECT / ESC CANCEL',
+    'RECONNECTING... HOLD TIGHT LITTLE BOT',
+    'WORKSHOP ONLINE - NICE WORK G-BOT',
+    'NO CONTACT - TRY LEFT BENCH SOCKET',
+    'TERMINAL ONLINE - ALL SET HERE',
+    'MOVE CLOSER TO LEFT BENCH SOCKET',
+    'DARK POWER ROOM - EYES ADJUSTING...',
+    'BREAKER PANEL: SPACE TO PROBE',
+    'NO POWER - FIND FUSE',
+    'TOO DARK - NOTHING TO PROBE HERE',
+    'DOOR SEALED - FIX WORKBENCH FIRST',
+]
 def message_pixels(text):
     assert len(text)<=40
     text=text.center(40)
@@ -153,16 +169,7 @@ def interaction_art():
     offline,online=room(),room(True)
     changed=[i for i,(a,b) in enumerate(zip(offline,online)) if a!=b]
     assert 0<len(changed)<=128, "6502 patch loop uses a signed decrement"
-    messages=[
-        'WORKBENCH OFFLINE - CHECK LEFT BENCH',
-        'WORKBENCH: SPACE TO INSPECT',
-        'LOOSE LEAD: R RECONNECT / ESC CANCEL',
-        'RECONNECTING... HOLD TIGHT LITTLE BOT',
-        'WORKSHOP ONLINE - NICE WORK G-BOT',
-        'NO CONTACT - TRY LEFT BENCH SOCKET',
-        'TERMINAL ONLINE - ALL SET HERE',
-        'MOVE CLOSER TO LEFT BENCH SOCKET',
-    ]
+    messages=MESSAGES
     arrays={
         'patchlo':[i&255 for i in changed],
         'patchhi':[i>>8 for i in changed],

@@ -1,5 +1,7 @@
-; G-Bot: After Hours -- first workshop repair. Plain NMOS 6502 / 48K.
+; G-Bot: After Hours -- workshop repair, door, dark power room. NMOS 6502/48K.
 ; HGR pages $2000/$4000, canonical room $8000, masked frames $A000.
+; Only ONE 8K room fits at $8000: room changes stream the next background from
+; disk (tracks 3-4 workshop, 7-8 power room) through the resident boot loader.
 ; Offscreen old 7x44 rectangle restored; diagnostics synced; robot composited.
 ; All horizontal positions are even: artifact-color parity never reverses.
         .setcpu "6502"
@@ -46,6 +48,13 @@ LASTMSG=$86
 REPAIRTIME=$87
 FEEDBACK=$88
 UIROW=$89
+ROOM=$8A                      ; 0 workshop, 1 dark power room
+TRANSIT=$8B                   ; set by update when G-Bot walks into a doorway
+LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
+WORKSHOP_TRACK=3
+POWER_TRACK=7
+DOOR_X0=110                   ; doorway column (PX) in both rooms, inclusive
+DOOR_X1=134
 MASKBUF=$1200                 ; 308 shifted opacity bytes (not inverse masks)
 DATABUF=$1000                 ; 308 shifted pixels
 PHASEBUF=$1400                ; 44 phase bytes
@@ -55,10 +64,10 @@ PHASEBUF=$1400                ; 44 phase bytes
 entry:  cld
         sei
         ldx $2B
-        lda $C088,x            ; motor off. No subsequent disk I/O, ever.
+        lda $C088,x            ; motor off; only room changes read the disk
         bit $C051              ; hide setup in text mode
         lda #0
-        ldx #$39
+        ldx #$3B
 @state: sta $50,x
         dex
         bpl @state
@@ -125,7 +134,11 @@ main:   lda PAGE
         sta PAGE
         jsr keyboard
         jsr update
-        jsr interaction
+        lda TRANSIT
+        beq :+
+        jsr transition
+        jmp main               ; both pages already complete
+:       jsr interaction
         jsr prepare
         jsr render
         ldx PAGE
@@ -247,6 +260,8 @@ update: lda #0
         bcc @blocked
         cmp #115
         bcs @blocked
+        lda ROOM
+        bne @power
         lda PX
         cmp #86
         bcs @right
@@ -259,6 +274,13 @@ update: lda #0
         lda PY
         cmp #70
         bcc @blocked           ; terminal front is y=112
+        bcs @allowed
+@power: lda PX                 ; dead generator: front y=112, left x=184
+        cmp #150
+        bcc @allowed
+        lda PY
+        cmp #70
+        bcc @blocked
 @allowed:
         inc WALK
         lda #1
@@ -271,11 +293,151 @@ update: lda #0
         sta PY
         lda #0
         sta BURST
+        ; Walking into a wall inside the doorway column uses the door.
+        lda PX
+        cmp #DOOR_X0
+        bcc @nodoor
+        cmp #DOOR_X1+1
+        bcs @nodoor
+        lda ROOM
+        bne @south
+        lda DIR                ; workshop: rear door, walking north
+        cmp #3
+        bne @nodoor
+        lda PY
+        cmp #48
+        bne @nodoor
+        lda REPAIR
+        cmp #3
+        beq @go
+        lda #12                ; DOOR SEALED - FIX WORKBENCH FIRST
+        sta MESSAGE
+        lda #48
+        sta FEEDBACK
+        rts
+@south: lda DIR                ; power room: lit doorway, walking south
+        bne @nodoor
+        lda PY
+        cmp #114
+        bne @nodoor
+@go:    inc TRANSIT
+@nodoor:rts
+
+; Room change. Entry/exit: PAGE is the displayed page. The workshop door slides
+; open on the canonical art (harmless: the workshop is reloaded on return),
+; then the next room streams from disk into $8000 and both pages are rebuilt.
+transition:
+        lda PAGE
+        eor #1
+        sta PAGE               ; main had already flipped to the hidden page
+        lda #0
+        sta TRANSIT
+        sta BURST
+        sta PROBE
+        sta FEEDBACK
+        sta MOVING
+        lda ROOM
+        bne @leave
+        jsr open_door
+        jsr show_room
+        ldx #3
+@beat:  lda #$FF               ; a short beat in the open doorway
+        jsr $FCA8
+        dex
+        bne @beat
+        lda #1
+        sta ROOM
+        lda #3                 ; arrive at the bottom doorway, facing in
+        sta DIR
+        lda #114
+        sta PY
+        lda #POWER_TRACK
+        bne @load
+@leave: lda #0
+        sta ROOM
+        sta DIR                ; back in front of the workshop door, facing out
+        lda #48
+        sta PY
+        lda #WORKSHOP_TRACK
+@load:  ldy #>room
+        jsr LOADROOM
+        lda #$FF
+        sta LASTMSG
+        jsr interaction        ; status line, and repair patches if workshop
+        jmp show_room
+
+open_door:
+        ldx #33
+@row:   lda rowlo,x
+        clc
+        adc #17
+        sta BG
+        lda rowhi,x
+        ora #$80
+        sta BG+1
+        lda #0
+        ldy #6
+@byte:  sta (BG),y
+        dey
+        bpl @byte
+        inx
+        cpx #72
+        bne @row
+        rts
+
+; Rebuild both pages from the canonical room, hidden page first.
+show_room:
+        lda PAGE
+        eor #1
+        sta PAGE
+        jsr fill_page
+        jsr prepare
+        jsr render
+        ldx PAGE
+        lda $C054,x
+        lda PAGE
+        eor #1
+        sta PAGE
+        jsr fill_page
+        jsr render
+        ldx PAGE
+        lda $C054,x
+        rts
+fill_page:
+        ldx PAGE
+        lda pagehigh,x
+        sta DST+1
+        lda #>room
+        sta SRC+1
+        lda #0
+        sta SRC
+        sta DST
+        ldx #32
+@page:  ldy #0
+@copy:  lda (SRC),y
+        sta (DST),y
+        iny
+        bne @copy
+        inc SRC+1
+        inc DST+1
+        dex
+        bne @page
         rts
 
 ; Small repair: inspect the fault, explicitly reconnect with R, watch it boot.
 ; A different confirmation key means held/repeating Space cannot solve it.
 probe_contact:
+        lda ROOM
+        beq @workshop
+        ldx #10                ; NO POWER - FIND FUSE
+        lda NEAR
+        bne @dark
+        ldx #11                ; TOO DARK - NOTHING TO PROBE HERE
+@dark:  stx MESSAGE
+        lda #96
+        sta FEEDBACK
+        rts
+@workshop:
         lda NEAR
         bne @contact
         lda #5
@@ -300,6 +462,19 @@ probe_contact:
 interaction:
         lda #0
         sta NEAR
+        lda ROOM
+        beq @workshop
+        lda PX                 ; breaker panel apron at the back wall
+        cmp #30
+        bcc @range_done
+        cmp #73
+        bcs @range_done
+        lda PY
+        cmp #60
+        bcs @range_done
+        inc NEAR
+        bne @range_done
+@workshop:
         lda PX
         cmp #14
         bcc @range_done
@@ -332,6 +507,14 @@ interaction:
         lda MESSAGE
         jmp @message
 @context:
+        lda ROOM
+        beq @workroom
+        lda #8                 ; DARK POWER ROOM - EYES ADJUSTING...
+        ldx NEAR
+        beq @message
+        lda #9                 ; BREAKER PANEL: SPACE TO PROBE
+        bne @message
+@workroom:
         lda REPAIR
         cmp #3
         beq @ready
@@ -385,7 +568,10 @@ interaction:
         bne @textrow
 @patch:
         ; Mutable canonical background is the sole restoration source.
-        ldx #PATCH_COUNT-1
+        lda ROOM
+        beq :+
+        rts                    ; power room has no repair patches (yet)
+:       ldx #PATCH_COUNT-1
 @byte:  lda patchlo,x
         sta BG
         lda patchhi,x
@@ -718,3 +904,5 @@ room: .incbin "../art/workshop-room.hgr"
 sprite_frames: .incbin "../art/gbot-sprites.bin"
 sprites_end:
 .assert sprites_end <= $C000, lderror, "Sprites overflow 48K RAM"
+        .segment "POWERROOM"   ; disk tracks 7-8 only; streamed into $8000
+power_room: .incbin "../art/power-room.hgr"
