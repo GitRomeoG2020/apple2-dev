@@ -109,10 +109,11 @@ WORKAUX_TRACK=7               ; each room's aux track sits beside its room
 POWER_TRACK=8
 POWERLIT_TRACK=10
 POWERAUX_TRACK=12
-SECURITY_TRACK=13
-GUARD_TRACK=15
-LAB_TRACK=16
-SCI_TRACK=18
+STAMP_ROOM=2                  ; security: drawn from stamps on its aux track
+GUARD_TRACK=13                ; (its aux track: bank, guard frames, stamps)
+LAB_TRACK=14
+SCI_TRACK=16
+STAMPLIB=$1000                ; stamp count, address lows, highs, then the script
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -122,7 +123,7 @@ GSTEP=3                       ; ticks per one-byte guard step
 SPAWNX=224                    ; security-room entry checkpoint
 SPAWNY=104
 
-        .export entry, main, code_end, transition
+        .export entry, main, code_end, transition, stamps, st_next
         .segment "CODE"
 entry:  cld
         sei
@@ -681,7 +682,15 @@ transition:
         tax
         lda pagehigh,x
         sta RAWHI
-        ldx ROOM               ; this room's messages and actor frames too?
+        ldx ROOM
+        cpx #STAMP_ROOM        ; a stamp-built room: one aux track, then draw
+        bne @full
+        stx ACTLOADED
+        jsr load_aux
+        jsr MOTOROFF
+        jsr stamps
+        jmp @drawn
+@full:  ldx ROOM               ; this room's messages and actor frames too?
         cpx ACTLOADED
         beq @bgonly
         stx ACTLOADED
@@ -696,7 +705,7 @@ transition:
         jsr load_bg
         jsr load_aux
 @loaded:jsr MOTOROFF
-        lda POWERUP
+@drawn: lda POWERUP
         beq :+
         lda #0
         sta POWERUP
@@ -735,13 +744,440 @@ load_bg:lda ROOMTRK
         jmp LOADROOM
 load_aux:
         ldx ROOM
-        lda #4                 ; sectors 0-3 are scratch; read 4..auxend-1
+        lda auxfirst,x         ; sectors 0-3 are scratch (or stamps); read to auxend-1
         sta SFIRST
         lda auxend,x
         sta SEND
         lda auxtrack,x
         ldy #$10
         jmp LOADONE
+; ---- stamps: draw a stamp-built room into $8000 from its aux track's script
+; (format: tools/gen_stamps.py). Runs once at the door, before the scratch
+; area at $1000-$143F (which holds the script) is used again.
+SP=SRC                         ; script pointer
+LE=BG                          ; line: error (16-bit)
+D1=MP                          ; 2*ady
+D2=DP                          ; 2*adx
+LCOL=SL                        ; line start column, bit, row; pixel count
+LBIT=SL+1
+LY=SH
+LN=SH+1
+YV=ROW                         ; current row / column / counters
+CV=COL
+CNTV=CM
+IDXV=CD
+LF=RAW                         ; line flags
+BITV=BITS                      ; current bit, x parity
+PARV=PHASE
+LADY=OX
+LADX=OY                        ; (2 bytes: OY, TMPX)
+TMPV=TMPY
+STBUF=$0C00                    ; 40 bytes the loader no longer uses (not $1140:
+                               ; the script itself lives in that scratch area)
+HIV=SHIFT                      ; (render scratch) palette bit for this line
+SKIPV=XB                       ; (render scratch) parity not drawn
+stamps: lda #0
+        tay
+@clr:
+.repeat 32,PG
+        sta room+PG*256,y
+.endrepeat
+        iny
+        bne @clr
+        lda STAMPLIB           ; script = STAMPLIB + 1 + 2 * count
+        asl a
+        adc #<(STAMPLIB+1)
+        sta SP
+        lda #>(STAMPLIB+1)
+        adc #0
+        sta SP+1
+st_next:ldy #0
+        lda (SP),y
+        bne :+
+        rts
+:       asl a
+        tax
+        lda st_ops-2,x
+        sta FP
+        lda st_ops-1,x
+        sta FP+1
+        jmp (FP)
+st_ops: .word st_text,st_line,st_row,st_block,st_stamp,st_repeat
+st_adv: clc                    ; SP += A
+        adc SP
+        sta SP
+        bcc :+
+        inc SP+1
+:       jmp st_next
+st_rowptr:                     ; DST = row X of the canonical room, + CV
+        lda rowlo,x            ; (row starts + 39 never cross a page)
+        clc
+        adc CV
+        sta DST
+        lda rowhi,x
+        ora #$80
+        sta DST+1
+        rts
+st_params:                     ; YV, CV, CNTV, IDXV = script bytes 1-4;
+        ldy #1                 ; FP = the script + 5
+        lda (SP),y
+        sta YV
+        iny
+        lda (SP),y
+        sta CV
+        iny
+        lda (SP),y
+        sta CNTV
+        iny
+        lda (SP),y
+        sta IDXV
+        lda SP
+        clc
+        adc #5
+        sta FP
+        lda SP+1
+        adc #0
+        sta FP+1
+        rts
+st_text:jsr st_params          ; row, col, n; glyphs from script byte 4
+        lda CNTV               ; copy the glyphs out to STBUF
+        clc
+        adc #4
+        sta TMPV
+        ldy #4
+:       lda (SP),y
+        sta STBUF-4,y
+        iny
+        cpy TMPV
+        bne :-
+        lda #0
+        sta IDXV               ; glyph row 0-4
+@r:     lda YV
+        clc
+        adc IDXV
+        tax
+        jsr st_rowptr
+        ldx IDXV
+        lda fontlo,x
+        sta FP
+        lda fonthi,x
+        sta FP+1
+        ldx #0
+@k:     ldy STBUF,x
+        lda (FP),y
+        pha
+        txa
+        tay
+        pla
+        sta (DST),y
+        inx
+        cpx CNTV
+        bne @k
+        inc IDXV
+        lda IDXV
+        cmp #5
+        bne @r
+        lda CNTV
+        clc
+        adc #4
+        jmp st_adv
+st_row: jsr st_params          ; row, col, len, period, pattern
+        ldy #0
+:       lda (FP),y             ; pattern -> STBUF
+        sta STBUF,y
+        iny
+        cpy IDXV
+        bne :-
+        ldx YV
+        jsr st_rowptr
+        ldx #0
+        ldy #0
+@k:     lda STBUF,x
+        sta (DST),y
+        iny
+        inx
+        cpx IDXV
+        bne :+
+        ldx #0
+:       cpy CNTV
+        bne @k
+        lda IDXV
+        clc
+        adc #5
+        jmp st_adv
+st_block:jsr st_params         ; row, col, width, height, bytes
+@r:     ldx YV
+        jsr st_rowptr
+        ldy CNTV
+        dey
+@k:     lda (FP),y
+        sta (DST),y
+        dey
+        bpl @k
+        inc YV
+        dec IDXV
+        bne @r
+        lda CNTV
+        clc
+        adc #5
+        jmp st_adv
+st_stamp:                      ; id, row, col
+        ldy #1
+        lda (SP),y
+        tax                    ; id
+        iny
+        lda (SP),y
+        sta YV
+        iny
+        lda (SP),y
+        sta TMPV               ; stamp's left column
+        inx                    ; lo[id] is at STAMPLIB+1+id (page $10)
+        lda STAMPLIB&$FF00,x
+        sta FP
+        txa
+        clc
+        adc STAMPLIB           ; + count -> hi[id]
+        tax
+        lda STAMPLIB&$FF00,x
+        sta FP+1
+        ldy #0
+        lda (FP),y
+        sta CNTV               ; rows
+        iny
+@span:  lda (FP),y             ; column offset
+        clc
+        adc TMPV
+        sta CV
+        iny
+        lda (FP),y
+        sta IDXV               ; length (+$80: another span on this row)
+        iny
+        tya                    ; FP -> the span's bytes
+        clc
+        adc FP
+        sta FP
+        bcc :+
+        inc FP+1
+:       ldx YV
+        jsr st_rowptr
+        lda IDXV
+        and #$7F
+        tay
+        beq @done
+        dey
+@copy:  lda (FP),y
+        sta (DST),y
+        dey
+        bpl @copy
+@done:  lda IDXV
+        and #$7F
+        tay                    ; next span starts right after these bytes
+        lda IDXV
+        bmi @span
+        inc YV
+        dec CNTV
+        bne @span
+        lda #4
+        jmp st_adv
+st_repeat:                     ; count, dx: the last line again, dx pixels on
+        ldy #1
+        lda (SP),y
+        sta IDXV               ; (st_draw counts pixels in CNTV)
+@again: ldy #2
+        lda (SP),y
+        tax
+@step:  inc LBIT
+        lda LBIT
+        cmp #7
+        bne :+
+        lda #0
+        sta LBIT
+        inc LCOL
+:       dex
+        bne @step
+        jsr st_draw
+        dec IDXV
+        bne @again
+        lda #3
+        jmp st_adv
+st_line:ldy #1                 ; col, bit, y, n, adx (2), ady, flags
+        lda (SP),y
+        sta LCOL
+        iny
+        lda (SP),y
+        sta LBIT
+        iny
+        lda (SP),y
+        sta LY
+        iny
+        lda (SP),y
+        sta LN
+        iny
+        lda (SP),y
+        sta LADX
+        iny
+        lda (SP),y
+        sta LADX+1
+        iny
+        lda (SP),y
+        sta LADY
+        iny
+        lda (SP),y
+        sta LF
+        jsr st_draw
+        lda #9
+        jmp st_adv
+; Bresenham as Pillow draws it. Per pixel: OR the palette bit (blue lines)
+; and, if this x parity is drawn, the pixel's bit.
+st_draw:lda LADY               ; D1 = 2*ady, D2 = 2*adx
+        asl a
+        sta D1
+        lda #0
+        rol a
+        sta D1+1
+        lda LADX
+        asl a
+        sta D2
+        lda LADX+1
+        rol a
+        sta D2+1
+        lda LF                 ; e = x-major ? 2ady-adx : 2adx-ady
+        and #2
+        beq @ym
+        sec
+        lda D1
+        sbc LADX
+        sta LE
+        lda D1+1
+        sbc LADX+1
+        sta LE+1
+        jmp @go
+@ym:    sec
+        lda D2
+        sbc LADY
+        sta LE
+        lda D2+1
+        sbc #0
+        sta LE+1
+@go:    lda LF                 ; HIV: palette bit to OR in
+        and #$10
+        asl a
+        asl a
+        asl a
+        sta HIV
+        ldx #$FF               ; SKIPV: the parity that is not drawn
+        lda LF
+        and #4
+        beq :+
+        ldx #1                 ; even pixels only
+:       lda LF
+        and #8
+        beq :+
+        ldx #0                 ; odd pixels only
+:       stx SKIPV
+        lda LBIT
+        sta BITV
+        clc
+        adc LCOL
+        and #1
+        sta PARV               ; x parity (x = 7*col + bit)
+        lda LY
+        sta YV
+        lda LN
+        sta CNTV
+        lda #0
+        sta CV
+        ldx YV
+        jsr st_rowptr          ; DST = row start; Y is the column
+        ldy LCOL
+@pix:   lda (DST),y
+        ora HIV
+        ldx PARV
+        cpx SKIPV
+        beq :+
+        ldx BITV
+        ora st_bit,x
+:       sta (DST),y
+        lda LF
+        and #2
+        beq @ymaj
+        lda LE+1               ; x-major: if e>=0 { y+=ys; e-=2adx }
+        bmi :+
+        jsr st_ystep
+        sec
+        lda LE
+        sbc D2
+        sta LE
+        lda LE+1
+        sbc D2+1
+        sta LE+1
+:       clc
+        lda LE
+        adc D1
+        sta LE
+        lda LE+1
+        adc D1+1
+        sta LE+1
+        jsr st_xstep
+        jmp @nextpix
+@ymaj:  lda LE+1               ; y-major: if e>=0 { x+=xs; e-=2ady }
+        bmi :+
+        jsr st_xstep
+        sec
+        lda LE
+        sbc D1
+        sta LE
+        lda LE+1
+        sbc D1+1
+        sta LE+1
+:       clc
+        lda LE
+        adc D2
+        sta LE
+        lda LE+1
+        adc D2+1
+        sta LE+1
+        jsr st_ystep
+@nextpix:
+        dec CNTV
+        bne @pix
+        rts
+st_ystep:                      ; (keeps Y, the column)
+        lda LF
+        and #$20
+        bne :+
+        inc YV
+        bne @ptr
+:       dec YV
+@ptr:   ldx YV
+        lda rowlo,x
+        sta DST
+        lda rowhi,x
+        ora #$80
+        sta DST+1
+        rts
+st_xstep:                      ; Y is the column
+        lda PARV
+        eor #1
+        sta PARV
+        lda LF
+        and #1
+        bne @left
+        inc BITV
+        lda BITV
+        cmp #7
+        bne :+
+        lda #0
+        sta BITV
+        iny
+:       rts
+@left:  dec BITV
+        bpl :+
+        lda #6
+        sta BITV
+        dey
+:       rts
+st_bit: .byte 1,2,4,8,16,32,64
 ; A rising chirp on the speaker, ~22 ms: the door opens.
 door_sound:
         ldy #$60
@@ -1915,7 +2351,7 @@ advance_buffers:
         .include "security.inc"
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
-roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,SECURITY_TRACK,LAB_TRACK
+roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,0,LAB_TRACK
 auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
@@ -1992,11 +2428,10 @@ sprites_end:
 power_room: .incbin "../art/power-room.hgr"
         .segment "POWERLIT"    ; tracks 10-11
 power_lit: .incbin "../art/power-room-lit.hgr"
-        .segment "SECURITYROOM" ; tracks 13-14
-security_room: .incbin "../art/security-room.hgr"
-        .segment "SECAUX"      ; track 15: security messages + guard frames
+        .segment "SECAUX"      ; track 13: security messages, guard frames and
+                               ; the stamp library + script its room is drawn from
         .incbin "../art/aux-security.bin"
-        .segment "LABROOM"     ; tracks 16-17
+        .segment "LABROOM"     ; tracks 14-15
 lab_room: .incbin "../art/lab-room.hgr"
         .segment "LABAUX"      ; track 18: lab messages + scientist frames
         .incbin "../art/aux-lab.bin"

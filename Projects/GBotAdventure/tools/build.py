@@ -23,14 +23,14 @@ def main():
         subprocess.run([tool('ca65'),name+'.s','-o',str(build/(name+'.o')),'-l',str(build/(name+'.lst'))],cwd=ROOT/'src',check=True)
     subprocess.run([tool('ld65'),'-C','gbot.cfg',str(build/'boot.o'),str(build/'gbot.o'),'-o',str(build/'gbot.bin'),'-m',str(build/'gbot.map'),'-Ln',str(build/'gbot.lbl')],cwd=ROOT/'src',check=True)
     disk=make_disk((build/'gbot.bin').read_bytes()); out=ROOT/'disk/gbot-after-hours.dsk'; out.write_bytes(disk)
-    print('Built',out,'(boot load T1-6 + T7; rooms and aux tracks on T7-18; read-only 140K disk)')
+    print('Built',out,'(boot load T1-6 + T7; rooms and aux tracks on T7-16; read-only 140K disk)')
 
 def make_disk(binary):
     # Boot track, 24K game load (T1-6), then rooms beside their 4K aux tracks:
-    # workshop aux T7, power T8-11 + aux T12, security T13-14 + aux T15,
-    # lab T16-17 + aux T18.
+    # workshop aux T7, power T8-11 + aux T12, security aux T13 (the room is
+    # drawn from stamps on it), lab T14-15 + aux T16.
     b=bytearray(binary)
-    assert len(b)==4096+24576+3*8192+4096+8192+3*4096, len(b)
+    assert len(b)==4096+24576+3*8192+4*4096, len(b)
     assert b[4]==6, 'boot loads exactly tracks 1-6'
     p2l=[0,7,14,6,13,5,12,4,11,3,10,2,9,1,8,15]
     out=bytearray(143360)

@@ -363,8 +363,29 @@ def main():
             position(14,90,1);press('A',4)
             ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
             ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
-            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 15')
+            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 13')
+            # The security room has no room tracks: its aux track's stamp
+            # library and script drew it, and it must be the original art.
+            from gen_stamps import from_aux,run as run_stamps,security as compiled
+            from gen_concept import decode
+            st_script,st_lib=from_aux(auxes[2]);sc,lb=compiled()
+            ok(run_stamps(st_script,st_lib)==security_art(False) and st_script[:len(sc)]==sc,'stamp script on disk reproduces the original security art byte for byte (%d-byte script, %d stamps, %d bytes)'%(len(sc),len(lb),sum(map(len,lb))))
+            drawn=peek(0x8000,8192)
+            rows=[y for y in range(192) if not 177<=y<182]
+            same=all(drawn[offset(y):offset(y)+40]==security_art(False)[offset(y):offset(y)+40] for y in rows)
+            ok(same,'the engine drew the security room from stamps exactly as the old art (status line aside)')
             frame();capture('arrive','security')
+            # Side by side: old full art | stamp-drawn screen | differences (red).
+            from PIL import Image
+            old=decode(security_art(False)).convert('RGB');new=decode(peek(0x2000+state()[6]*8192,8192)).convert('RGB')
+            diff=Image.new('RGB',(280,192))
+            for y in rows:
+                for x in range(280):
+                    if offset(y)+x//7<8192 and drawn[offset(y)+x//7]!=security_art(False)[offset(y)+x//7]:diff.putpixel((x,y),(255,0,0))
+            sheet=Image.new('RGB',(280*3+8,192),(40,40,40))
+            for k,im in enumerate((old,new,diff)):sheet.paste(im,(k*288,0))
+            sheet.resize((sheet.width*2,384),Image.Resampling.NEAREST).save(ROOT/'screenshots'/('security_stamps_vs_art_'+args.machine+'.png'))
+            print('SCREENSHOT '+str(ROOT/'screenshots'/('security_stamps_vs_art_'+args.machine+'.png')),flush=True)
             gxs=[]
             for _ in range(45):frame();gxs.append(peek(0x8F,1)[0])
             ok(peek(0x92,1)==b'\x02','guard wakes and starts patrolling')
@@ -410,8 +431,8 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 16-17')
-            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 18')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 14-15')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 16')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
             capture('arrive','lab')
@@ -522,7 +543,7 @@ def main():
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
-            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 15')
+            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 13')
             ok(peek(0x92,1)==b'\x02' and peek(0x9D,1)==b'\x01','guard still patrolling, lab door still open')
             frame();capture('from_lab','security')
             press('W',4);ok(where()==3,'security -> lab again')
