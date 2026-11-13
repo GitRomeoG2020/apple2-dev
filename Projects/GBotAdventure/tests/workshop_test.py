@@ -369,19 +369,19 @@ def main():
             from gen_stamps import from_aux,run as run_stamps,security as compiled
             from gen_concept import decode
             st_script,st_lib=from_aux(auxes[2]);sc,lb=compiled()
-            ok(run_stamps(st_script,st_lib)==security_art(False) and st_script[:len(sc)]==sc,'stamp script on disk reproduces the original security art byte for byte (%d-byte script, %d stamps, %d bytes)'%(len(sc),len(lb),sum(map(len,lb))))
-            drawn=peek(0x8000,8192)
+            ok(run_stamps(st_script,st_lib)==arts[(2,False)] and st_script[:len(sc)]==sc,'stamp script on disk reproduces the original security art byte for byte (%d-byte script, %d stamps, %d bytes)'%(len(sc),len(lb),sum(map(len,lb))))
+            drawn=peek(0x8000,8192);old_art=arts[(2,False)]
             rows=[y for y in range(192) if not 177<=y<182]
-            same=all(drawn[offset(y):offset(y)+40]==security_art(False)[offset(y):offset(y)+40] for y in rows)
+            same=all(drawn[offset(y):offset(y)+40]==old_art[offset(y):offset(y)+40] for y in rows)
             ok(same,'the engine drew the security room from stamps exactly as the old art (status line aside)')
             frame();capture('arrive','security')
             # Side by side: old full art | stamp-drawn screen | differences (red).
             from PIL import Image
-            old=decode(security_art(False)).convert('RGB');new=decode(peek(0x2000+state()[6]*8192,8192)).convert('RGB')
+            old=decode(old_art).convert('RGB');new=decode(peek(0x2000+state()[6]*8192,8192)).convert('RGB')
             diff=Image.new('RGB',(280,192))
             for y in rows:
                 for x in range(280):
-                    if offset(y)+x//7<8192 and drawn[offset(y)+x//7]!=security_art(False)[offset(y)+x//7]:diff.putpixel((x,y),(255,0,0))
+                    if offset(y)+x//7<8192 and drawn[offset(y)+x//7]!=old_art[offset(y)+x//7]:diff.putpixel((x,y),(255,0,0))
             sheet=Image.new('RGB',(280*3+8,192),(40,40,40))
             for k,im in enumerate((old,new,diff)):sheet.paste(im,(k*288,0))
             sheet.resize((sheet.width*2,384),Image.Resampling.NEAREST).save(ROOT/'screenshots'/('security_stamps_vs_art_'+args.machine+'.png'))
