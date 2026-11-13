@@ -95,14 +95,14 @@ BANK=$1440                    ; this room's messages, from its aux track
 LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
 LOADONE=$0808                 ; same, one track (4K)
 WORKSHOP_TRACK=3
-POWER_TRACK=7
-POWERLIT_TRACK=9
-SECURITY_TRACK=11
-GUARD_TRACK=13
-LAB_TRACK=14
-SCI_TRACK=16
-WORKAUX_TRACK=17
-POWERAUX_TRACK=18
+WORKAUX_TRACK=7               ; each room's aux track sits beside its room
+POWER_TRACK=8
+POWERLIT_TRACK=10
+POWERAUX_TRACK=12
+SECURITY_TRACK=13
+GUARD_TRACK=15
+LAB_TRACK=16
+SCI_TRACK=18
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -1882,19 +1882,19 @@ room: .incbin "../art/workshop-room.hgr"
 sprite_frames: .incbin "../art/gbot-sprites.bin"
 sprites_end:
 .assert sprites_end <= $C000, lderror, "Sprites overflow 48K RAM"
-        .segment "POWERROOM"   ; disk tracks 7-8 only; streamed into $8000
+        .segment "POWERROOM"   ; disk tracks 8-9; streamed into $8000
 power_room: .incbin "../art/power-room.hgr"
-        .segment "POWERLIT"    ; tracks 9-10
+        .segment "POWERLIT"    ; tracks 10-11
 power_lit: .incbin "../art/power-room-lit.hgr"
-        .segment "SECURITYROOM" ; tracks 11-12
+        .segment "SECURITYROOM" ; tracks 13-14
 security_room: .incbin "../art/security-room.hgr"
-        .segment "SECAUX"      ; track 13: security messages + guard frames
+        .segment "SECAUX"      ; track 15: security messages + guard frames
         .incbin "../art/aux-security.bin"
-        .segment "LABROOM"     ; tracks 14-15
+        .segment "LABROOM"     ; tracks 16-17
 lab_room: .incbin "../art/lab-room.hgr"
-        .segment "LABAUX"      ; track 16: lab messages + scientist frames
+        .segment "LABAUX"      ; track 18: lab messages + scientist frames
         .incbin "../art/aux-lab.bin"
-        .segment "WORKAUX"     ; track 17: workshop messages (read at boot)
+        .segment "WORKAUX"     ; track 7: workshop messages (read at boot)
         .incbin "../art/aux-workshop.bin"
-        .segment "POWERAUX"    ; track 18: power room messages
+        .segment "POWERAUX"    ; track 12: power room messages
         .incbin "../art/aux-power.bin"
