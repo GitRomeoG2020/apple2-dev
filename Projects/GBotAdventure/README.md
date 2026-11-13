@@ -1,6 +1,6 @@
 # G-Bot: After Hours
 
-![G-Bot says hello to the flickering scientist in the lab, captured from the Apple IIe emulator's actual HGR page](screenshots/lab_hello_enhanced.png)
+![G-Bot says hello to the flickering scientist in the lab, above the slim THE LAB / 6:02 room strip, captured from the Apple IIe emulator's actual HGR page](screenshots/lab_hello_enhanced.png)
 
 **Fifth playable milestone: THE LAB.** Fix the workshop, find the fuse, light the
 power room, slip past the security room's guard bot, and use the security desk to
@@ -359,7 +359,7 @@ opaque edge, the sprite selects that byte's palette phase; the underlying room
 bytes are restored exactly when it moves away. The two display pages normally
 show successive animation states, not identical frames.
 
-Measured game ticks average approximately **72,600 cycles (~13.8 updates/second
+Measured game ticks average approximately **72,540 cycles (~13.8 updates/second
 at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
 **89,906 cycles**, with G-Bot and an actor both on screen; the workshop and
 power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
@@ -436,14 +436,17 @@ round trip lab → security → power → workshop → power → security → la
 state kept (24 transitions in the whole run). The independent compositor draws
 the guard and the scientist (including ghost frames) with the same depth ordering,
 so every frame checks both sprites on both pages, and every flicker frame proves
-there are no trails. The IIe run checked **2,350 frames**, the II+ run **2,344**,
-with both full pages compared each time. Frame-cost checks
+there are no trails. The IIe run checked **2,358 frames**, the II+ run **2,352**,
+with both full pages compared each time. The HUD-strip change moved every
+room's front edge from G-Bot row 114 to 120, and the walk paths in the tests
+were adjusted to match: arrivals through the bottom doorways, the south walls,
+and the walks to the breaker panel and the locker. Frame-cost checks
 combine Bobbin's completed video-frame count and partial-frame cycle count.
 
 ```sh
 # Build first, then (each run is bounded by the caller):
-timeout 1500 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
-timeout 1500 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+timeout 2400 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
+timeout 2400 python3 Projects/GBotAdventure/tests/workshop_test.py plus
 ```
 
 These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
