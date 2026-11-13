@@ -222,7 +222,8 @@ keyboard:
         lda LOCKOUT            ; just through a door: drop anything typed
         beq :+
         dec LOCKOUT
-        bit $C010
+        lda $C000              ; (read, then clear: drops a key however it
+        bit $C010              ; was latched, even by a lazy emulator queue)
         rts
 :       lda $C000
         bmi :+
@@ -724,6 +725,7 @@ transition:
         sta LASTMSG
         jsr interaction        ; status line, and repair patches if workshop
         jsr show_room
+        lda $C000
         bit $C010              ; keys pressed during the load are discarded,
         lda #LOCK_FRAMES       ; and a few frames more after arrival
         sta LOCKOUT

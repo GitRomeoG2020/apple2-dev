@@ -123,11 +123,11 @@ def main():
             return st
         transitions=[];banks_seen=set();doors=[];door_times={};door_shots=set()
         LOADERS=(0x0805,0x0808)   # LOADROOM / LOADONE entries: a disk read starts
-        def at_read(pc,first,arrival):
+        def at_read(pc,first,room0):
             # Every door: before the first disk read the ENTERING line is already
             # on BOTH pages (whichever is displayed), and keys typed now must not
             # move G-Bot once he arrives.
-            nxt,room0=peek(0x98,1)[0],where()
+            nxt=peek(0x98,1)[0]   # (ROOM is already the new room here)
             if first and nxt!=room0:      # (the fuse fit reloads in place)
                 msg=peek(0x85,1)[0]; fuse=peek(0x8D,1)[0]==1
                 want=status_rows(ENTER_MSG[nxt],fuse)
@@ -139,7 +139,9 @@ def main():
                 if not good:raise AssertionError('door %d->%d: ENTERING line not on both pages before the read'%(room0,nxt))
                 if (room0,nxt) not in door_shots and nxt!=room0:
                     door_shots.add((room0,nxt));capture('entering_%s_from_%s'%(ROOMNAMES[nxt],ROOMNAMES[room0]),'door')
-            q({'cmd':'keys','text':'S' if first else 'A'})   # impatient keys mid-load
+            # An impatient key mid-load: unflushed, 'S' would turn G-Bot round
+            # at the arrival doorway and walk him straight back out.
+            if first:q({'cmd':'keys','text':'S'})
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
             room_before=(where(),lit())
@@ -152,7 +154,7 @@ def main():
                 if not wait(lambda:q({'cmd':'cpu'})['paused'],60):raise RuntimeError('frame deadline exceeded: %s'%q({'cmd':'cpu'}))
                 after=q({'cmd':'cpu'})
                 if after['pc'] not in LOADERS:break
-                at_read(after['pc'],reads==0,None);reads+=1
+                at_read(after['pc'],reads==0,room_before[0]);reads+=1
                 q({'cmd':'resume'})
             for a in LOADERS:q({'cmd':'break_clear','addr':a})
             if (where(),lit())!=room_before:
@@ -169,7 +171,7 @@ def main():
                 arrived=st[:3]
                 if peek(0xAD,1)[0]!=4:raise AssertionError('no input lockout after the door')
                 st=verify() if check else st
-                for _ in range(4):st=frame(check=check)   # keys typed now are dropped
+                for n in range(4):st=frame('A' if n==0 else None,check=check)   # keys typed now are dropped
                 if st[:3]!=arrived:raise AssertionError('keys typed during the door moved G-Bot: %s -> %s'%(list(arrived),list(st[:3])))
                 return st
             # Bobbin resets cycle_count at each video frame AND on resume.

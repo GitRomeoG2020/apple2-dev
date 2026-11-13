@@ -10,7 +10,9 @@ ROOT=Path(__file__).resolve().parents[1]
 machine=sys.argv[1] if len(sys.argv)>1 else 'enhanced'
 lbl=(ROOT/'build/gbot.lbl').read_text()
 def sym(n):return int(re.search(r'al ([0-9A-F]+) \.'+n+r'\b',lbl).group(1),16)
-MAIN,TRANS=sym('main'),sym('transition')
+MAIN=sym('main')
+MARKS=bool(os.environ.get('MARKS'))   # also stop at each read (adds <=1 frame of error per stop)
+TRANS=sym('transition') if MARKS else None
 with tempfile.TemporaryDirectory() as tmp:
     disk=tmp+'/d.dsk';Path(disk).write_bytes((ROOT/'disk/gbot-after-hours.dsk').read_bytes());sock=tmp+'/s'
     m,s=pty.openpty()
@@ -34,7 +36,7 @@ with tempfile.TemporaryDirectory() as tmp:
         while True:
             try:q({'cmd':'ping'});break
             except OSError:time.sleep(.05)
-        for a in (MAIN,TRANS,0x0805,0x0808,0x080B):q({'cmd':'break_set','addr':a})
+        for a in ((MAIN,TRANS,0x0805,0x0808,0x080B) if MARKS else (MAIN,)):q({'cmd':'break_set','addr':a})
         until_paused()
         for _ in range(3):q({'cmd':'resume'});until_paused()
         poke=lambda a,d:q({'cmd':'poke','addr':a,'data':d})
@@ -44,11 +46,10 @@ with tempfile.TemporaryDirectory() as tmp:
         room=0
         for nxt,x,y,d in route:
             poke(0x98,[nxt,x,y,d]);poke(0x8B,[1])
-            q({'cmd':'resume'});r=until_paused()          # transition entry (from update)
-            while r['pc']!=TRANS:q({'cmd':'resume'});r=until_paused()
-            t0=now(r);first=None;reads=0;marks=[]
+            r=q({'cmd':'cpu'});t0=now(r);first=None;reads=0;marks=[]   # the door's game tick starts
             while True:
                 q({'cmd':'resume'});r=until_paused()
+                if r['pc']==TRANS:continue
                 if r['pc'] in (0x0805,0x0808,0x080B):
                     marks.append('%s@%d'%({0x0805:'room',0x0808:'aux',0x080B:'off'}[r['pc']],(now(r)-t0)//1000))
                     if r['pc']==0x080B:continue
@@ -56,8 +57,8 @@ with tempfile.TemporaryDirectory() as tmp:
                     if first is None:first=now(r)-t0
                 elif r['pc']==MAIN:break
             total=now(r)-t0
-            if os.environ.get('MARKS'):print('   ',' '.join(marks),'(k cycles)')
-            print('%-11s -> %-11s first read after %7d cycles, %d reads, back in main after %8d cycles (%.2f s)'%(names[room],names[nxt],first or 0,reads,total,total/1020484),flush=True)
+            if MARKS:print('   ',' '.join(marks),'(k cycles)')
+            print('%-11s -> %-11s %8d cycles (%.2f s)'%(names[room],names[nxt],total,total/1020484)+(' first read at %d'%first if MARKS else ''),flush=True)
             room=nxt
     finally:
         p.terminate();p.wait(timeout=5);os.close(m)
