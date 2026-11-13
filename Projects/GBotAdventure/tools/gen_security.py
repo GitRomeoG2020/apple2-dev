@@ -12,7 +12,7 @@ from pathlib import Path
 import math
 from PIL import Image, ImageDraw
 from gen_concept import Paint, K,V,G,B,O,T,encode,decode,row_offset
-from gen_workshop import message_pixels
+from gen_workshop import message_pixels,finish,clock_hands,FLOOR
 from gen_power_room import lit, dots
 ROOT=Path(__file__).resolve().parents[1]
 GW,GH=28,30
@@ -22,8 +22,8 @@ CLEAR=6
 def room(open_=False):
     p=Paint()
     # Shell, same depth and HUD as the other rooms.
-    p.line([(6,3),(273,3),(273,152)],B,2)
-    p.line([(6,3),(6,153)],B,2)
+    p.line([(6,3),(273,3),(273,FLOOR-5)],B,2)
+    p.line([(6,3),(6,FLOOR-4)],B,2)
     p.line([(9,7),(269,7)],V)
     for y in (34,70): p.line([(104,y),(206,y)],B)
     p.line([(9,75),(271,75)],O)
@@ -75,7 +75,7 @@ def room(open_=False):
     p.text(134,40,'LAB',O)
     p.rect((173,50,174,54),G if open_ else O)       # lock lamp (patched in RAM)
     p.ellipse((180,6,200,24),B); p.ellipse((183,8,197,22),K)
-    p.line([(190,15),(186,10)],T); p.line([(190,15),(195,15)],O)
+    clock_hands(p,190,15,'SECURITY',3,6)
     # Ceiling cameras on brackets, watching the floor.
     for x,sgn in ((112,1),(250,-1)):
         p.line([(x,8),(x,14)],B,2)
@@ -89,7 +89,7 @@ def room(open_=False):
     for y in (32,36): p.line([(212,y),(222,y)],V); p.line([(230,y),(240,y)],V); p.line([(248,y),(258,y)],V)
     # Floor perspective and seams.
     for x in (-210,-58,85,225,370,520):
-        p.line([(140+(x-140)//5,81),(x,158)],B)
+        p.line([(140+(x-140)//5,81),(x,FLOOR+1)],B)
     for y in (93,137): p.line([(9,y),(271,y)],B)
     # PATROL LANE: hazard stripes along the guard's track, dock at its west end.
     p.line([(9,115),(271,115)],O); p.line([(9,127),(271,127)],O)
@@ -101,13 +101,8 @@ def room(open_=False):
     p.poly(door,K); p.line(door+[door[0]],T)
     p.line([(256,106),(256,146)],B)
     p.rect((246,118,247,121),G)
-    p.line([(8,157),(272,157)],O)
-    p.line([(8,160),(271,160)],B)
-    p.text(46,163,'G-BOT: AFTER HOURS',T,2)
-    data=bytearray(encode(p.im))
-    for row,values in enumerate(message_pixels('WASD/ARROWS WALK   SPACE PROBE')):
-        data[row_offset(186+row):row_offset(186+row)+40]=values
-    return bytes(data)
+    p.line([(8,FLOOR),(272,FLOOR)],O)
+    return finish(p,'SECURITY')
 
 def guard(pose):
     """Squat dome-headed security unit. pose 0 dormant, 1/2 patrol steps."""

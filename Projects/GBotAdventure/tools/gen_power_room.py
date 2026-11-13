@@ -11,7 +11,7 @@ from pathlib import Path
 import math
 from PIL import Image
 from gen_concept import Paint, K,V,G,B,O,T,encode,decode,row_offset
-from gen_workshop import message_pixels
+from gen_workshop import message_pixels,finish,clock_hands,FLOOR
 ROOT=Path(__file__).resolve().parents[1]
 
 def lit(x,c):
@@ -37,7 +37,15 @@ def room(on=False):
     p=Paint()
     S=(lambda s:1) if on else (lambda s:s)     # powered: every outline solid
     # Room shell: the same depth as the workshop.
-    dots(p,[(6,153),(6,3),(273,3),(273,153)],B,S(8))
+    dots(p,[(6,FLOOR-4),(6,3),(273,3),(273,FLOOR-4)],B,S(8))
+    # The room's clock, stopped when the power went (9:41).
+    if on:
+        p.ellipse((14,30,34,48),B); p.ellipse((16,32,32,46),K)
+        clock_hands(p,24,39,'POWER ROOM',4,6)
+    else:
+        for i in range(0,360,40):
+            p.dot(lit(24+round(10*math.cos(math.radians(i))),B),39+round(9*math.sin(math.radians(i))),B)
+        clock_hands(p,24,39,'POWER ROOM',4,6,B)
     dots(p,[(9,75),(271,75)],B,S(10))
     dots(p,[(9,80),(271,80)],V,S(12),3)
     # Ceiling pipe run and the bulb hanging on its cord.
@@ -105,29 +113,23 @@ def room(on=False):
         p.text(11,84,'SEC',G)
     # Floor seams.
     for x in (-210,-58,85,225,370,520):
-        dots(p,[(140+(x-140)//5,81),(x,158)],B,9 if not on else 4)
+        dots(p,[(140+(x-140)//5,81),(x,FLOOR+1)],B,9 if not on else 4)
     for y,s in ((93,16),(113,12),(137,9)):
         dots(p,[(9,y),(271,y)],B,s if not on else 4)
     if not on:
         # Warm workshop light spilling through the open doorway.
-        for y in range(104,157):
-            t=(y-104)/52
+        for y in range(104,FLOOR):
+            t=(y-104)/(FLOOR-105)
             half=22+round(26*(1-t))
             if y%2: continue
             gap=4 if t>0.8 else 6 if t>0.55 else 10 if t>0.3 else 16
             for x in range(142-half,142+half+1):
                 if (x*7+y*5+(y*y)%7)%gap==0 and abs(x-142)<=half-(0 if t>0.5 else 4):
                     p.dot(lit(x,O),y,O)
-    p.line([(118,157),(166,157)],T)
-    dots(p,[(8,157),(116,157)],O,8); dots(p,[(168,157),(272,157)],O,8)
-    p.line([(116,151),(116,157)],O); p.line([(167,151),(167,157)],O)
-    # Same native HUD as the workshop.
-    p.line([(8,160),(271,160)],B)
-    p.text(46,163,'G-BOT: AFTER HOURS',T,2)
-    data=bytearray(encode(p.im))
-    for row,values in enumerate(message_pixels('WASD/ARROWS WALK   SPACE PROBE')):
-        data[row_offset(186+row):row_offset(186+row)+40]=values
-    return bytes(data)
+    p.line([(118,FLOOR),(166,FLOOR)],T)
+    dots(p,[(8,FLOOR),(116,FLOOR)],O,8); dots(p,[(168,FLOOR),(272,FLOOR)],O,8)
+    p.line([(116,FLOOR-6),(116,FLOOR)],O); p.line([(167,FLOOR-6),(167,FLOOR)],O)
+    return finish(p,'POWER ROOM')
 
 def main():
     used={row_offset(y)+b for y in range(192) for b in range(40)}

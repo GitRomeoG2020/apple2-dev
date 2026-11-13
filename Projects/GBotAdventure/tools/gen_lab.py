@@ -11,7 +11,7 @@ from pathlib import Path
 import math
 from PIL import Image, ImageDraw
 from gen_concept import Paint, K,V,G,B,O,T,encode,decode,row_offset
-from gen_workshop import message_pixels
+from gen_workshop import message_pixels,finish,clock_hands,FLOOR
 from gen_power_room import lit, dots
 ROOT=Path(__file__).resolve().parents[1]
 SW,SH=28,40
@@ -21,14 +21,14 @@ SPOTS=[(4,92),(25,100),(9,60)]   # scientist (byte column, top row); feet at row
 def room():
     p=Paint()
     # Shell and back wall.
-    p.line([(6,3),(273,3),(273,152)],B,2)
-    p.line([(6,3),(6,153)],B,2)
+    p.line([(6,3),(273,3),(273,FLOOR-5)],B,2)
+    p.line([(6,3),(6,FLOOR-4)],B,2)
     p.line([(9,7),(269,7)],V)
     p.line([(9,75),(271,75)],O)
     p.line([(9,80),(271,80)],B)
     # Lab clock: yet another time (about two minutes past six).
     p.ellipse((14,8,36,28),B); p.ellipse((17,10,33,26),K)
-    p.line([(25,18),(25,11)],T); p.line([(25,18),(26,13)],O)
+    clock_hands(p,25,18,'THE LAB',4,7)
     for a in range(0,360,90):
         p.dot(lit(25+round(9*math.cos(math.radians(a))),T),18+round(9*math.sin(math.radians(a))),T)
     # Consoles along the left back wall: racks, scopes, a big switch, printout.
@@ -77,20 +77,15 @@ def room():
     for x in (214,230,246): p.line([(x,103),(x+4,108),(x+8,103)],T)   # chevrons
     # Floor, a dropped clipboard page and a coffee cup still warm-looking.
     for x in (-210,-58,85,225,370,520):
-        p.line([(140+(x-140)//5,81),(x,158)],B)
+        p.line([(140+(x-140)//5,81),(x,FLOOR+1)],B)
     for y in (113,137): p.line([(9,y),(271,y)],B)
     p.poly([(60,140),(72,138),(74,146),(62,148)],T)
     p.rect((210,140,214,145),O); p.line([(215,141),(216,143)],O)
     # Doorway back to the security room.
-    p.line([(118,157),(166,157)],T)
-    p.line([(116,151),(116,157)],O); p.line([(167,151),(167,157)],O)
-    p.line([(8,157),(114,157)],O); p.line([(170,157),(272,157)],O)
-    p.line([(8,160),(271,160)],B)
-    p.text(46,163,'G-BOT: AFTER HOURS',T,2)
-    data=bytearray(encode(p.im))
-    for row,values in enumerate(message_pixels('WASD/ARROWS WALK   SPACE PROBE')):
-        data[row_offset(186+row):row_offset(186+row)+40]=values
-    return bytes(data)
+    p.line([(118,FLOOR),(166,FLOOR)],T)
+    p.line([(116,FLOOR-6),(116,FLOOR)],O); p.line([(167,FLOOR-6),(167,FLOOR)],O)
+    p.line([(8,FLOOR),(114,FLOOR)],O); p.line([(170,FLOOR),(272,FLOOR)],O)
+    return finish(p,'THE LAB')
 
 def scientist():
     """A scientist in a lab coat with a clipboard, mid-stride, mid-sentence."""

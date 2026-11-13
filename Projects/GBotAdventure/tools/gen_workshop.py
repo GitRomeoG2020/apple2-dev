@@ -5,6 +5,7 @@ Sprite rows: 6 opaque bytes, 6 pixel bytes, one shared phase byte.
 Every x in the engine is even, preserving artifact color parity when shifting.
 """
 from pathlib import Path
+import math
 from PIL import Image, ImageDraw
 from gen_concept import Paint, K,V,G,B,O,T,encode,decode,row_offset,FONT
 ROOT=Path(__file__).resolve().parents[1]
@@ -27,12 +28,35 @@ FONT.update({
 })
 SW,SH=42,44
 CLEAR=6
+# Every room's front edge. The rows below it hold the HUD, baked into each
+# room's art: a one-row strip (room name and that room's clock, 169-173), the
+# engine's status line (177-181) and the controls (186-190).
+FLOOR=164
+CLOCKS={'WORKSHOP':'12:15','POWER ROOM':'9:41','SECURITY':'2:53','THE LAB':'6:02'}
+
+def clock_hands(p,cx,cy,name,rh,rm,c=T):
+    """Short hour hand, long minute hand (2 px wide so they stay white),
+    showing CLOCKS[name]."""
+    h,m=map(int,CLOCKS[name].split(':'))
+    for a,r in (((h%12+m/60)*30,rh),(m*6,rm)):
+        a=math.radians(a)
+        p.line([(cx,cy),(cx+round(r*math.sin(a)),cy-round(r*math.cos(a)))],c,2)
+
+def finish(p,name):
+    """Native room bytes plus the baked HUD: strip and controls line."""
+    data=bytearray(encode(p.im))
+    t=CLOCKS[name]
+    strip=' '+name+' '*(38-len(name)-len(t))+t+' '
+    for top,text in ((169,strip),(186,'WASD/ARROWS WALK   SPACE PROBE')):
+        for row,values in enumerate(message_pixels(text)):
+            data[row_offset(top+row):row_offset(top+row)+40]=values
+    return bytes(data)
 
 def room(online=False):
     p=Paint()
     # Back wall: a deep, quiet workshop rather than a busy neon maze.
-    p.line([(6,3),(273,3),(273,152)],B,2)
-    p.line([(6,3),(6,153)],B,2)
+    p.line([(6,3),(273,3),(273,FLOOR-5)],B,2)
+    p.line([(6,3),(6,FLOOR-4)],B,2)
     p.line([(9,7),(269,7)],T)
     for y in (34,70):
         p.line([(9,y),(271,y)],B)
@@ -92,7 +116,7 @@ def room(online=False):
     p.text(132,20,'01',O)
     # Clock, sleeping terminal, fan vents and cable loops.
     p.ellipse((183,18,205,34),B); p.ellipse((186,20,202,32),K)
-    p.line([(194,22),(194,27),(199,27)],O)
+    clock_hands(p,194,26,'WORKSHOP',3,5)
     p.rect((225,40,263,109),K)
     p.line([(225,109),(225,40),(263,40),(263,109)],B,2)
     p.line([(229,44),(259,44),(259,105)],V)
@@ -105,9 +129,9 @@ def room(online=False):
     p.line([(223,53),(215,53),(215,86),(221,93)],B)
     # Floor perspective, subtle seams. Movable sprite covers these cleanly.
     for x in (-210,-58,85,225,370,520):
-        p.line([(140+(x-140)//5,81),(x,158)],B)
-    for y in (93,113,137,157): p.line([(9,y),(271,y)],B)
-    p.line([(8,157),(272,157)],O)
+        p.line([(140+(x-140)//5,81),(x,FLOOR+1)],B)
+    for y in (93,113,137,FLOOR): p.line([(9,y),(271,y)],B)
+    p.line([(8,FLOOR),(272,FLOOR)],O)
     # Rubber service mat, spare screws, coiled cable. None block movement.
     p.poly([(112,113),(170,113),(183,148),(99,148)],K)
     p.line([(112,113),(170,113),(183,148),(99,148),(112,113)],V)
@@ -115,14 +139,7 @@ def room(online=False):
     p.line([(49,104),(50,111),(68,115),(80,120),(77,127),(61,129),(59,135),(74,139)],O)
     p.rect((26,142,31,144),B); p.line([(28,141),(29,141)],T)
     p.line([(208,144),(216,143),(220,146)],O)
-    # Native HGR lettering keeps both text pages and resident loader untouched.
-    p.line([(8,160),(271,160)],B)
-    p.text(46,163,'G-BOT: AFTER HOURS',T,2)
-    # Byte-aligned monochrome text stays legible without artifact-color fringes.
-    data=bytearray(encode(p.im))
-    for row,values in enumerate(message_pixels('WASD/ARROWS WALK   SPACE PROBE')):
-        data[row_offset(186+row):row_offset(186+row)+40]=values
-    return bytes(data)
+    return finish(p,'WORKSHOP')
 
 # Three logical columns, each emitted as a pair of lit HGR bits: real white,
 # not alternating artifact colors. One seven-pixel byte per character.
@@ -363,6 +380,6 @@ def main():
         for b in range(6):
             at=row_offset(y0+y)+x0//7+b
             screen[at]=((screen[at]&(~m[b]&127))|v[b]|phase) if m[b] else screen[at]
-    decode(screen).crop((0,0,280,160)).resize((1120,640),Image.Resampling.NEAREST).save(ROOT/'build/workshop-design.png')
+    decode(screen).crop((0,0,280,166)).resize((1120,640),Image.Resampling.NEAREST).save(ROOT/'build/workshop-design.png')
     print('Workshop: 8192 bytes; 14 masked 42x44 frames:',len(b''.join(frames)),'bytes')
 if __name__=='__main__':main()
