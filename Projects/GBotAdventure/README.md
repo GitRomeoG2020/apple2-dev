@@ -12,6 +12,17 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 ## What's playable
 
+- **A stamp-built security room (trial).** The security room is no longer an
+  8 KB picture on disk. At the door, the engine draws it into `$8000` from a
+  **stamp library and a room script** stored on the room's own aux track
+  (2,050 bytes in all). The script's commands are text in the resident status
+  font, Pillow-exact lines (the floor perspective, the 22 hazard stripes as one
+  line plus a repeat, the door and desk edges), repeating byte rows, blocks
+  and stamps. The result is **byte-for-byte the same picture** as the old art,
+  so all gameplay is unchanged. Entering the security room now takes
+  **0.98–1.00 s** instead of 1.28–1.32 s, and the room's two disk tracks are free.
+  The other rooms are still full 8 KB art.
+
 - **Doors answer at once.** The moment G-Bot steps into a doorway, the status
   line reads **ENTERING POWER ROOM...** (or **ENTERING WORKSHOP... / SECURITY... /
   THE LAB...**) on both display pages, and a short rising chirp plays, all
@@ -328,7 +339,11 @@ lookup tables, and every status-line message). `gen_power_room.py` authors the
 dark and lit power rooms (`art/power-room.hgr`, `art/power-room-lit.hgr`).
 `gen_security.py` authors the security room and the guard's six masked frames
 (`art/security-room.hgr`, `art/guard-sprites.bin`), plus `src/security.inc`
-(the lab-door lamp bytes). `gen_lab.py` authors the lab and the scientist's four
+(the lab-door lamp bytes). It is still the security room's source art:
+`gen_stamps.py` compiles it into the stamp library and room script (checking
+the result byte for byte), and `gen_banks.py` packs them onto the aux track.
+To go back to the full picture, restore the room tracks in `gbot.cfg` and the
+`SECURITY_TRACK` load. `gen_lab.py` authors the lab and the scientist's four
 frames (`art/lab-room.hgr`, `art/scientist-sprites.bin`: solid and ghost, each
 for even and odd columns). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
@@ -358,8 +373,9 @@ required native build inputs, not modern images loaded by the game.
 - **Per-room aux track** at `$1000–$1FFF`. Every room has one 4 KB track, read
   with the room whenever G-Bot enters a different room:
   - each aux track sits right beside its room on the disk, to keep the seek
-    short: **workshop** 7 (read at boot), **power room** 12, **security** 15,
-    **lab** 18;
+    short: **workshop** 7 (read at boot), **power room** 12, **security** 13
+    (its only track: it also carries the room's stamps and script),
+    **lab** 16;
   - `$1440` holds that room's **message bank**: id, length, glyphs. Entries
     can continue after the actor frames; `$FF` ends the bank;
   - `$1800` holds the room's actor frames: the guard's 6 (1,620 bytes) or the
@@ -372,18 +388,26 @@ required native build inputs, not modern images loaded by the game.
   The four **ENTERING ...** lines sit in the bank of each room that has a door to
   that room, so the bank being left always has the line it needs (workshop now
   341 bytes, power room 487, security 331, lab 965). A door reads only the aux
-  sectors that hold data (4–5, 4–6, 4–14 and 4–13).
+  sectors that hold data (4–5, 4–6, all of the security track, 4–13).
+- **Security's aux track** (`$1000–$1FFF`) also holds the stamp-built room:
+  at `$1000`, the stamp count, the stamp address table and the **734-byte room
+  script**. The 31 stamps (1,253 bytes) fill the gaps around the bank and the
+  guard frames. The script and table use the per-frame scratch area, so the
+  room is drawn once, right after the read, before that area is reused.
+  Free on the track afterwards: 95 bytes.
 - `$50–$A8`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
   `$8D` fuse, `$8F–$97` guard, `$9D` lab door, `$9E` which actor is loaded,
   `$9F–$A5` the current actor, `$A6–$A8` scientist, `$A9` console state,
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$26`, `$2B`, `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$6E70` engine code, `$6F00–$7B7F` lookup tables and the resident
+- `$6000–$71DA` engine code, `$7200–$7E7F` lookup tables and the resident
   47-glyph status font (now with `? ' | *`). **No message text is resident
-  any more.** `$7B80–$7FFF` is free: **1,152 bytes**, plus 143 bytes of
-  alignment gap at `$6E71`, **1,295 bytes** in all. The door work cost 549
-  bytes of code, 384 of them for an unrolled page copy.
+  any more.** `$7E80–$7FFF` is free: **384 bytes**, plus 37 bytes of
+  alignment gap at `$71DB`, **421 bytes** in all. The stamp interpreter
+  (`stamps`) cost 874 bytes, including a 96-byte unrolled clear of `$8000`.
+  The door work before it cost 549 bytes of code, 384 of them for an
+  unrolled page copy. `$0C00–$0C27` is the interpreter's text buffer.
   Moving the 44 old messages (1,760 bytes of text plus 88 bytes of pointers) to
   the disk banks freed 1,792 bytes of tables. The console puzzle, dialogue
   handling and bank reader then used 395 bytes of code. Net, free RAM went
@@ -395,8 +419,8 @@ required native build inputs, not modern images loaded by the game.
   layout.
 - Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
   tracks 3–4); **7 workshop aux, 8–9 dark power room, 10–11 lit power room,
-  12 power aux, 13–14 security room, 15 security aux, 16–17 lab, 18 lab aux**.
-  The complete disk is 143,360 bytes; tracks 19–34 are free.
+  12 power aux, 13 security (aux track with the stamp-built room), 14–15 lab,
+  16 lab aux**. The complete disk is 143,360 bytes; tracks 17–34 are free.
   No language card, auxiliary RAM or expansion sound hardware is needed.
 
 **Door timing.** Measured per door in Bobbin (`tests/door_timing.py`; the IIe
@@ -405,9 +429,9 @@ and II+ give the same numbers):
 | Door | Before | After |
 | --- | --- | --- |
 | workshop → power room | 2.78 s | 1.17–1.32 s |
-| power room → security | 1.77 s | 1.28 s |
+| power room → security | 1.77 s | 1.28 s, stamp-built: **0.98 s** |
 | security → lab | 1.75 s | 1.26 s |
-| lab → security | 1.95 s | 1.32 s |
+| lab → security | 1.95 s | 1.32 s, stamp-built: **1.00 s** |
 | security → power room | 1.93 s | 1.20 s |
 | power room → workshop | 2.20 s | 1.26 s |
 
@@ -532,7 +556,7 @@ the desk probe and solidity; and round trips through all three rooms.
 
 The lab milestone adds: the lab door sealed before the desk (message and orange
 lamp bytes); the desk unlocking it (green lamp, run-on line); walking into the lab
-from tracks 16–17 with the scientist's frames streamed to `$1800` from its aux track (18);
+from tracks 14–15 with the scientist's frames streamed to `$1800` from its aux track (16);
 250 frames of the flicker cycle (gone, flickering in, solid, flickering out) with
 both solid and ghost frames seen at more than one spot and G-Bot never moved; the
 consoles, chamber, bay and scientist prompts and probes, every run-on line, and
