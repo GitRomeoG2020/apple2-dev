@@ -12,6 +12,14 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 ## What's playable
 
+- **Doors answer at once.** The moment G-Bot steps into a doorway, the status
+  line reads **ENTERING POWER ROOM...** (or **ENTERING WORKSHOP... / SECURITY... /
+  THE LAB...**) on both display pages, and a short rising chirp plays, all
+  within about 20 ms and before the disk is touched. Keys pressed while the next room loads
+  are thrown away, and so is anything typed in the first four frames after
+  arrival. Mashing a key during the load can no longer walk him back out of
+  the door. A room change now takes **1.15–1.32 s**; it used to take 1.75–2.78 s.
+
 - **A slim HUD.** The big in-game title band is gone. A one-row strip under each
   room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
   (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
@@ -338,9 +346,11 @@ required native build inputs, not modern images loaded by the game.
 
   The strip and the controls are baked into each room's background on disk, so
   they cost no RAM. No text-page switching or IIe-only video features.
-- `$0800–$0A1A`: read-only bootloader, **kept resident** as the room loader
-  (`LOADROOM` at `$0805` reads two tracks, `LOADONE` at `$0808` one);
-  `$0C00–$0D6F`: disk decoding scratch.
+- `$0800–$0B0C`: read-only bootloader, **kept resident** as the room loader
+  (`LOADROOM` at `$0805` reads two tracks, `LOADONE` at `$0808` sectors
+  `SFIRST..SEND-1` of one, `MOTOROFF` at `$080B`); `$0D60–$0D6F` sector flags,
+  `$0E00–$0EFF` decode tables built at boot. Raw sector data goes to the
+  **hidden** HGR page during a read (to HGR page 1 while booting).
   No high-score sector, write routine or Rockfall runtime is carried over.
 - `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
   `$1400–$142B`: row palette phases (all three rebuilt every frame).
@@ -359,16 +369,21 @@ required native build inputs, not modern images loaded by the game.
   buffer. The bank sizes are: workshop 317 bytes (9 messages), power room 443
   (14), security 286 (9), lab 943 (29, including the dialogue and the tuning
   meter template). The tuning meter itself is built in RAM from that template.
+  The four **ENTERING ...** lines sit in the bank of each room that has a door to
+  that room, so the bank being left always has the line it needs (workshop now
+  341 bytes, power room 487, security 331, lab 965). A door reads only the aux
+  sectors that hold data (4–5, 4–6, 4–14 and 4–13).
 - `$50–$A8`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
   `$8D` fuse, `$8F–$97` guard, `$9D` lab door, `$9E` which actor is loaded,
   `$9F–$A5` the current actor, `$A6–$A8` scientist, `$A9` console state,
-  `$AA–$AB` tuning phase/cursor, `$AC` talking); `$26`, `$2B`, `$3C–$49`:
-  loader zero page.
+  `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
+  `$AE` door scratch); `$26`, `$2B`, `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$6C4B` engine code, `$6D00–$797F` lookup tables and the resident
+- `$6000–$6E70` engine code, `$6F00–$7B7F` lookup tables and the resident
   47-glyph status font (now with `? ' | *`). **No message text is resident
-  any more.** `$7980–$7FFF` is free: **1,664 bytes**, plus 180 bytes of
-  alignment gap at `$6C4C`.
+  any more.** `$7B80–$7FFF` is free: **1,152 bytes**, plus 143 bytes of
+  alignment gap at `$6E71`, **1,295 bytes** in all. The door work cost 549
+  bytes of code, 384 of them for an unrolled page copy.
   Moving the 44 old messages (1,760 bytes of text plus 88 bytes of pointers) to
   the disk banks freed 1,792 bytes of tables. The console puzzle, dialogue
   handling and bank reader then used 395 bytes of code. Net, free RAM went
@@ -383,6 +398,36 @@ required native build inputs, not modern images loaded by the game.
   12 power aux, 13–14 security room, 15 security aux, 16–17 lab, 18 lab aux**.
   The complete disk is 143,360 bytes; tracks 19–34 are free.
   No language card, auxiliary RAM or expansion sound hardware is needed.
+
+**Door timing.** Measured per door in Bobbin (`tests/door_timing.py`; the IIe
+and II+ give the same numbers):
+
+| Door | Before | After |
+| --- | --- | --- |
+| workshop → power room | 2.78 s | 1.17–1.32 s |
+| power room → security | 1.77 s | 1.28 s |
+| security → lab | 1.75 s | 1.26 s |
+| lab → security | 1.95 s | 1.32 s |
+| security → power room | 1.93 s | 1.20 s |
+| power room → workshop | 2.20 s | 1.26 s |
+
+(The two workshop → power room runs differ only in where the disk happened to be
+in its turn.) Where the time went:
+- the half-second pause in the workshop doorway is gone; the door slides open
+  on one page only;
+- the drive motor starts as the door triggers, so it spins up while the
+  status line and chirp go out, and it runs once per door instead of once per read;
+- seeks accelerate like DOS 3.3: 19, 11, 7.5, 6, then about 5.4 ms per
+  half-track. The nearer of a room's two tracks (room or aux) is read first;
+- each track is read in about **one revolution instead of two**. Sectors are
+  stored raw as they pass and decoded together afterwards with lookup tables.
+  Decoding each one before the next used to miss the sector right behind it;
+- only the aux sectors that hold data are read;
+- the room is copied to a page with an unrolled loop (about 9 cycles a byte,
+  down from 16).
+
+The remaining ~1.2 s is mostly the disk itself: two 8K room tracks plus the
+aux sectors at 300 rpm, about 0.25 s of redrawing both pages, and the ~90 ms spin-up.
 
 **Why rooms load from disk.** Each HGR background is a full 8 KB and only one fits
 beside the two display pages, engine and sprites. Rather than compress rooms (and
@@ -421,11 +466,9 @@ Measured game ticks average approximately **74,380 cycles (~13.4 updates/second
 at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
 **92,010 cycles**, with G-Bot and an actor both on screen; the workshop and
 power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
-each last about 1.7 seconds. A room change (door beat, disk spin-up, seek,
-two-track read, both pages rebuilt) took at most **2.85 million cycles (~2.8 s)**
-in Bobbin's Disk II emulation. Every room change now also reads that room's 4 KB aux track (messages and
-actor frames). Each aux track sits beside its room, so this adds at most about
-0.4 s per door compared with the previous 2.44 s.
+each last about 1.7 seconds. A room change (status line, chirp, disk spin-up,
+seek, room and aux reads, both pages rebuilt) takes **1.15–1.32 s**. It used to take up
+to 2.8 s; the door timing table above has the per-door numbers.
 The average tick is a little higher than before (72,540) mostly because the
 test now spends many more frames in the lab with both sprites on screen during
 the conversation. Fetching a status line from a bank costs a few hundred cycles,
@@ -512,6 +555,19 @@ there are no trails. The console milestone adds:
   ignoring keys until she slips out of phase;
 - the console staying in phase, the reminder, and the state surviving a full
   round trip through every room.
+
+The door change adds checks on every room change in the run, all six door
+directions:
+- the test stops at the loader's entry (`$0805`/`$0808`), before any disk
+  read, and checks that both pages' status rows match **ENTERING <ROOM>...**
+  pixel for pixel. It saves a screenshot the first time each door is used;
+- it types **S** while the room is loading. Unflushed, that key would turn
+  G-Bot round at the arrival doorway and walk him straight back out. It
+  types **A** in the first frame after arrival;
+- it checks that the input lockout is armed and that G-Bot has not moved
+  after it ends;
+- it checks the aux sectors each door reads, and that no door takes more than
+  1.7 million cycles.
 
 The IIe run checked **2,976 frames**, the II+ run **2,970**,
 with both full pages compared each time. The HUD-strip change moved every

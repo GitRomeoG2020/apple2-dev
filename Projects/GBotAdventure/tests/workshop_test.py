@@ -71,7 +71,7 @@ def main():
         proc=subprocess.Popen([args.bobbin,'--simple','--remain','--no-turbo','-m',args.machine,'--disk',disk,'--control-socket',sock],stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
         def q(cmd):
             with socket.socket(socket.AF_UNIX) as s:
-                s.settimeout(30);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
+                s.settimeout(120);s.connect(sock);s.sendall(json.dumps(cmd).encode()+b'\n');out=b''
                 while not out.endswith(b'\n'):out+=s.recv(65536)
             result=json.loads(out)
             if not result.get('ok'):raise RuntimeError(result)
