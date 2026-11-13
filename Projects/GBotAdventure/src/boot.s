@@ -23,16 +23,24 @@ PAGE0=$46
 CNT=$47
 LASTT=$48                        ; first track NOT to read
 NREAD=$49
+SFIRST=$4A                       ; sectors SFIRST..SEND-1 of each track are read
+SEND=$4B
+SPUN=$4C                         ; non-zero while the motor is already running
+STEP=$4D                         ; seek acceleration index
+RAWHI=$4E                        ; 8K raw-nibble area (a hidden HGR page)
 DONE=$0D60
-NBUF1=$0C00
-NBUF2=$0D00
+SH=$0E00                         ; decode tables built at boot: v<<2, and the
+T0=$0E40                         ; three bit-reversed 2-bit fields of v
+T1=$0E80
+T2=$0EC0
 GAME=$6000
         .segment "BOOT"
         .byte 4
         jmp start
 ntracks:.byte 6                  ; $0804: tracks in the boot load
         jmp loadroom             ; $0805: LOADROOM entry used by the game
-        jmp loadone              ; $0808: LOADONE, a single 4K track
+        jmp loadone              ; $0808: LOADONE, a single track (sectors SFIRST..SEND-1)
+        jmp motoroff             ; $080B: MOTOROFF, after a door's last read
 start:  cld
         stx SLOT
         jsr $FC58
@@ -49,6 +57,40 @@ start:  cld
         lda $C08E,x
         lda #0
         sta CURPH
+        sta SFIRST
+        sta SPUN
+        lda #16
+        sta SEND
+        lda #$20                 ; raw nibbles go to HGR page 1 while booting
+        sta RAWHI
+        ldx #63
+@tab:   txa
+        asl a
+        asl a
+        sta SH,x
+        txa
+        and #3
+        tay
+        lda rev2,y
+        sta T0,x
+        txa
+        lsr a
+        lsr a
+        and #3
+        tay
+        lda rev2,y
+        sta T1,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        tay
+        lda rev2,y
+        sta T2,x
+        dex
+        bpl @tab
+        ldx SLOT
         lda #>GAME
         sta PAGE0
         lda #1
@@ -67,21 +109,34 @@ start:  cld
         ldx SLOT
         jmp GAME
 
-; readtracks: read whole tracks TRK..LASTT-1 into pages PAGE0.. (16 per track).
+; readtracks: read tracks TRK..LASTT-1 (sectors SFIRST..SEND-1) into pages
+; PAGE0.. (16 per track). Each track is read in about one revolution: sectors
+; are stored as raw 6-bit values (RAWHI+s pages, then 86-byte secondaries at
+; RAWHI+$10 + 86s) as they pass, and decoded together afterwards. (Decoding
+; each sector before the next would miss the one right behind it, needing
+; two revolutions.)
 readtracks:
 @track: lda TRK
         jsr seek
         ldy #15
+@clear: lda #1                   ; sectors outside SFIRST..SEND-1 count as done
+        cpy SFIRST
+        bcc @set
+        cpy SEND
+        bcs @set
         lda #0
-@clear: sta DONE,y
+@set:   sta DONE,y
         dey
         bpl @clear
-        lda #16
+        lda SEND
+        sec
+        sbc SFIRST
         sta LEFT
 @sector:jsr rdsect
         bcs @sector
         dec LEFT
         bne @sector
+        jsr decode
         lda PAGE0
         clc
         adc #16
@@ -92,10 +147,15 @@ readtracks:
         bcc @track
         rts
 
-; loadroom: A = first track, Y = destination page. Reads two tracks (8K);
-; loadone reads one (4K). Read-only: motor on, drive 1, read mode; motor off
-; again before returning.
+; loadroom: A = first track, Y = destination page. Reads two whole tracks
+; (8K); loadone reads sectors SFIRST..SEND-1 of one track to pages Y+sector.
+; Read-only: motor on, drive 1, read mode. The motor keeps running between
+; the reads of one door (one spin-up wait); MOTOROFF stops it afterwards.
 loadroom:
+        ldx #0
+        stx SFIRST
+        ldx #16
+        stx SEND
         ldx #2
         bne loadn
 loadone:ldx #1
@@ -109,11 +169,17 @@ loadn:  stx NREAD
         lda $C089,x              ; motor on
         lda $C08A,x              ; drive 1
         lda $C08E,x              ; read mode (never write mode)
+        lda SPUN
+        bne @spun
+        inc SPUN
         lda #$C0                 ; ~90 ms spin-up; bad reads simply retry
         jsr WAIT
-        jsr readtracks
+@spun:  jmp readtracks
+motoroff:
         ldx SLOT
         lda $C088,x              ; motor off
+        lda #0
+        sta SPUN
         rts
 
 ; rdsect: read the next sector that passes under the head on track TRK.
@@ -136,16 +202,21 @@ rdsect: ldx SLOT
         bcs @err
         lda DONE,y
         bne @err
+        tya                      ; aim rddata at this sector's raw buffers
+        clc
+        adc RAWHI
+        sta n1op+2
+        lda n2lo,y
+        sec
+        sbc #$AA                 ; rddata indexes secondaries with Y=$AA..$FF
+        sta n2op+1
+        lda n2hi,y
+        sbc #0
+        clc
+        adc RAWHI
+        sta n2op+2
         jsr rddata
         bcs @err
-        ldy HSEC
-        tya
-        clc
-        adc PAGE0
-        sta BUF+1
-        lda #0
-        sta BUF
-        jsr postnib
         ldy HSEC
         lda #1
         sta DONE,y
@@ -201,76 +272,122 @@ rdadr:  lda #0
 ; ---- rddata: D5 AA AD within 32 nibbles, 342 data nibbles + checksum (DOS 3.3
 ; timing: inner loops <= 26 cycles per 32-cycle nibble; tables page-aligned).
 rddata: ldy #$20
-@s1:    dey
-        beq @bad
-@s2:    lda $C08C,x
-        bpl @s2
-@s3:    eor #$D5
-        bne @s1
+rd_s1:    dey
+        beq rd_bad
+rd_s2:    lda $C08C,x
+        bpl rd_s2
+rd_s3:    eor #$D5
+        bne rd_s1
         nop
-@s4:    lda $C08C,x
-        bpl @s4
+rd_s4:    lda $C08C,x
+        bpl rd_s4
         cmp #$AA
-        bne @s3
+        bne rd_s3
         nop
-@s5:    lda $C08C,x
-        bpl @s5
+rd_s5:    lda $C08C,x
+        bpl rd_s5
         cmp #$AD
-        bne @s3
-        ldy #$56
+        bne rd_s3
+        ldy #$AA                 ; 86 secondaries, stored in arrival order
         lda #0
-@n1:    dey
-        sty IDX
-@n2:    ldy $C08C,x
-        bpl @n2
+rd_n1:    sty IDX
+rd_n2:    ldy $C08C,x
+        bpl rd_n2
         eor dnib-$96,y
         ldy IDX
-        sta NBUF2,y
-        bne @n1
-@n3:    sty IDX
-@n4:    ldy $C08C,x
-        bpl @n4
-        eor dnib-$96,y
-        ldy IDX
-        sta NBUF1,y
+n2op:   sta $FFFF,y
         iny
-        bne @n3
-@n5:    ldy $C08C,x
-        bpl @n5
+        bne rd_n1
+rd_n3:    sty IDX
+rd_n4:    ldy $C08C,x
+        bpl rd_n4
+        eor dnib-$96,y
+        ldy IDX
+n1op:   sta $FF00,y
+        iny
+        bne rd_n3
+rd_n5:    ldy $C08C,x
+        bpl rd_n5
         cmp dnib-$96,y
-        bne @bad
-@n6:    lda $C08C,x
-        bpl @n6
+        bne rd_bad
+rd_n6:    lda $C08C,x
+        bpl rd_n6
         cmp #$DE
-        bne @bad
+        bne rd_bad
         clc
         rts
-@bad:   sec
+rd_bad:   sec
         rts
 
-; ---- postnib: NBUF1/NBUF2 -> (BUF) (DOS 3.3 order)
-postnib:ldy #0
-@p1:    ldx #$56
-@p2:    dex
-        bmi @p1
-        lda NBUF1,y
-        lsr NBUF2,x
-        rol a
-        lsr NBUF2,x
-        rol a
-        sta (BUF),y
-        iny
-        bne @p2
-        ldx SLOT
+; ---- decode: raw sectors SFIRST..SEND-1 -> pages PAGE0+s (DOS 3.3 6+2:
+; byte p*86+i = primary<<2 | bit-reversed field p of secondary 85-i).
+decode: ldx SFIRST
+@sec:   cpx SEND
+        bcs @done
+        stx IDX
+        txa
+        clc
+        adc RAWHI
+        sta @n1+2
+        txa
+        clc
+        adc PAGE0
+        sta @dst+2
+        lda n2lo,x
+        sta @n2+1
+        lda n2hi,x
+        clc
+        adc RAWHI
+        sta @n2+2
+        ldy #2
+@part:  lda partoff,y
+        sta @n1+1
+        sta @dst+1
+        lda parttab,y
+        sta @t+1
+        lda partend,y
+        sta @end+1
+        sty CNT
+        ldx #0
+@byte:
+@n2:    ldy $FFFF,x
+@t:     lda T0,y
+@n1:    ldy $FF00,x
+        ora SH,y
+@dst:   sta $FF00,x
+        inx
+@end:   cpx #86
+        bne @byte
+        ldy CNT
+        dey
+        bpl @part
+        ldx IDX
+        inx
+        bne @sec
+@done:  ldx SLOT
         rts
+partoff:.byte 0,86,172
+partend:.byte 86,86,84
+parttab:.byte <T0,<T1,<T2
+rev2:   .byte 0,2,1,3
+n2lo:
+.repeat 16,S
+        .byte <($1000+S*86)
+.endrepeat
+n2hi:
+.repeat 16,S
+        .byte >($1000+S*86)
+.endrepeat
 
 ; ---- seek: move head to track A by phase stepping (2 phases per track).
 ; Like DOS: energise the current phase first, then for each half-track step
 ; turn the next phase on, wait ~19 ms, turn the previous phase off; finally
-; settle ~19 ms and release the last phase.  (Conservative but simple; DOS
-; accelerates with a table, we just use a fixed delay.)
+; settle ~19 ms and release the last phase. Like DOS the steps accelerate:
+; ~19 ms for the first half-track, then 11, 7.5, 6 and ~5.4 ms each.
 seek:   asl a
         sta TMP                  ; target half-track
+        lda #0
+        sta STEP
         jsr phon                 ; hold current position
 @s0:    lda CURPH
         cmp TMP
@@ -281,8 +398,13 @@ seek:   asl a
         bcs @step
 @up:    inc CURPH
 @step:  jsr phon                 ; next phase on
-        lda #$56                 ; ~19 ms
+        ldy STEP
+        lda steptime,y
         jsr WAIT
+        cpy #4
+        bcs :+
+        inc STEP
+:
         pla
         jsr phoff                ; previous phase off
         jmp @s0
@@ -305,6 +427,7 @@ phx:    and #3
         tax
         rts
 
+steptime: .byte $56,$40,$34,$2E,$2C   ; WAIT values per half-track step
 msg: .byte "G-BOT: AFTER HOURS / LOADING",0
 
         .segment "DNIB"          ; at $0B96: 6+2 nibble -> 6-bit value

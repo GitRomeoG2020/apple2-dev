@@ -233,10 +233,16 @@ MESSAGES=[
     'IT RUNS AGAIN-',                         # 56 (she flickers out)
     '...FLICKERED OUT. CONSOLE STAYS ON.',    # 57
     'CONSOLE: IN PHASE. NO FULL POWER!',      # 58 re-probe reminder
+    'ENTERING WORKSHOP...',                   # 59 door status (shown before
+    'ENTERING POWER ROOM...',                 # 60  the disk read, from the
+    'ENTERING SECURITY...',                   # 61  bank of the room being
+    'ENTERING THE LAB...',                    # 62  left)
 ]
 # Which room's disk bank carries each message (status lines are per room).
-MSG_ROOMS={0:list(range(0,8))+[12],1:list(range(8,22)),2:list(range(22,31)),
-           3:[28]+list(range(31,59))}
+MSG_ROOMS={0:list(range(0,8))+[12,60],1:list(range(8,22))+[59,61],
+           2:list(range(22,31))+[60,62],3:[28]+list(range(31,59))+[61]}
+# Door status line by destination room (workshop, power, security, lab).
+ENTER_MSG=(59,60,61,62)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
@@ -296,6 +302,7 @@ def interaction_art():
     lines += [f'METER={METER}',f'METER_STEP={t.index("1")}',f'METER_CELL0={t.index(".")}',
               f'GLYPH_1={glyphs.index("1")}',f'GLYPH_BAR={glyphs.index("|")}',
               f'GLYPH_O={glyphs.index("O")}',f'GLYPH_STAR={glyphs.index("*")}',
+              'entermsg:','.byte '+','.join(str(v) for v in ENTER_MSG),
               f'FIRST_DIALOG={FIRST_DIALOG}',f'RELEASE_LINE={RELEASE_LINE}',f'DIALOG_TIME={DIALOG_TIME}',
               f'TUNE_START={TUNE_START}',f'TUNE_LAST={TUNE_CELLS-1}',
               'tunetarget:','.byte '+','.join(map(str,TUNE_TARGETS))]

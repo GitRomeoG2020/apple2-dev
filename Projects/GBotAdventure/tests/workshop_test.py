@@ -46,6 +46,10 @@ def main():
     scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
     from gen_banks import aux as aux_track
     auxes={r:aux_track(r)[0] for r in range(4)}
+    # Doors read only aux sectors 4..end-1 (the rest is scratch or empty).
+    auxend={r:max(i for i,v in enumerate(auxes[r]) if v)//256+1 for r in range(4)}
+    from gen_workshop import ENTER_MSG
+    ROOMNAMES=('workshop','power','security','lab')
     from gen_workshop import MESSAGES as TEXTS,MSG_ROOMS
     assert scis==sci_art()
     def background(repair=0,msg=0,where=0,fuse=0,lit=False,labopen=False):
@@ -117,25 +121,57 @@ def main():
                     raise AssertionError('page%d mismatch, %d bytes; first %s; state %s'%(n,len(diffs),diffs[:12],list(st)))
             poses.add(st[7]);shifts.add(st[0]%7);checks+=1
             return st
-        transitions=[];banks_seen=set()
+        transitions=[];banks_seen=set();doors=[];door_times={};door_shots=set()
+        LOADERS=(0x0805,0x0808)   # LOADROOM / LOADONE entries: a disk read starts
+        def at_read(pc,first,arrival):
+            # Every door: before the first disk read the ENTERING line is already
+            # on BOTH pages (whichever is displayed), and keys typed now must not
+            # move G-Bot once he arrives.
+            nxt,room0=peek(0x98,1)[0],where()
+            if first and nxt!=room0:      # (the fuse fit reloads in place)
+                msg=peek(0x85,1)[0]; fuse=peek(0x8D,1)[0]==1
+                want=status_rows(ENTER_MSG[nxt],fuse)
+                good=msg==ENTER_MSG[nxt]
+                for n in (0,1):
+                    page=peek(0x2000+n*8192,8192)
+                    good=good and all(page[offset(177+r):offset(177+r)+40]==want[r] for r in range(5))
+                doors.append((room0,nxt,good))
+                if not good:raise AssertionError('door %d->%d: ENTERING line not on both pages before the read'%(room0,nxt))
+                if (room0,nxt) not in door_shots and nxt!=room0:
+                    door_shots.add((room0,nxt));capture('entering_%s_from_%s'%(ROOMNAMES[nxt],ROOMNAMES[room0]),'door')
+            q({'cmd':'keys','text':'S' if first else 'A'})   # impatient keys mid-load
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
             room_before=(where(),lit())
+            for a in LOADERS:q({'cmd':'break_set','addr':a})
             before=q({'cmd':'cpu'});q({'cmd':'resume'})
             # A room change streams 8K from the emulated Disk II: allow seconds. The
             # generous bound also rides out a stalled (suspended) host.
-            if not wait(lambda:q({'cmd':'cpu'})['paused'],60):raise RuntimeError('frame deadline exceeded: %s'%q({'cmd':'cpu'}))
-            after=q({'cmd':'cpu'})
+            reads=0
+            while True:
+                if not wait(lambda:q({'cmd':'cpu'})['paused'],60):raise RuntimeError('frame deadline exceeded: %s'%q({'cmd':'cpu'}))
+                after=q({'cmd':'cpu'})
+                if after['pc'] not in LOADERS:break
+                at_read(after['pc'],reads==0,None);reads+=1
+                q({'cmd':'resume'})
+            for a in LOADERS:q({'cmd':'break_clear','addr':a})
             if (where(),lit())!=room_before:
                 # Transition rebuilt BOTH pages from the new room, robot on each.
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
+                door_times.setdefault((room_before[0],where()),[]).append(transitions[-1])
                 # ...and the room's aux track (message bank, actor frames) is in.
-                if peek(0x9E,1)[0]!=where() or peek(0x1440,0xBC0)!=auxes[where()][0x440:]:
-                    raise AssertionError('aux track for room %d not loaded'%where())
-                banks_seen.add(where())
+                w=where();e=auxend[w]*256
+                if peek(0x9E,1)[0]!=w or peek(0x1440,e-0x440)!=auxes[w][0x440:e]:
+                    raise AssertionError('aux track for room %d not loaded'%w)
+                banks_seen.add(w)
                 st=state()
                 pages[0]=pages[1]=compose(current_bg(),st)
-                return verify() if check else st
+                arrived=st[:3]
+                if peek(0xAD,1)[0]!=4:raise AssertionError('no input lockout after the door')
+                st=verify() if check else st
+                for _ in range(4):st=frame(check=check)   # keys typed now are dropped
+                if st[:3]!=arrived:raise AssertionError('keys typed during the door moved G-Bot: %s -> %s'%(list(arrived),list(st[:3])))
+                return st
             # Bobbin resets cycle_count at each video frame AND on resume.
             # Completed video frames plus the final partial frame approximate
             # this whole game tick (full-frame instruction overshoot <~18 cycles).
@@ -497,7 +533,12 @@ def main():
             ok(where()==3 and peek(0x83,1)==b'\x03' and peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and peek(0x1800,1440)==scis and peek(0xA9,1)==b'\x03','full round trip: back in the lab with every state kept, console in phase')
             hide();position(30,56,3);press(' ',4);ok(peek(0x85,1)==bytes([58]) and peek(0xAC,1)==b'\0','console still online after the round trip; she does not repeat herself')
             ok(banks_seen=={0,1,2,3},'every room loaded its own message bank')
-            ok(0<min(transitions) and len(transitions)>=24,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
+            ok(0<min(transitions) and len(transitions)>=24 and max(transitions)<1700000,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
+            for (a,b),t in sorted(door_times.items()):
+                print('DOOR %-8s -> %-8s x%d  max %7d cycles (~%.2f s)'%(ROOMNAMES[a],ROOMNAMES[b],len(t),max(t),max(t)/1020484),flush=True)
+            ok(len(doors)>=20 and all(g for _,_,g in doors) and len({(a,b) for a,b,_ in doors})==6,'%d doors (all six directions): ENTERING line on both pages before the first disk read'%len(doors))
+            ok(len(door_shots)==6,'screenshots of every ENTERING line')
+            ok(peek(0xAD,1)==b'\0','keys typed during every load were discarded (lockout checked after each door)')
             cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))

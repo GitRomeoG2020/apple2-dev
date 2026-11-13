@@ -86,6 +86,15 @@ CONSOLE=$A9                   ; lab console: 0 drifting, 1 diagnosed, 2 tuning, 
 TUNESTEP=$AA                  ; tuning: phase 0-2, cursor 0-14
 TUNEPOS=$AB
 TALK=$AC                      ; the scientist is talking: she holds still, G-Bot listens
+LOCKOUT=$AD                   ; frames after a door during which keys are dropped
+LOCK_FRAMES=4
+ROOMTRK=$AE                   ; transition: the new room's first track
+SLOT=$2B                      ; boot loader: drive slot * 16
+CURPH=$3C                     ; boot loader: head position (half-tracks)
+SFIRST=$4A                    ; boot loader: sector range for LOADONE
+SEND=$4B
+SPUN=$4C                      ; boot loader: motor already running
+RAWHI=$4E                     ; boot loader: 8K raw-nibble area (hidden page)
 MASKBUF=$1200                 ; 308 shifted opacity bytes (not inverse masks)
 DATABUF=$1000                 ; 308 shifted pixels
 PHASEBUF=$1400                ; 44 phase bytes
@@ -93,7 +102,8 @@ GUARDART=$1800                ; actor frames (guard or scientist) from the aux t
 LINEBUF=$1140                 ; 40 glyph numbers: the status line being drawn
 BANK=$1440                    ; this room's messages, from its aux track
 LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
-LOADONE=$0808                 ; same, one track (4K)
+LOADONE=$0808                 ; same, sectors SFIRST..SEND-1 of one track
+MOTOROFF=$080B                ; the motor runs across one door's reads
 WORKSHOP_TRACK=3
 WORKAUX_TRACK=7               ; each room's aux track sits beside its room
 POWER_TRACK=8
@@ -112,7 +122,7 @@ GSTEP=3                       ; ticks per one-byte guard step
 SPAWNX=224                    ; security-room entry checkpoint
 SPAWNY=104
 
-        .export entry, main, code_end
+        .export entry, main, code_end, transition
         .segment "CODE"
 entry:  cld
         sei
@@ -120,7 +130,7 @@ entry:  cld
         lda $C088,x            ; motor off; only room changes read the disk
         bit $C051              ; hide setup in text mode
         lda #0
-        ldx #$5C
+        ldx #$5D
 @state: sta $50,x
         dex
         bpl @state
@@ -209,7 +219,12 @@ main:   lda PAGE
         jmp main
 
 keyboard:
-        lda $C000
+        lda LOCKOUT            ; just through a door: drop anything typed
+        beq :+
+        dec LOCKOUT
+        bit $C010
+        rts
+:       lda $C000
         bmi :+
         rts
 :
@@ -622,15 +637,27 @@ transition:
         sta PROBE
         sta FEEDBACK
         sta MOVING
+        ldx NEXTROOM
+        cpx ROOM
+        beq @nodoor            ; (the fuse fit reloads the same room)
+        ldy SLOT               ; start the drive now: it spins up while the
+        lda $C08A,y            ; status line and chirp go out
+        lda $C089,y
+        lda $C08E,y            ; (read mode; the loader never writes)
+        lda entermsg,x         ; ENTERING <ROOM>... from the current bank,
+        sta MESSAGE            ; on both pages at once, before any disk read
+        jsr draw_status
+        jsr copy_status
+        jsr door_sound
         lda ROOM
-        bne @nodoor
-        jsr open_door
-        jsr show_room
-        ldx #3
-@beat:  lda #$FF               ; a short beat in the open doorway
+        bne @spin
+        jsr open_door          ; workshop: the rear door slides open (shown on
+        jsr show_one           ; one page; no pause in the doorway)
+        jmp @spun
+@spin:  lda #$90               ; rest of the ~90 ms spin-up (~54 ms)
         jsr $FCA8
-        dex
-        bne @beat
+@spun:  lda #1
+        sta SPUN               ; the loader need not wait again
 @nodoor:lda NEXTROOM
         sta ROOM
         lda NX
@@ -647,16 +674,27 @@ transition:
         cpy #3
         bne @load
         lda #POWERLIT_TRACK
-@load:  ldy #>room
-        jsr LOADROOM
-        ldx ROOM               ; this room's messages and actor frames
+@load:  sta ROOMTRK
+        lda PAGE               ; the loader's raw nibbles go to the hidden page
+        eor #1
+        tax
+        lda pagehigh,x
+        sta RAWHI
+        ldx ROOM               ; this room's messages and actor frames too?
         cpx ACTLOADED
-        beq @noactor
+        beq @bgonly
         stx ACTLOADED
-        lda auxtrack,x
-        ldy #$10
-        jsr LOADONE
-@noactor:
+        lda CURPH              ; nearest first: every aux track lies above
+        lsr a                  ; its room, so coming down from higher
+        cmp ROOMTRK            ; tracks read the aux track first
+        bcc @bgfirst
+        jsr load_aux
+@bgonly:jsr load_bg
+        jmp @loaded
+@bgfirst:
+        jsr load_bg
+        jsr load_aux
+@loaded:jsr MOTOROFF
         lda POWERUP
         beq :+
         lda #0
@@ -685,7 +723,60 @@ transition:
         lda #$FF
         sta LASTMSG
         jsr interaction        ; status line, and repair patches if workshop
-        jmp show_room
+        jsr show_room
+        bit $C010              ; keys pressed during the load are discarded,
+        lda #LOCK_FRAMES       ; and a few frames more after arrival
+        sta LOCKOUT
+        rts
+load_bg:lda ROOMTRK
+        ldy #>room
+        jmp LOADROOM
+load_aux:
+        ldx ROOM
+        lda #4                 ; sectors 0-3 are scratch; read 4..auxend-1
+        sta SFIRST
+        lda auxend,x
+        sta SEND
+        lda auxtrack,x
+        ldy #$10
+        jmp LOADONE
+; A rising chirp on the speaker, ~22 ms: the door opens.
+door_sound:
+        ldy #$60
+@tone:  lda $C030
+        tya
+        tax
+@wait:  dex
+        bne @wait
+        dey
+        cpy #$18
+        bne @tone
+        rts
+; Status rows 177-181 of the canonical room -> both HGR pages.
+copy_status:
+        ldx #177
+@row:   lda rowlo,x
+        sta BG
+        sta DST
+        sta SRC
+        lda rowhi,x
+        ora #$80
+        sta BG+1
+        and #$1F
+        ora #$20
+        sta DST+1
+        eor #$60
+        sta SRC+1
+        ldy #39
+@copy:  lda (BG),y
+        sta (DST),y
+        sta (SRC),y
+        dey
+        bpl @copy
+        inx
+        cpx #182
+        bne @row
+        rts
 
 actors: lda ROOM
         cmp #2
@@ -1136,51 +1227,7 @@ interaction:
         cmp LASTMSG
         beq @patch
         sta LASTMSG
-        jsr fetch
-        lda #<LINEBUF
-        sta SRC
-        lda #>LINEBUF
-        sta SRC+1
-        lda #0
-        sta UIROW
-@textrow:                      ; 40 glyphs -> one native byte per glyph row
-        lda UIROW
-        clc
-        adc #177
-        tax
-        lda rowlo,x
-        sta BG
-        lda rowhi,x
-        ora #$80
-        sta BG+1
-        ldx UIROW
-        lda fontlo,x
-        sta FP
-        lda fonthi,x
-        sta FP+1
-        ldy #39
-@letter:lda (SRC),y
-        sty COL
-        tay
-        lda (FP),y
-        ldy COL
-        sta (BG),y
-        dey
-        bpl @letter
-        lda FUSE               ; HUD: a carried fuse in columns 38-39
-        cmp #1
-        bne @noicon
-        ldx UIROW
-        ldy #38
-        lda iconl,x
-        sta (BG),y
-        iny
-        lda iconr,x
-        sta (BG),y
-@noicon:inc UIROW
-        lda UIROW
-        cmp #5
-        bne @textrow
+        jsr draw_status
 @patch:
         ; Mutable canonical background is the sole restoration source.
         lda ROOM
@@ -1302,7 +1349,66 @@ open_door:
         rts
 
 ; Rebuild both pages from the canonical room, hidden page first.
+; Render status line A (message id or meter) into the canonical room's rows 177-181.
+draw_status:
+        jsr fetch
+        lda #<LINEBUF
+        sta SRC
+        lda #>LINEBUF
+        sta SRC+1
+        lda #0
+        sta UIROW
+@textrow:                      ; 40 glyphs -> one native byte per glyph row
+        lda UIROW
+        clc
+        adc #177
+        tax
+        lda rowlo,x
+        sta BG
+        lda rowhi,x
+        ora #$80
+        sta BG+1
+        ldx UIROW
+        lda fontlo,x
+        sta FP
+        lda fonthi,x
+        sta FP+1
+        ldy #39
+@letter:lda (SRC),y
+        sty COL
+        tay
+        lda (FP),y
+        ldy COL
+        sta (BG),y
+        dey
+        bpl @letter
+        lda FUSE               ; HUD: a carried fuse in columns 38-39
+        cmp #1
+        bne @noicon
+        ldx UIROW
+        ldy #38
+        lda iconl,x
+        sta (BG),y
+        iny
+        lda iconr,x
+        sta (BG),y
+@noicon:inc UIROW
+        lda UIROW
+        cmp #5
+        bne @textrow
+        rts
+
 show_room:
+        jsr show_one
+        lda PAGE
+        eor #1
+        sta PAGE
+        jsr fill_page
+        jsr render
+        ldx PAGE
+        lda $C054,x
+        rts
+show_one:                      ; draw the hidden page whole and show it
         lda PAGE
         eor #1
         sta PAGE
@@ -1311,34 +1417,31 @@ show_room:
         jsr render
         ldx PAGE
         lda $C054,x
-        lda PAGE
-        eor #1
-        sta PAGE
-        jsr fill_page
-        jsr render
-        ldx PAGE
-        lda $C054,x
         rts
-fill_page:
-        ldx PAGE
-        lda pagehigh,x
-        sta DST+1
-        lda #>room
-        sta SRC+1
-        lda #0
-        sta SRC
-        sta DST
-        ldx #32
-@page:  ldy #0
-@copy:  lda (SRC),y
-        sta (DST),y
+fill_page:                     ; canonical room -> PAGE: 32 pages per pass
+        lda PAGE               ; of Y, unrolled (~9 cycles a byte)
+        beq :+
+        jmp @p2
+:       ldy #0
+@c1:
+.repeat 32,PG
+        lda room+PG*256,y
+        sta $2000+PG*256,y
+.endrepeat
         iny
-        bne @copy
-        inc SRC+1
-        inc DST+1
-        dex
-        bne @page
-        rts
+        beq :+
+        jmp @c1
+:       rts
+@p2:    ldy #0
+@c2:
+.repeat 32,PG
+        lda room+PG*256,y
+        sta $4000+PG*256,y
+.endrepeat
+        iny
+        beq :+
+        jmp @c2
+:       rts
 
 ; Small repair: inspect the fault, explicitly reconnect with R, watch it boot.
 ; A different confirmation key means held/repeating Space cannot solve it.
@@ -1806,6 +1909,7 @@ advance_buffers:
 
         .segment "RODATA"
         .include "interaction.inc"
+        .include "auxend.inc"
         .include "security.inc"
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
