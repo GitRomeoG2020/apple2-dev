@@ -311,7 +311,7 @@ update: lda #0
         lda PY
         cmp #48
         bcc @blocked
-        cmp #115
+        cmp #121               ; front edge: feet at row 163
         bcs @blocked
         lda ROOM
         beq @work
@@ -380,7 +380,7 @@ doors:  lda ROOM
         lda DIR                ; lab: doorway at the bottom, back to security
         bne @no1
         lda PY
-        cmp #114
+        cmp #120
         bne @no1
         jsr incolumn
         bcc @no1
@@ -407,7 +407,7 @@ doors:  lda ROOM
 :       lda #3
         sta NDIR
         ldx PX
-        ldy #114
+        ldy #120
         jmp @go
 @east:  lda DIR                ; east door, front half of right wall
         cmp #2
@@ -431,7 +431,7 @@ doors:  lda ROOM
         cmp #0
         bne @no
         lda PY                 ; south: the lit doorway back to the workshop
-        cmp #114
+        cmp #120
         bne @no
         lda PX
         cmp #DOOR_X0
@@ -483,7 +483,7 @@ doors:  lda ROOM
         sta NDIR
         lda #1
         ldx PX
-        ldy #114
+        ldy #120
 @go:    sta NEXTROOM
         stx NX
         sty NY

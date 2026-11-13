@@ -179,7 +179,7 @@ def main():
             for _ in range(10):frame()
             ok(state()[:2]==bytes([126,104]) and state()[7]==0,'probe retracts without movement or room changes')
             # Collision fixtures test every wall and both solid benches.
-            for x,y,key,want,desc in [(14,104,'A',(14,104),'west wall'),(224,104,'D',(224,104),'east wall'),(126,48,'W',(126,48),'north wall'),(126,114,'S',(126,114),'south wall'),(56,64,'W',(56,64),'bench front'),(86,52,'A',(86,52),'bench side'),(210,70,'W',(210,70),'terminal front'),(190,52,'D',(190,52),'terminal side')]:
+            for x,y,key,want,desc in [(14,104,'A',(14,104),'west wall'),(224,104,'D',(224,104),'east wall'),(126,48,'W',(126,48),'north wall'),(126,120,'S',(126,120),'south wall'),(56,64,'W',(56,64),'bench front'),(86,52,'A',(86,52),'bench side'),(210,70,'W',(210,70),'terminal front'),(190,52,'D',(190,52),'terminal side')]:
                 position(x,y);after=press(key);ok(tuple(after[:2])==want,desc+' blocks fairly with no sprite corruption')
             # Before the repair the rear door stays sealed, with a reason.
             position(122,50,3);after=press('W')
@@ -234,22 +234,22 @@ def main():
             # ---- Through the unlocked door into the DARK POWER ROOM ----
             workshop_cycles=list(cycles)
             position(122,64);press('W',4);press('W',4);press('W',4)
-            ok(where()==1 and tuple(state()[:3])==(122,114,3),'unlocked door: walking north into it streams in the power room')
+            ok(where()==1 and tuple(state()[:3])==(122,120,3),'unlocked door: walking north into it streams in the power room')
             ok(peek(0x8000,8192)==background(3,8,1),'dark power room loaded from tracks 7-8 with its own status line')
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
             capture('arrive','power')
             # Collisions: walls, closed side of the south edge, dead generator.
-            for x,y,key,want,desc in [(14,104,'A',(14,104),'power west wall'),(224,104,'D',(224,104),'power east wall'),(90,48,'W',(90,48),'power north wall'),(40,114,'S',(40,114),'power south wall beside doorway'),(200,70,'W',(200,70),'generator front'),(148,52,'D',(148,52),'generator side')]:
+            for x,y,key,want,desc in [(14,104,'A',(14,104),'power west wall'),(224,104,'D',(224,104),'power east wall'),(90,48,'W',(90,48),'power north wall'),(40,120,'S',(40,120),'power south wall beside doorway'),(200,70,'W',(200,70),'generator front'),(148,52,'D',(148,52),'generator side')]:
                 position(x,y);after=press(key);ok(tuple(after[:2])==want and where()==1,desc+' blocks fairly with no sprite corruption')
             position(126,96);frame(' ')
             ok(peek(0x85,1)==b'\x0b','probing empty darkness reports nothing to probe')
             for _ in range(12):frame()
             # Real controls from the doorway to the breaker panel.
-            position(122,114,3)
+            position(122,120,3)
             for _ in range(9):press('A',4)
-            for _ in range(8):press('W',4)
-            ok(tuple(state()[:2])==(50,50) and peek(0x84,1)==b'\x01' and peek(0x85,1)==b'\x09','walk to breaker panel; prompt offers Space')
+            for _ in range(9):press('W',4)
+            ok(tuple(state()[:2])==(50,48) and peek(0x84,1)==b'\x01' and peek(0x85,1)==b'\x09','walk to breaker panel; prompt offers Space')
             press(' ',4)
             ok(peek(0x85,1)==b'\x0a' and where()==1,'probing breaker panel reports NO POWER - FIND FUSE')
             capture('panel','power')
@@ -258,8 +258,8 @@ def main():
             for _ in range(7):press('A',4)
             # Back through the lit doorway to the workshop.
             for _ in range(9):press('D',4)
-            for _ in range(8):press('S',4)
-            ok(where()==1 and tuple(state()[:2])==(122,114),'standing in the doorway does not leave yet')
+            for _ in range(9):press('S',4)
+            ok(where()==1 and tuple(state()[:2])==(122,120),'standing in the doorway does not leave yet')
             press('S',4)
             ok(where()==0 and tuple(state()[:3])==(122,48,0),'walking south through the doorway returns to the workshop door')
             ok(peek(0x83,1)==b'\x03' and peek(0x8000,8192)==background(3,4),'workshop reloaded with repair kept: online art, lights and status')
@@ -272,7 +272,7 @@ def main():
             press('S',4);ok(where()==0,'and back again')
             # ---- Fuse hunt, lit power room, security room and its guard ----
             press('W',4)
-            ok(where()==1 and tuple(state()[:3])==(122,114,3),'back in the dark power room')
+            ok(where()==1 and tuple(state()[:3])==(122,120,3),'back in the dark power room')
             position(14,90,1);after=press('A')
             ok(where()==1 and tuple(after[:2])==(14,90) and peek(0x85,1)==bytes([21]),'west security door sealed without power')
             position(50,50);press(' ',4)
@@ -280,9 +280,9 @@ def main():
             frame('R');ok(peek(0x8C,1)==b'\0','R cannot fit a fuse G-Bot does not have')
             for _ in range(12):frame()
             # Real controls from the doorway to the locker.
-            position(122,114,3)
+            position(122,120,3)
             for _ in range(8):press('W',4)
-            ok(tuple(state()[:2])==(122,50) and peek(0x84,1)==b'\x02' and peek(0x85,1)==bytes([13]),'locker prompt: OLD LOCKER: SPACE TO PROBE')
+            ok(tuple(state()[:2])==(122,56) and peek(0x84,1)==b'\x02' and peek(0x85,1)==bytes([13]),'locker prompt: OLD LOCKER: SPACE TO PROBE')
             capture('locker','power')
             press(' ',4)
             ok(peek(0x8D,1)==b'\x01' and peek(0x85,1)==bytes([14]),'probing the locker finds the fuse')
@@ -291,7 +291,7 @@ def main():
             for _ in range(10):frame()
             press(' ',4);ok(peek(0x85,1)==bytes([15]) and peek(0x8D,1)==b'\x01','locker is empty afterwards')
             for _ in range(9):press('A',4)
-            ok(tuple(state()[:2])==(50,50) and peek(0x84,1)==b'\x01','walk to the panel carrying the fuse')
+            ok(tuple(state()[:2])==(50,56) and peek(0x84,1)==b'\x01','walk to the panel carrying the fuse')
             press(' ',4)
             ok(peek(0x8C,1)==b'\x01' and peek(0x85,1)==bytes([16]),'panel offers FUSE FITS: R TO FIT / ESC CANCEL')
             frame('\x1B');ok(peek(0x8C,1)==b'\0' and peek(0x8D,1)==b'\x01','Escape cancels; the fuse stays carried')
@@ -299,7 +299,7 @@ def main():
             ok(peek(0x8C,1)==b'\x01','held/repeating Space never fits the fuse')
             frame('R');ok(peek(0x8C,1)==b'\x02' and peek(0x85,1)==bytes([17]),'R starts FITTING FUSE')
             for _ in range(8):frame('A')
-            ok(tuple(state()[:2])==(50,50),'fitting holds G-Bot in place')
+            ok(tuple(state()[:2])==(50,56),'fitting holds G-Bot in place')
             for _ in range(24):frame()
             ok(peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and lit(),'fuse fitted: power restored')
             ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room streamed from tracks 9-10, POWER RESTORED message, HUD fuse gone')
@@ -307,7 +307,7 @@ def main():
             capture('lit','power')
             press(' ',4);ok(peek(0x85,1)==bytes([20]),'probing the live panel: PANEL ONLINE')
             # Lit state persists across a trip to the workshop and back.
-            position(122,114,0);press('S',4)
+            position(122,120,0);press('S',4)
             ok(where()==0 and peek(0x83,1)==b'\x03','power room -> workshop after the fit')
             press('W',4);press('W',4)
             ok(where()==1 and lit() and peek(0x8000,8192)==background(3,peek(0x85,1)[0],1,2,True),'power room stays lit after leaving and returning')
@@ -362,7 +362,7 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,114,3),'open north door streams in the lab from tracks 14-15')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 14-15')
             ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 16')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
@@ -379,7 +379,7 @@ def main():
             ok(phases=={0,1,2,3} and hidden,'scientist cycles gone / flickering in / here / flickering out')
             ok({6,7}&shows and {8,9}&shows,'solid and ghost (alternate-row) scientist frames both drawn')
             ok(len(spots)>=2,'she reappears at a different spot (%d spots seen)'%len(spots))
-            ok(tuple(state()[:2])==(122,114),'harmless: G-Bot is never moved by her')
+            ok(tuple(state()[:2])==(122,120),'harmless: G-Bot is never moved by her')
             # Fixed probes, scientist out of sync (hidden).
             def hide():poke(0xA6,[0,250,0]);poke(0x88,[0])   # scientist away; last line expired
             hide();position(30,56,3)
