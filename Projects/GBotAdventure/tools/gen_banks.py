@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Per-room "aux" tracks, each read whole into $1000-$1FFF with its room.
+$1000-$143F is the engine's per-frame sprite scratch and status line buffer
+(contents on disk are zero), $1440 the room's message bank, $1800 the room's
+actor frames (guard or scientist), and any bank overflow after the frames.
+Bank entries: id, length, glyphs...; $FE lo hi continues elsewhere; $FF ends.
+Run after gen_workshop.py, gen_security.py and gen_lab.py. Standard library only.
+"""
+from pathlib import Path
+import sys
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'tools'))
+from gen_workshop import MESSAGES,MSG_ROOMS,GLYPHS
+BASE=0x1000; BANK=0x1440; ACTOR=0x1800; END=0x2000
+ACTORS={0:None,1:None,2:'guard-sprites.bin',3:'scientist-sprites.bin'}
+NAMES={0:'workshop',1:'power',2:'security',3:'lab'}
+
+def entries(room):
+    for i in MSG_ROOMS[room]:
+        text=MESSAGES[i]
+        yield bytes([i,len(text)])+bytes(GLYPHS.index(ch) for ch in text)
+
+def aux(room):
+    out=bytearray(END-BASE)
+    frames=(ROOT/'art'/ACTORS[room]).read_bytes() if ACTORS[room] else b''
+    out[ACTOR-BASE:ACTOR-BASE+len(frames)]=frames
+    regions=[(BANK,ACTOR)] if frames else [(BANK,END)]
+    if frames: regions.append((ACTOR+len(frames),END))
+    items=list(entries(room)); r=0; at=regions[0][0]
+    for item in items:
+        if at+len(item)+3>regions[r][1]:     # leave room for a continuation
+            r+=1; assert r<len(regions), NAMES[room]+' bank does not fit'
+            nxt=regions[r][0]; out[at-BASE:at-BASE+3]=bytes([0xFE,nxt&255,nxt>>8]); at=nxt
+        out[at-BASE:at-BASE+len(item)]=item; at+=len(item)
+    out[at-BASE]=0xFF
+    assert all(v==0 for v in out[:BANK-BASE]), 'scratch area must stay empty on disk'
+    used=sum(len(x) for x in items)+1
+    return bytes(out),used
+
+def main():
+    for room in range(4):
+        data,used=aux(room)
+        (ROOT/'art'/('aux-'+NAMES[room]+'.bin')).write_bytes(data)
+        print('aux-%s.bin: %d messages, %d bank bytes'%(NAMES[room],len(MSG_ROOMS[room]),used))
+if __name__=='__main__':main()

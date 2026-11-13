@@ -166,7 +166,11 @@ REPAIR_FONT={
  '4':['101','101','111','001','001'], '5':['111','100','111','001','111'],
  '6':['111','100','111','101','111'], '7':['111','001','010','010','010'],
  '8':['111','101','111','101','111'], '9':['111','101','111','001','111'],
+ '?':['111','001','010','000','010'], "'":['010','010','000','000','000'],
+ '|':['010','010','010','010','010'], '*':['000','101','010','101','000'],
 }
+# Glyph numbers as the engine stores them (space is glyph 0).
+GLYPHS=sorted(REPAIR_FONT,key=lambda ch:(ch!=' ',ch))
 # Status line text, indexed by MESSAGE ($85). 0-7 workshop, 8-12 power room/door.
 MESSAGES=[
     'WORKBENCH OFFLINE - CHECK LEFT BENCH',
@@ -210,13 +214,44 @@ MESSAGES=[
     'SCIENTIST: ...BEFORE THE MORNING SHI-',  # 38
     '...AND SHE FLICKERED OUT MID-WORD',      # 39
     'CONSOLES: SPACE TO PROBE',               # 40
-    'CONSOLE: LOOP 4,817. ALL NOMINAL!',      # 41
+    'CONSOLE: LOOP 4,817. PHASE DRIFT!',      # 41
     'LAB CLOCK SAYS 6:02. NOBODY AGREES.',    # 42
     '...THE RING HUMS. IT KNOWS YOU.',        # 43
+    # The time-chamber console: diagnose, tune three phases, then she talks.
+    'PHASE DRIFT: R TO TUNE / ESC CANCEL',    # 44 prompt
+    'PHASE 1/3 ...............  R LOCK',      # 45 meter template (engine fills it)
+    'LOCKED! NEXT PHASE...',                  # 46
+    'OUT OF PHASE - KEEP TUNING',             # 47
+    'TUNING CANCELLED. DRIFT CONTINUES.',     # 48
+    'SCIENTIST: YOU CAN SEE ME? G-BOT!',      # 49 dialogue
+    'THE EXPERIMENT WORKED. TOO WELL.',       # 50
+    'WE ARE STUCK IN ONE NIGHT.',             # 51
+    'OVER AND OVER. THE COFFEE NEVER ENDS.',  # 52
+    'YOU WERE PARKED IN THE CHAMBER...',      # 53
+    '...SO TIME SLID RIGHT OFF YOU!',         # 54
+    "DON'T RESTORE FULL POWER -",             # 55
+    'IT RUNS AGAIN-',                         # 56 (she flickers out)
+    '...FLICKERED OUT. CONSOLE STAYS ON.',    # 57
+    'CONSOLE: IN PHASE. NO FULL POWER!',      # 58 re-probe reminder
 ]
+# Which room's disk bank carries each message (status lines are per room).
+MSG_ROOMS={0:list(range(0,8))+[12],1:list(range(8,22)),2:list(range(22,31)),
+           3:[28]+list(range(31,59))}
+METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
+TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={27:30,33:43,35:36,38:39,41:42}
+CHAIN={27:30,33:43,35:36,38:39,58:42,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+
+def meter_text(step,pos):
+    """The tuning meter the engine builds from template 45: phase number,
+    target '|', cursor 'O' (or '*' when it sits on the target)."""
+    t=list(MESSAGES[METER].center(40)); first=t.index('.')
+    t[t.index('1')]=str(step+1)
+    target=TUNE_TARGETS[step]; t[first+target]='|'
+    t[first+pos]='*' if pos==target else 'O'
+    return ''.join(t)
 def message_pixels(text):
+    if isinstance(text,int):text=meter_text((text>>4)&7,text&15)
     assert len(text)<=40
     text=text.center(40)
     return [bytes(sum((3<<(x*2)) for x,v in enumerate(REPAIR_FONT[ch][y]) if v=='1') for ch in text) for y in range(5)]
@@ -232,7 +267,7 @@ def fuse_icon():
 
 def status_rows(index,carrying=False):
     """Exact five status rows the engine draws: message plus optional fuse icon."""
-    rows=[bytearray(r) for r in message_pixels(MESSAGES[index])]
+    rows=[bytearray(r) for r in message_pixels(index if index>=128 else MESSAGES[index])]
     if carrying:
         for r,icon in zip(rows,fuse_icon()): r[38:40]=icon
     return [bytes(r) for r in rows]
@@ -242,6 +277,7 @@ def interaction_art():
     changed=[i for i,(a,b) in enumerate(zip(offline,online)) if a!=b]
     assert 0<len(changed)<=128, "6502 patch loop uses a signed decrement"
     messages=MESSAGES
+    assert all(i in sum(MSG_ROOMS.values(),[]) for i in range(len(messages))), 'every message in a bank'
     arrays={
         'patchlo':[i&255 for i in changed],
         'patchhi':[i>>8 for i in changed],
@@ -252,12 +288,20 @@ def interaction_art():
     for name,values in arrays.items():
         lines += [name+':','.byte '+','.join(str(v) for v in values)]
     # Messages are 40 glyph indices; the engine looks up one byte per row.
-    glyphs=sorted(REPAIR_FONT,key=lambda ch:(ch!=' ',ch))
-    lines += ['messagelo:', '.byte '+','.join('<message'+str(i) for i in range(len(messages))),
-              'messagehi:', '.byte '+','.join('>message'+str(i) for i in range(len(messages)))]
+    glyphs=GLYPHS
+    # The message texts themselves live in per-room disk banks (gen_banks.py).
     for i,text in enumerate(messages):
         assert len(text)<=37 and text.center(40)[38:]=='  ', 'columns 38-39 hold the fuse icon'
-        lines += [f'message{i}: ; {text}','.byte '+','.join(str(glyphs.index(ch)) for ch in text.center(40))]
+    t=MESSAGES[METER].center(40)
+    lines += [f'METER={METER}',f'METER_STEP={t.index("1")}',f'METER_CELL0={t.index(".")}',
+              f'GLYPH_1={glyphs.index("1")}',f'GLYPH_BAR={glyphs.index("|")}',
+              f'GLYPH_O={glyphs.index("O")}',f'GLYPH_STAR={glyphs.index("*")}',
+              f'FIRST_DIALOG={FIRST_DIALOG}',f'RELEASE_LINE={RELEASE_LINE}',f'DIALOG_TIME={DIALOG_TIME}',
+              f'TUNE_START={TUNE_START}',f'TUNE_LAST={TUNE_CELLS-1}',
+              'tunetarget:','.byte '+','.join(map(str,TUNE_TARGETS))]
+    for step in range(3):
+        for pos in range(TUNE_CELLS):
+            assert len(meter_text(step,pos).strip())<=37 and meter_text(step,pos)[38:]=='  '
     lines += ['fontlo:','.byte '+','.join(f'<fontrow{r}' for r in range(5)),
               'fonthi:','.byte '+','.join(f'>fontrow{r}' for r in range(5))]
     for r in range(5):
@@ -271,7 +315,7 @@ def interaction_art():
         for r in range(5):
             assert bytes(message_pixels(ch)[r][19] for ch in text.center(40))==rows[r]
     (ROOT/'src/interaction.inc').write_text('\n'.join(lines)+'\n')
-    print('Repair visual patch:',len(changed),'bytes; messages:',len(messages)*40,'bytes + font',5*len(glyphs))
+    print('Repair visual patch:',len(changed),'bytes; font',5*len(glyphs),'bytes; messages are in the disk banks')
 
 def robot(direction=0,pose=0,blink=False,probe=False):
     im=Image.new('L',(SW,SH),CLEAR); d=ImageDraw.Draw(im)

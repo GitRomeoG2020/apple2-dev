@@ -4,8 +4,9 @@
 ; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
 ; room background (two whole tracks) into $8000 on a room transition.
 ; Disk map: T3-4 workshop room (part of the boot load), T7-8 dark power room,
-; T9-10 lit power room, T11-12 security room, T13 guard art (-> $1000 at boot),
-; T14-15 lab, T16 scientist art (-> $1000 when the lab is entered).
+; T9-10 lit power room, T11-12 security room, T14-15 lab. Aux tracks (messages
+; + actor frames, -> $1000): T13 security, T16 lab, T17 workshop (at boot),
+; T18 power room.
         .setcpu "6502"
 WAIT=$FCA8
 SLOT=$2B
@@ -56,9 +57,9 @@ start:  cld
         inx
         stx LASTT
         jsr readtracks
-        lda #13                  ; guard art track -> $1000-$1FFF
+        lda #17                  ; workshop aux track (messages) -> $1000-$1FFF
         sta TRK
-        lda #14
+        lda #18
         sta LASTT
         lda #$10
         sta PAGE0

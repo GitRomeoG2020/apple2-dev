@@ -71,7 +71,8 @@ NY=$9A
 NDIR=$9B
 POWERUP=$9C
 LABOPEN=$9D                   ; security desk probed: lab door unlocked
-ACTLOADED=$9E                 ; whose frames are at $1800: 2 guard, 3 scientist
+ACTLOADED=$9E                 ; whose aux track is at $1000-$1FFF (room 0-3):
+                              ; that room's message bank and actor frames
 ACTX=$9F                      ; current room's actor: byte column, top row,
 ACTY=$A0                      ;   height, frame index, visible
 ACTH=$A1
@@ -81,10 +82,16 @@ GOLDY=$A4                     ; actor top row last drawn on page 0 / page 1
 SCSPOT=$A6                    ; scientist: spot 0-2, phase timer, phase
 SCTIMER=$A7
 SCPHASE=$A8                   ; 0 gone, 1 flickering in, 2 here, 3 flickering out
+CONSOLE=$A9                   ; lab console: 0 drifting, 1 diagnosed, 2 tuning, 3 in phase
+TUNESTEP=$AA                  ; tuning: phase 0-2, cursor 0-14
+TUNEPOS=$AB
+TALK=$AC                      ; the scientist is talking: she holds still, G-Bot listens
 MASKBUF=$1200                 ; 308 shifted opacity bytes (not inverse masks)
 DATABUF=$1000                 ; 308 shifted pixels
 PHASEBUF=$1400                ; 44 phase bytes
-GUARDART=$1800                ; 6 x 270-byte guard frames from track 13
+GUARDART=$1800                ; actor frames (guard or scientist) from the aux track
+LINEBUF=$1140                 ; 40 glyph numbers: the status line being drawn
+BANK=$1440                    ; this room's messages, from its aux track
 LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
 LOADONE=$0808                 ; same, one track (4K)
 WORKSHOP_TRACK=3
@@ -94,6 +101,8 @@ SECURITY_TRACK=11
 GUARD_TRACK=13
 LAB_TRACK=14
 SCI_TRACK=16
+WORKAUX_TRACK=17
+POWERAUX_TRACK=18
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -111,14 +120,13 @@ entry:  cld
         lda $C088,x            ; motor off; only room changes read the disk
         bit $C051              ; hide setup in text mode
         lda #0
-        ldx #$58
+        ldx #$5C
 @state: sta $50,x
         dex
         bpl @state
         lda #GXMIN
         sta GX
-        lda #2                 ; boot read the guard's frames
-        sta ACTLOADED
+        ; ACTLOADED=0: boot read the workshop's aux track (its message bank)
         lda #126
         sta PX
         lda #104
@@ -210,9 +218,17 @@ keyboard:
         ldx jobx,y
         ldy REPAIR,x
         cpy #2
-        beq @done              ; a repair/fit in progress ignores keys
-        and #$7F
-        cmp #$1B
+        bne :+
+        rts                    ; a repair/fit in progress ignores keys
+:       and #$7F
+        ldy ROOM
+        cpy #3
+        bne :+
+        jsr labkeys            ; console tuning / dialogue; C=1 key used
+        bcs @done
+        ldy ROOM               ; (labkeys keeps A and X otherwise)
+        ldx jobx,y
+:        cmp #$1B
         beq @cancel
         cmp #$20
         beq @probe
@@ -278,6 +294,95 @@ keyboard:
         sta BURST
         sta DIR
 @done:  rts
+
+; Lab console keys. In: A = key (7-bit). Out: C=1 when used up.
+labkeys:
+        ldy TALK
+        bne @used              ; she is talking: G-Bot listens
+        ldy CONSOLE
+        cpy #2
+        beq @tune
+        cpy #1
+        bne @pass
+        cmp #$1B
+        beq @cancel
+        pha
+        and #$DF
+        cmp #'R'
+        bne @notr
+        pla
+        lda #2                 ; R: start tuning, phase 1
+        sta CONSOLE
+        lda #0
+        sta TUNESTEP
+        sta FEEDBACK
+        sta BURST
+        lda #TUNE_START
+        sta TUNEPOS
+@used:  sec
+        rts
+@notr:  pla
+@pass:  clc
+        rts
+@cancel:lda #0
+        sta CONSOLE
+        lda #48                ; TUNING CANCELLED. DRIFT CONTINUES.
+        ldx #48
+        bne @say
+@tune:  cmp #$1B
+        beq @cancel
+        and #$DF
+        cmp #'A'
+        beq @left
+        cmp #$08
+        beq @left
+        cmp #'D'
+        beq @right
+        cmp #$15
+        beq @right
+        cmp #'R'
+        bne @used              ; other keys do nothing while tuning
+        ldx TUNESTEP
+        lda TUNEPOS
+        cmp tunetarget,x
+        beq @hit
+        lda #47                ; OUT OF PHASE - KEEP TUNING
+        ldx #24
+        bne @say
+@hit:   inx
+        stx TUNESTEP
+        cpx #3
+        beq @solved
+        lda #TUNE_START
+        sta TUNEPOS
+        lda #46                ; LOCKED! NEXT PHASE...
+        ldx #20
+        bne @say
+@solved:lda #3                 ; in phase: she can hold still long enough to talk
+        sta CONSOLE
+        lda #1
+        sta TALK
+        lda #2
+        sta SCSPOT
+        sta SCPHASE
+        lda #FIRST_DIALOG
+        ldx #DIALOG_TIME
+@say:   sta MESSAGE
+        stx FEEDBACK
+        sec
+        rts
+@left:  lda TUNEPOS
+        beq @used
+        dec TUNEPOS
+        bpl @moved
+@right: lda TUNEPOS
+        cmp #TUNE_LAST
+        beq @used
+        inc TUNEPOS
+@moved: lda #0
+        sta FEEDBACK
+        sec
+        rts
 
 update: lda #0
         sta MOVING
@@ -544,13 +649,11 @@ transition:
         lda #POWERLIT_TRACK
 @load:  ldy #>room
         jsr LOADROOM
-        ldx ROOM               ; this room's actor frames at $1800, if needed
-        cpx #2
-        bcc @noactor
+        ldx ROOM               ; this room's messages and actor frames
         cpx ACTLOADED
         beq @noactor
         stx ACTLOADED
-        lda actortrack-2,x
+        lda auxtrack,x
         ldy #$10
         jsr LOADONE
 @noactor:
@@ -603,6 +706,8 @@ actor_show:
 ; The flickering scientist: harmless. Gone, flickers in, stays ~3 s, flickers
 ; out, then turns up at the next spot. Ghost frames draw alternate rows only.
 scientist:
+        lda TALK
+        bne sci_show
         dec SCTIMER
         bne sci_show
         ldx SCPHASE
@@ -762,7 +867,20 @@ probe_contact:
         ldx #27                ; MONITORS: EVERY CAMERA SHOWS NOBODY
         bne @say
 @lab:   ldx NEAR
-        lda labprobe,x
+        cpx #4
+        bne :+
+        ldx #58                ; CONSOLE: IN PHASE. NO FULL POWER!
+        lda CONSOLE
+        cmp #3
+        beq @say
+        lda #1                 ; diagnosed: PHASE DRIFT, offer R to tune
+        sta CONSOLE
+        ldx #41
+        lda #48
+        stx MESSAGE
+        sta FEEDBACK
+        rts
+:       lda labprobe,x
         tax
         bne @say
 @power: lda NEAR
@@ -911,8 +1029,19 @@ interaction:
         lda chain,x
         beq :+
         sta MESSAGE
-        lda #96
-        sta FEEDBACK
+        ldx #96
+        cmp #FIRST_DIALOG      ; dialogue lines are a little quicker
+        bcc @long
+        ldx #DIALOG_TIME
+@long:  stx FEEDBACK
+        cmp #RELEASE_LINE
+        bne :+
+        lda #0                 ; mid-word, she slips out of phase again
+        sta TALK
+        lda #3
+        sta SCPHASE
+        lda #6
+        sta SCTIMER
 :       lda MESSAGE
         jmp @message
 @context:
@@ -922,18 +1051,17 @@ interaction:
         beq @powerroom
         cmp #3
         bne :+
-        ldx NEAR
-        lda labctx,x
-        jmp @message
+        jmp @labroom
 :       lda #23                ; SECURITY UNIT REBOOTING...
         ldx GSTATE
         cpx #1
-        beq @message
+        beq @msg_far
         lda #26                ; SECURITY DESK: SPACE TO PROBE
         ldx NEAR
-        bne @message
+        bne @msg_far
         lda #22                ; SECURITY ROOM - MIND THE GUARD BOT
-        bne @message
+@msg_far:
+        jmp @message
 @powerroom:
         lda PANEL
         cmp #1
@@ -962,6 +1090,30 @@ interaction:
         bne @message
         lda #19                ; POWER ROOM ONLINE - WEST DOOR OPEN
         bne @message
+@labroom:
+        lda CONSOLE
+        cmp #2
+        bne @lr1
+        lda TUNESTEP           ; the tuning meter: $80 + phase*16 + cursor
+        asl a
+        asl a
+        asl a
+        asl a
+        ora TUNEPOS
+        ora #$80
+        bne @message
+@lr1:   cmp #1
+        bne @lr2
+        lda NEAR
+        cmp #4
+        bne @lrc
+        lda #44                ; PHASE DRIFT: R TO TUNE / ESC CANCEL
+        bne @message
+@lrc:   lda #0                 ; walking away cancels the diagnosis
+        sta CONSOLE
+@lr2:   ldx NEAR
+        lda labctx,x
+        bne @message
 @workroom:
         lda REPAIR
         cmp #3
@@ -984,10 +1136,10 @@ interaction:
         cmp LASTMSG
         beq @patch
         sta LASTMSG
-        tax
-        lda messagelo,x
+        jsr fetch
+        lda #<LINEBUF
         sta SRC
-        lda messagehi,x
+        lda #>LINEBUF
         sta SRC+1
         lda #0
         sta UIROW
@@ -1053,6 +1205,81 @@ interaction:
         sta (BG),y
         dex
         bpl @byte
+        rts
+
+; Status text: message A from this room's disk bank (or the tuning meter for
+; A >= $80) as 40 centred glyph numbers in LINEBUF.
+fetch:  sta COL
+        ldy #39
+        lda #0
+@clr:   sta LINEBUF,y
+        dey
+        bpl @clr
+        lda COL
+        bmi meter
+        lda #<BANK
+        sta SRC
+        lda #>BANK
+        sta SRC+1
+@scan:  ldy #0
+        lda (SRC),y
+        cmp COL
+        beq @found
+        cmp #$FF
+        beq @none
+        cmp #$FE
+        beq @jump
+        iny
+        lda (SRC),y            ; skip id, length, text
+        clc
+        adc #2
+        adc SRC
+        sta SRC
+        bcc @scan
+        inc SRC+1
+        bne @scan
+@jump:  iny
+        lda (SRC),y
+        tax
+        iny
+        lda (SRC),y
+        sta SRC+1
+        stx SRC
+        jmp @scan
+@found: iny
+        lda (SRC),y
+        sta TMPX
+        lda #40
+        sec
+        sbc TMPX
+        lsr a
+        tax
+        ldy #2
+@copy:  lda (SRC),y
+        sta LINEBUF,x
+        inx
+        iny
+        dec TMPX
+        bne @copy
+@none:  rts
+meter:  lda #METER
+        jsr fetch
+        lda TUNESTEP
+        clc
+        adc #GLYPH_1
+        sta LINEBUF+METER_STEP
+        ldx TUNESTEP
+        lda tunetarget,x
+        tax
+        lda #GLYPH_BAR
+        sta LINEBUF+METER_CELL0,x
+        ldy #GLYPH_O
+        cpx TUNEPOS
+        bne :+
+        ldy #GLYPH_STAR
+:       ldx TUNEPOS
+        tya
+        sta LINEBUF+METER_CELL0,x
         rts
 
 open_door:
@@ -1583,7 +1810,7 @@ advance_buffers:
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
 roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,SECURITY_TRACK,LAB_TRACK
-actortrack: .byte GUARD_TRACK,SCI_TRACK
+auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
 phasetime: .byte 28,6,40,6
@@ -1661,15 +1888,13 @@ power_room: .incbin "../art/power-room.hgr"
 power_lit: .incbin "../art/power-room-lit.hgr"
         .segment "SECURITYROOM" ; tracks 11-12
 security_room: .incbin "../art/security-room.hgr"
-        .segment "GUARDART"    ; track 13, read to $1000-$1FFF at boot
-guard_frames: .incbin "../art/guard-sprites.bin"
-guard_end:
-.assert guard_frames = GUARDART, lderror, "Guard art must sit at $1800"
-.assert guard_end <= $2000, lderror, "Guard art overflows into HGR page 1"
+        .segment "SECAUX"      ; track 13: security messages + guard frames
+        .incbin "../art/aux-security.bin"
         .segment "LABROOM"     ; tracks 14-15
 lab_room: .incbin "../art/lab-room.hgr"
-        .segment "SCIART"      ; track 16, read to $1000-$1FFF on entering the lab
-sci_frames: .incbin "../art/scientist-sprites.bin"
-sci_end:
-.assert sci_frames = GUARDART, lderror, "Scientist art must sit at $1800"
-.assert sci_end <= $2000, lderror, "Scientist art overflows into HGR page 1"
+        .segment "LABAUX"      ; track 16: lab messages + scientist frames
+        .incbin "../art/aux-lab.bin"
+        .segment "WORKAUX"     ; track 17: workshop messages (read at boot)
+        .incbin "../art/aux-workshop.bin"
+        .segment "POWERAUX"    ; track 18: power room messages
+        .incbin "../art/aux-power.bin"

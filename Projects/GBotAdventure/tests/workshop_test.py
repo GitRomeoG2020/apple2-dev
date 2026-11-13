@@ -44,6 +44,9 @@ def main():
     arts={(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art()}
     guards=(ROOT/'art/guard-sprites.bin').read_bytes()
     scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
+    from gen_banks import aux as aux_track
+    auxes={r:aux_track(r)[0] for r in range(4)}
+    from gen_workshop import MESSAGES as TEXTS,MSG_ROOMS
     assert scis==sci_art()
     def background(repair=0,msg=0,where=0,fuse=0,lit=False,labopen=False):
         flag=(lit and where==1) or (labopen and where==2)
@@ -114,7 +117,7 @@ def main():
                     raise AssertionError('page%d mismatch, %d bytes; first %s; state %s'%(n,len(diffs),diffs[:12],list(st)))
             poses.add(st[7]);shifts.add(st[0]%7);checks+=1
             return st
-        transitions=[]
+        transitions=[];banks_seen=set()
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
             room_before=(where(),lit())
@@ -126,6 +129,10 @@ def main():
             if (where(),lit())!=room_before:
                 # Transition rebuilt BOTH pages from the new room, robot on each.
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
+                # ...and the room's aux track (message bank, actor frames) is in.
+                if peek(0x9E,1)[0]!=where() or peek(0x1440,0xBC0)!=auxes[where()][0x440:]:
+                    raise AssertionError('aux track for room %d not loaded'%where())
+                banks_seen.add(where())
                 st=state()
                 pages[0]=pages[1]=compose(current_bg(),st)
                 return verify() if check else st
@@ -155,6 +162,8 @@ def main():
             q({'cmd':'break_set','addr':mainpc})
             if not wait(lambda:q({'cmd':'cpu'})['paused'],40):raise RuntimeError('boot deadline exceeded')
             ok(peek(0x7F,1)==b'\xa5','self-boot to workshop on '+args.machine)
+            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 17) to $1440')
+            ok(sum(len(v) for v in MSG_ROOMS.values())>=len(TEXTS),'every status message is in a room bank')
             verify();capture('idle')
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
             st=state();start=st[:2]
@@ -385,12 +394,19 @@ def main():
             def hide():poke(0xA6,[0,250,0]);poke(0x88,[0])   # scientist away; last line expired
             hide();position(30,56,3)
             ok(peek(0x84,1)==b'\x04' and peek(0x85,1)==bytes([40]),'consoles prompt')
-            press(' ',4);ok(peek(0x85,1)==bytes([41]),'CONSOLE: LOOP 4,817. ALL NOMINAL!')
+            press(' ',4);ok(peek(0x85,1)==bytes([41]) and peek(0xA9,1)==b'\x01','CONSOLE: LOOP 4,817. PHASE DRIFT! (diagnosed)')
             capture('consoles','lab')
-            for _ in range(100):
+            for _ in range(60):
                 frame()
-                if peek(0x85,1)==bytes([42]):break
-            ok(peek(0x85,1)==bytes([42]),'console line runs on: LAB CLOCK SAYS 6:02. NOBODY AGREES.')
+                if peek(0x85,1)==bytes([44]):break
+            ok(peek(0x85,1)==bytes([44]),'console prompt: PHASE DRIFT: R TO TUNE / ESC CANCEL')
+            frame('\x1B');ok(peek(0xA9,1)==b'\0' and peek(0x85,1)==bytes([48]),'Escape cancels the diagnosis: TUNING CANCELLED')
+            poke(0x88,[0]);press(' ',4);frame('R')
+            ok(peek(0xA9,1)==b'\x02' and peek(0x85,1)==bytes([0x80|7]),'R starts tuning: phase 1/3 meter, cursor centred')
+            frame('\x1B');ok(peek(0xA9,1)==b'\0','Escape cancels tuning too')
+            poke(0x88,[0]);press(' ',4)
+            for _ in range(4):press('D',4)
+            ok(peek(0xA9,1)==b'\0' and state()[0]==62,'walking away cancels the diagnosis')
             hide();position(122,58,3);press('W');ok(tuple(state()[:2])==(122,58),'time-chamber dais is solid (front)')
             hide();position(176,50,1);press('A');ok(tuple(state()[:2])==(176,50),'time-chamber dais is solid (side)')
             hide();position(122,60,3)
@@ -421,6 +437,50 @@ def main():
                 frame()
                 if peek(0x85,1)==bytes([39]):break
             ok(peek(0x85,1)==bytes([39]),'...AND SHE FLICKERED OUT MID-WORD')
+            # ---- The console puzzle: tune three phases, then she can talk ----
+            hide();position(30,56,3);press(' ',4);poke(0x88,[0]);frame('R')
+            before=tuple(state()[:2])
+            frame('D');frame('D')
+            ok(peek(0xAB,1)==b'\x09' and tuple(state()[:2])==before and peek(0x85,1)==bytes([0x89]),'A/D move the phase cursor, not G-Bot')
+            capture('tuning','lab')
+            frame('R');ok(peek(0x85,1)==bytes([47]) and peek(0xAA,1)==b'\0' and peek(0xA9,1)==b'\x02','R off target fails gracefully: OUT OF PHASE - KEEP TUNING')
+            for _ in range(5):frame('D')
+            frame('D');ok(peek(0xAB,1)==b'\x0e','cursor stops at the right end')
+            for _ in range(3):frame('A')
+            ok(peek(0x85,1)==bytes([0x80|11]),'cursor on the target shows the lock-on star')
+            capture('phase_aligned','lab')
+            frame('R');ok(peek(0xAA,1)==b'\x01' and peek(0x85,1)==bytes([46]) and peek(0xAB,1)==b'\x07','phase 1 locked: LOCKED! NEXT PHASE...')
+            for _ in range(5):frame('A')
+            frame('R');ok(peek(0xAA,1)==b'\x02','phase 2 locked')
+            frame('D');frame('D');frame('R')
+            ok(peek(0xA9,1)==b'\x03' and peek(0xAC,1)==b'\x01' and peek(0x85,1)==bytes([49]),'phase 3 locked: console in phase, she speaks')
+            ok(tuple(peek(0xA6,1)+peek(0xA8,1))==(2,2),'she stabilises solid at the console')
+            frame();frame();capture('talk','lab')
+            seq=[49];solid=True;held=True
+            for _ in range(700):
+                st=frame(' ' if len(seq)==2 and _%7==0 else ('A' if len(seq)==3 and _%9==0 else None))
+                m=peek(0x85,1)[0]
+                if m!=seq[-1]:
+                    seq.append(m)
+                    if m==55:capture('warning','lab')
+                    if m==56:
+                        ok(peek(0xAC,1)==b'\0' and peek(0xA8,1)==b'\x03','mid-word, she slips out of phase (TALK off, flickering out)')
+                        frame();capture('flicker_out','lab')
+                if seq[-1]<56:
+                    ax,ay,ah,show,vis=actor()
+                    solid&=vis==1 and show in (6,7) and (ax,ay)==(9,60)
+                    held&=tuple(st[:2])==before
+                if m==57:break
+            ok(seq==list(range(49,58)),'dialogue plays in order: %s'%seq)
+            ok(solid,'she stays solid in one place for the whole conversation')
+            ok(held,'G-Bot listens: Space and walk keys are ignored while she talks')
+            for _ in range(60):frame()
+            ok(peek(0xA9,1)==b'\x03','console stays in phase')
+            press(' ',4);ok(peek(0x85,1)==bytes([58]),'re-probe: CONSOLE: IN PHASE. NO FULL POWER!')
+            for _ in range(100):
+                frame()
+                if peek(0x85,1)==bytes([42]):break
+            ok(peek(0x85,1)==bytes([42]),'reminder runs on: LAB CLOCK SAYS 6:02. NOBODY AGREES.')
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
@@ -434,7 +494,9 @@ def main():
             press('W',4);ok(where()==1 and lit(),'workshop -> power')
             position(14,90,1);press('A',4);ok(where()==2 and peek(0x9D,1)==b'\x01','power -> security, lab door still unlocked')
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and peek(0x83,1)==b'\x03' and peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and peek(0x1800,1440)==scis,'full round trip: back in the lab with every state kept')
+            ok(where()==3 and peek(0x83,1)==b'\x03' and peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and peek(0x1800,1440)==scis and peek(0xA9,1)==b'\x03','full round trip: back in the lab with every state kept, console in phase')
+            hide();position(30,56,3);press(' ',4);ok(peek(0x85,1)==bytes([58]) and peek(0xAC,1)==b'\0','console still online after the round trip; she does not repeat herself')
+            ok(banks_seen=={0,1,2,3},'every room loaded its own message bank')
             ok(0<min(transitions) and len(transitions)>=24,'%d room transitions, slowest %d cycles (~%.2f s at 1 MHz)'%(len(transitions),max(transitions),max(transitions)/1020484))
             cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
