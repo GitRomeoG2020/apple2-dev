@@ -462,9 +462,9 @@ opaque edge, the sprite selects that byte's palette phase; the underlying room
 bytes are restored exactly when it moves away. The two display pages normally
 show successive animation states, not identical frames.
 
-Measured game ticks average approximately **74,380 cycles (~13.4 updates/second
+Measured game ticks average approximately **74,190 cycles (~13.5 updates/second
 at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
-**92,010 cycles**, with G-Bot and an actor both on screen; the workshop and
+**91,876 cycles**, with G-Bot and an actor both on screen; the workshop and
 power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
 each last about 1.7 seconds. A room change (status line, chirp, disk spin-up,
 seek, room and aux reads, both pages rebuilt) takes **1.15–1.32 s**. It used to take up
@@ -569,7 +569,7 @@ directions:
 - it checks the aux sectors each door reads, and that no door takes more than
   1.7 million cycles.
 
-The IIe run checked **2,976 frames**, the II+ run **2,970**,
+The IIe run checked **3,072 frames** (163 checks), the II+ run **3,066** (162),
 with both full pages compared each time. The HUD-strip change moved every
 room's front edge from G-Bot row 114 to 120, and the walk paths in the tests
 were adjusted to match: arrivals through the bottom doorways, the south walls,
