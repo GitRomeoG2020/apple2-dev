@@ -10,6 +10,11 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 ## What's playable
 
+- **A slim HUD.** The big in-game title band is gone. A one-row strip under each
+  room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
+  (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
+  rooms agree. The rooms got the space back: every floor is 7 rows deeper, and
+  G-Bot can walk that much further toward the front.
 - An original, fixed workshop in true Apple II color HGR: a tool board, oscilloscope,
   parts bench, terminal, cables and a service mat in a slightly elevated view.
 - A **42 × 44-pixel masked G-Bot**, including his arms and chunky boots. His large
@@ -279,8 +284,15 @@ required native build inputs, not modern images loaded by the game.
 
 ## Graphics / memory notes
 
-- Full-screen **280 × 192 HGR**, with the room above row 160 and native HGR title
-  and controls below. No text-page switching or IIe-only video features.
+- Full-screen **280 × 192 HGR**. The room fills rows 0–164. Below it there is
+  no title band any more, just three slim native HGR text rows:
+  - a **room strip** at rows 169–173: the room's name on the left and its clock
+    time on the right;
+  - the engine's **status line** at rows 177–181;
+  - the **controls** at rows 186–190.
+
+  The strip and the controls are baked into each room's background on disk, so
+  they cost no RAM. No text-page switching or IIe-only video features.
 - `$0800–$0A1A`: read-only bootloader, **kept resident** as the room loader
   (`LOADROOM` at `$0805` reads two tracks, `LOADONE` at `$0808` one);
   `$0C00–$0D6F`: disk decoding scratch.

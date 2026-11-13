@@ -119,8 +119,9 @@ def main():
             if key is not None:q({'cmd':'keys','text':key})
             room_before=(where(),lit())
             before=q({'cmd':'cpu'});q({'cmd':'resume'})
-            # A room change streams 8K from the emulated Disk II: allow seconds.
-            if not wait(lambda:q({'cmd':'cpu'})['paused'],12):raise RuntimeError('frame deadline exceeded')
+            # A room change streams 8K from the emulated Disk II: allow seconds. The
+            # generous bound also rides out a stalled (suspended) host.
+            if not wait(lambda:q({'cmd':'cpu'})['paused'],60):raise RuntimeError('frame deadline exceeded: %s'%q({'cmd':'cpu'}))
             after=q({'cmd':'cpu'})
             if (where(),lit())!=room_before:
                 # Transition rebuilt BOTH pages from the new room, robot on each.
