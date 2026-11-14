@@ -401,27 +401,34 @@ required native build inputs, not modern images loaded by the game.
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$26`, `$2B`, `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- `$6000–$71DA` engine code, `$7200–$7E7F` lookup tables and the resident
-  47-glyph status font (now with `? ' | *`). **No message text is resident
-  any more.** `$7E80–$7FFF` is free: **384 bytes**, plus 37 bytes of
-  alignment gap at `$71DB`, **421 bytes** in all. The stamp interpreter
-  (`stamps`) cost 874 bytes, including a 96-byte unrolled clear of `$8000`.
-  The door work before it cost 549 bytes of code, 384 of them for an
-  unrolled page copy. `$0C00–$0C27` is the interpreter's text buffer.
-  Moving the 44 old messages (1,760 bytes of text plus 88 bytes of pointers) to
-  the disk banks freed 1,792 bytes of tables. The console puzzle, dialogue
-  handling and bank reader then used 395 bytes of code. Net, free RAM went
-  from 447 to **1,844 bytes**.
+- **Language card (16 KB at `$D000–$FFFF`).** The boot reads the 8 KB of
+  engine code and tables (tracks 1–2) to `$6000`, switches the card to *read
+  and write RAM, bank 2* (two reads of `$C083`) and copies them up to
+  `$D000–$EE7F`, where the game runs from then on: code `$D000–$E1DA`, lookup
+  tables and the 47-glyph status font `$E200–$EE7F`. The card stays mapped, so
+  the ROM is switched out for good and **nothing calls it**: the monitor's
+  `WAIT` has a cycle-exact RAM copy in the loader (`wait`), and the
+  NMI/RESET/IRQ vectors at `$FFFA–$FFFF` point into the loader, which maps the
+  ROM back in (`$C082`) and continues through the ROM's own vector (the game
+  runs with interrupts off). Free: `$EE80–$EFFF` (384 bytes) and `$E1DB–$E1FF`
+  (37) in bank 2's code area, all of `$F000–$FFF9` (4,090 bytes) and bank 1's
+  `$D000–$DFFF` (4,096). **`$6000–$7FFF` (8,192 bytes) is free main RAM.**
+  Both the IIe and a II+ need 64 KB (a II+ with a 16K language card in slot
+  0); Bobbin emulates the card on both. The stamp interpreter (`stamps`) cost
+  874 bytes, including a 96-byte unrolled clear of `$8000`. `$0C00–$0C27` is
+  the interpreter's text buffer.
 - `$8000–$9FFF`: the **current** room's canonical native background (8,192 bytes;
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
-  `$BF48–$BFFF`: 184 spare bytes. Total slack: **2,028 bytes** in the main
-  layout.
+  `$BF48–$BFFF`: 184 spare bytes. Free RAM in all: **about 17 KB** (8,192 at
+  `$6000`, 8,607 in the language card, 184 at `$BF48`); before, the code
+  area had 421 bytes free.
 - Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
   tracks 3–4); **7 workshop aux, 8–9 dark power room, 10–11 lit power room,
   12 power aux, 13 security (aux track with the stamp-built room), 14–15 lab,
   16 lab aux**. The complete disk is 143,360 bytes; tracks 17–34 are free.
-  No language card, auxiliary RAM or expansion sound hardware is needed.
+  It needs a 64 KB machine (language card); no auxiliary RAM or expansion
+  sound hardware.
 
 **Door timing.** Measured per door in Bobbin (`tests/door_timing.py`; the IIe
 and II+ give the same numbers):
