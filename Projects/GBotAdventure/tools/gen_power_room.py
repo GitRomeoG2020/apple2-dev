@@ -111,6 +111,11 @@ def room(on=False):
     p.rect((32,112,33,115),G if on else O)      # its lock lamp
     if on:
         p.text(11,84,'SEC',G)
+    # EAST SUBSTATION DOOR, low on the right wall under the generator skid
+    # (sealed until the lab console is back in phase).
+    east=[(271,116),(254,120),(254,156),(271,160)]
+    if on: p.line(east+[east[0]],T)
+    else: dots(p,east+[east[0]],V,3)
     # Floor seams.
     for x in (-210,-58,85,225,370,520):
         dots(p,[(140+(x-140)//5,81),(x,FLOOR+1)],B,9 if not on else 4)

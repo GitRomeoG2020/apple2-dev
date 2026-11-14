@@ -32,7 +32,7 @@ CLEAR=6
 # room's art: a one-row strip (room name and that room's clock, 169-173), the
 # engine's status line (177-181) and the controls (186-190).
 FLOOR=164
-CLOCKS={'WORKSHOP':'12:15','POWER ROOM':'9:41','SECURITY':'2:53','THE LAB':'6:02'}
+CLOCKS={'WORKSHOP':'12:15','POWER ROOM':'9:41','SECURITY':'2:53','THE LAB':'6:02','SUBSTATION':'11:59'}
 
 def clock_hands(p,cx,cy,name,rh,rm,c=T):
     """Short hour hand, long minute hand (2 px wide so they stay white),
@@ -239,24 +239,59 @@ MESSAGES=[
     'ENTERING THE LAB...',                    # 62  left)
     'SOUND ON',                               # 63 M toggles sound
     'SOUND OFF',                              # 64
+    # Twist two: full power reruns the experiment. The substation and the choice.
+    'ENTERING SUBSTATION...',                 # 65 door status (power room bank)
+    'SUBSTATION SEALED - NEEDS LAB OK',       # 66 east door before the console
+    'CONSOLE: SUBSTATION UNSEALED. HMM.',     # 67 after her reveal
+    'SUBSTATION: THE BIG SWITCH',             # 68 arrival / context
+    'MAIN BREAKER: SPACE TO PROBE',           # 69
+    'RESTORE FULL POWER?  Y YES / N NO',      # 70 the choice
+    'FULL POWER! HERE WE GO AGAIN-',          # 71 restore: the rerun
+    'G-BOT REBOOTING... 12:15 AGAIN',         # 72 restore: the wake "door" line
+    'G-BOT: ...THAT WAS A BAD IDEA. AGAIN.',  # 73 waking in the workshop
+    'G-BOT: ...STILL A BAD IDEA. AGAIN.',     # 74 (second loop on)
+    'G-BOT: NO. SHE SAID NO FULL POWER.',     # 75 refuse
+    '...BUT THIS TRICKLE LEAD MIGHT HELP.',   # 76
+    'NEW TASK: TRICKLE LEAD TO THE CHAMBER',  # 77
+    'BREAKER STAYS OFF. SHE WAS RIGHT.',      # 78 substation after refusing
+    'CONSOLE: LOOP 4,818. PHASE DRIFT!',      # 79 diagnose, one loop later
+    'CONSOLE: LOOP 4,8??. YOU AGAIN?!',       # 80 diagnose, loops later
+    'SCIENTIST: G-BOT! WAIT. AGAIN?',         # 81 dialogue after a restore
+    "YOU DID IT AGAIN, DIDN'T YOU?",          # 82
+    'FULL POWER JUST RERUNS THE NIGHT.',      # 83 (then 55, 56: cut off again)
+    'SCIENTIST: AGAIN?! STOP FLIPPING IT!',   # 84 dialogue after two or more
+    'TRICKLE LEAD IN. THE RING TICKS ONCE.',  # 85 refuse path: at the chamber
+    'LAB CLOCK: 6:02... 6:03! IT MOVED!',     # 86
+    'SCIENTIST: YOU LISTENED! ONE MINUTE!',   # 87
+    'ONLY YOU CAN CARRY TIME, G-BOT.',        # 88
+    'TO BE CONTINUED: ONE MINUTE AT A TIME',  # 89 the hook
+    'CONSOLE: BREAKER OFF. GOOD BOT.',        # 90 console after refusing
+    'CHAMBER: 6:03. NEXT MINUTE... SOON.',    # 91 chamber after the lead
+    'CHAMBER: SPACE TO PLUG IN THE LEAD',     # 92 carrying the lead
+    'CONSOLE: LOOP HOLDS. 6:03 AND TICKING',  # 93 console after the lead
 ]
 # Which room's disk bank carries each message (status lines are per room).
+# 'story': the shared story bank in language-card RAM (every room's bank
+# links on to it): the twist-two lines, shown from any room.
 MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
-           2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64]}
+           2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64],
+           4:[28,60,63,64],'story':list(range(65,94))}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
 # 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door
 # unlocked, 9 console online fanfare, 12 the reveal cut off at IT RUNS AGAIN-.
 SFX_BUZZ,SFX_CHIME,SFX_CHORD,SFX_OPEN,SFX_ONLINE,SFX_CUTOFF=1,2,6,128+7,128+9,128+12
+SFX_UNSTICK,SFX_HOOK=128+21,128+22     # the trickle lead ticks the ring; to be continued
 MSG_SFX={5:SFX_BUZZ,7:SFX_BUZZ,10:SFX_BUZZ,11:SFX_BUZZ,12:SFX_BUZZ,15:SFX_BUZZ,
          21:SFX_BUZZ,24:SFX_BUZZ,28:SFX_BUZZ,29:SFX_BUZZ,47:SFX_BUZZ,48:SFX_BUZZ,
-         14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE,56:SFX_CUTOFF}
+         14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE,56:SFX_CUTOFF,
+         66:SFX_BUZZ,81:SFX_ONLINE,84:SFX_ONLINE,85:SFX_UNSTICK,89:SFX_HOOK}
 # Door status line by destination room (workshop, power, security, lab).
-ENTER_MSG=(59,60,61,62)
+ENTER_MSG=(59,60,61,62,65)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={27:30,33:43,35:36,38:39,58:42,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+CHAIN={57:67,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:42,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
 
 def meter_text(step,pos):
     """The tuning meter the engine builds from template 45: phase number,

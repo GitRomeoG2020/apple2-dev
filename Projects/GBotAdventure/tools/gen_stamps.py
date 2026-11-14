@@ -276,6 +276,11 @@ def power(on):
     from gen_power_room import room
     return compile_room(room(on),'POWER ROOM')
 
+# The substation: the lab's floor rays.
+def substation():
+    from gen_substation import room
+    return compile_room(room(),'SUBSTATION',LINES[:6])
+
 if __name__=='__main__':
     s,lib=security()
     print('security: script %d bytes, %d stamps %d bytes (+%d table)'%(len(s),len(lib),sum(map(len,lib)),1+2*len(lib)))

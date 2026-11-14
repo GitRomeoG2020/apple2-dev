@@ -111,6 +111,11 @@ TUNES=$C7                     ;   room tunes played (test visibility)
 TUNELAST=$C8                  ;   motif of the last one (0-3)
 TUNED=$C9                     ;   this door played one
 TUNERND=$CA                   ;   this door's random byte
+LOOPS=$CB                     ; full power restored this many times (the loop reran)
+CHOICE=$CC                    ; the main breaker's RESTORE? Y/N prompt is up
+REFUSED=$CD                   ; G-Bot said no (since the last loop)
+LEAD=$CE                      ; trickle lead: 0 on its hook, 1 carried, 2 in the chamber
+WAKE=$CF                      ; the loop is resetting: this door wakes him in the workshop
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -127,7 +132,7 @@ LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
 LOADONE=$0808                 ; same, sectors SFIRST..SEND-1 of one track
 MOTOROFF=$080B                ; the motor runs across one door's reads
         .include "layout.inc"   ; track numbers
-LITVARIANT=4                  ; stamp variant of the lit power room
+LITVARIANT=5                  ; stamp variant of the lit power room (4: the substation)
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -137,7 +142,7 @@ GSTEP=3                       ; ticks per one-byte guard step
 SPAWNX=224                    ; security-room entry checkpoint
 SPAWNY=104
 
-        .export entry, main, code_end, transition, stamps, st_next, lchi_end
+        .export entry, main, code_end, transition, stamps, st_next, lchi_end, flash_shot
         .import wait                  ; RAM copy of the monitor WAIT (boot.s)
         .segment "CODE"
 entry:  cld
@@ -150,7 +155,7 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
-        ldx #TUNERND-SOUNDOFF
+        ldx #WAKE-SOUNDOFF
 @sfxz:  sta SOUNDOFF,x
         dex
         bpl @sfxz
@@ -272,8 +277,8 @@ keyboard:
 :       and #$7F
         ldy ROOM
         cpy #3
-        bne :+
-        jsr labkeys            ; console tuning / dialogue; C=1 key used
+        bcc :+
+        jsr roomkeys           ; lab console / main breaker choice; C=1 key used
         bcs @used
         ldy ROOM               ; (labkeys keeps A and X otherwise)
         ldx jobx,y
@@ -416,7 +421,7 @@ labkeys:
         lda #2
         sta SCSPOT
         sta SCPHASE
-        lda #FIRST_DIALOG
+        jsr first_line         ; (her first line knows about earlier loops)
         ldx #DIALOG_TIME
 @say:   sta MESSAGE
         stx FEEDBACK
@@ -475,6 +480,8 @@ update: lda #0
         beq @work
         cmp #1
         beq @power
+        cmp #4
+        beq @sub
         cmp #3
         bne @desk
         lda PY                 ; lab: time-chamber dais, front y=100
@@ -512,6 +519,8 @@ update: lda #0
         lda PY
         cmp #70
         bcc @blocked           ; terminal front is y=112
+@sub:   jsr sub_solid          ; substation: the main breaker's cabinet
+        bcs @blocked
 @allowed:
         inc WALK
         lda #1
@@ -533,6 +542,9 @@ doors:  lda ROOM
 :       cmp #1
         bne :+
         jmp @power
+:       cmp #4
+        bne :+
+        jmp sub_doors
 :       cmp #3
         bne @security
         lda DIR                ; lab: doorway at the bottom, back to security
@@ -547,7 +559,7 @@ doors:  lda ROOM
         lda #2
         ldx PX
         ldy #48
-        jmp @go
+        jmp door_go
 @no1:   rts
 @security:
         lda DIR
@@ -561,12 +573,12 @@ doors:  lda ROOM
         lda LABOPEN
         bne :+
         lda #29                ; LAB DOOR LOCKED - TRY THE DESK
-        jmp @sealed
+        jmp door_sealed
 :       lda #3
         sta NDIR
         ldx PX
         ldy #120
-        jmp @go
+        jmp door_go
 @east:  lda DIR                ; east door, front half of right wall
         cmp #2
         bne @no0
@@ -581,73 +593,76 @@ doors:  lda ROOM
         lda #1
         ldx #14
         ldy #90
-        bne @go
+        bne door_go
 @no0:   rts
 @power: lda DIR
         cmp #1
         beq @west
-        cmp #0
-        bne @no
+        cmp #2
+        bne :+
+        jmp power_east         ; east: the substation, once the lab says so
+:       cmp #0
+        bne door_no
         lda PY                 ; south: the lit doorway back to the workshop
         cmp #120
-        bne @no
+        bne door_no
         lda PX
         cmp #DOOR_X0
-        bcc @no
+        bcc door_no
         cmp #DOOR_X1+1
-        bcs @no
+        bcs door_no
         lda #0
         sta NDIR
         ldx PX
         ldy #48
-        bne @go
+        bne door_go
 @west:  lda PX                 ; west: security door, needs power
         cmp #14
-        bne @no
+        bne door_no
         lda PY
         cmp #76
-        bcc @no
+        bcc door_no
         cmp #105
-        bcs @no
+        bcs door_no
         lda PANEL
         cmp #3
         beq :+
         lda #21                ; SECURITY DOOR SEALED - NO POWER
-        bne @sealed
+        bne door_sealed
 :       lda #1
         sta NDIR
         lda #2
         ldx #SPAWNX
         ldy #SPAWNY
-        bne @go
+        bne door_go
 @workshop:
         lda DIR                ; rear door, walking north
         cmp #3
-        bne @no
+        bne door_no
         lda PY
         cmp #48
-        bne @no
+        bne door_no
         lda PX
         cmp #DOOR_X0
-        bcc @no
+        bcc door_no
         cmp #DOOR_X1+1
-        bcs @no
+        bcs door_no
         lda REPAIR
         cmp #3
         beq :+
         lda #12                ; DOOR SEALED - FIX WORKBENCH FIRST
-        bne @sealed
+        bne door_sealed
 :       lda #3
         sta NDIR
         lda #1
         ldx PX
         ldy #120
-@go:    sta NEXTROOM
+door_go:    sta NEXTROOM
         stx NX
         sty NY
         inc TRANSIT
-@no:    rts
-@sealed:sta MESSAGE
+door_no:    rts
+door_sealed:sta MESSAGE
         lda #64
         sta FEEDBACK
         rts
@@ -682,7 +697,7 @@ transition:
         lda $C08A,y            ; status line and chirp go out
         lda $C089,y
         lda $C08E,y            ; (read mode; the loader never writes)
-        lda entermsg,x         ; ENTERING <ROOM>... from the current bank,
+        jsr door_msg           ; ENTERING <ROOM>... from the current bank,
         sta MESSAGE            ; on both pages at once, before any disk read
         jsr draw_status
         jsr copy_status
@@ -761,7 +776,8 @@ transition:
         sta SCPHASE
         lda #20
         sta SCTIMER
-:       jsr actor_show
+:       jsr story_arrive       ; (waking from a rerun: G-Bot's verdict)
+        jsr actor_show
         lda #$FF
         sta LASTMSG
         jsr interaction        ; status line, and repair patches if workshop
@@ -1282,6 +1298,8 @@ actor_show:
         jmp guard_show
 :       cmp #3
         beq sci_show
+        lda #0                 ; (no actor: the substation)
+        sta ACTVIS
         rts
 
 ; The flickering scientist: harmless. Gone, flickers in, stays ~3 s, flickers
@@ -1443,7 +1461,10 @@ probe_contact:
         beq @power
         cmp #3
         beq @lab
-        ldx #28                ; NOTHING TO PROBE HERE
+        cmp #4
+        bne :+
+        jmp sub_probe
+:       ldx #28                ; NOTHING TO PROBE HERE
         lda NEAR
         beq @say
         lda #1
@@ -1453,18 +1474,18 @@ probe_contact:
 @lab:   ldx NEAR
         cpx #4
         bne :+
-        ldx #58                ; CONSOLE: IN PHASE. NO FULL POWER!
+        jsr console_line       ; CONSOLE: IN PHASE. NO FULL POWER! (or what came after)
         lda CONSOLE
         cmp #3
         beq @say
         lda #1                 ; diagnosed: PHASE DRIFT, offer R to tune
         sta CONSOLE
-        ldx #41
+        jsr drift_line         ; LOOP 4,817 (or later)
         lda #48
         stx MESSAGE
         sta FEEDBACK
         rts
-:       lda labprobe,x
+:       jsr lab_probe          ; (the chamber takes the trickle lead)
         tax
         bne @say
 @power: lda NEAR
@@ -1531,7 +1552,11 @@ interaction:
         beq @workshop
         cmp #1
         beq @prange
-        cmp #3
+        cmp #4
+        bne :+
+        jsr sub_near
+        jmp @range_done
+:       cmp #3
         bne @srange
         jsr labnear
         jmp @range_done
@@ -1634,10 +1659,15 @@ interaction:
         jmp @message
 @context:
         lda ROOM
-        beq @workroom
-        cmp #1
+        bne :+
+        jmp @workroom
+:       cmp #1
         beq @powerroom
-        cmp #3
+        cmp #4
+        bne :+
+        jsr sub_context
+        jmp @message
+:       cmp #3
         bne :+
         jmp @labroom
 :       lda #23                ; SECURITY UNIT REBOOTING...
@@ -1700,7 +1730,7 @@ interaction:
 @lrc:   lda #0                 ; walking away cancels the diagnosis
         sta CONSOLE
 @lr2:   ldx NEAR
-        lda labctx,x
+        jsr lab_context
         bne @message
 @workroom:
         lda REPAIR
@@ -1881,8 +1911,7 @@ draw_status:
         sta (BG),y
         dey
         bpl @letter
-        lda FUSE               ; HUD: a carried fuse in columns 38-39
-        cmp #1
+        jsr carrying           ; HUD: a carried fuse (or lead) in columns 38-39
         bne @noicon
         ldx UIROW
         ldy #38
@@ -2225,6 +2254,8 @@ render: ldx PAGE
         lda ROOM
         cmp #2
         bcc @diag
+        cmp #4
+        bcs @diag
         ldx PAGE
         lda GOLD,x
         sta OX
@@ -2257,8 +2288,10 @@ render: ldx PAGE
         sta OLDY,x
         lda ROOM
         cmp #2
-        bcs :+
-        jmp blit_gbot
+        bcc :+
+        cmp #4
+        bcc :++
+:       jmp blit_gbot
 :       ldx PAGE
         lda ACTX
         sta GOLD,x
@@ -2410,9 +2443,9 @@ advance_buffers:
         .include "interaction.inc"
         .include "auxend.inc"
         .include "security.inc"
-jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
-busymsg: .byte 3,17,3,3
-auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,POWERAUX_TRACK
+jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
+busymsg: .byte 3,17,3,3,3
+auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,SUB_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
 phasetime: .byte 28,6,40,6
@@ -2479,6 +2512,11 @@ carry_table:
 code_end:
         .segment "LCHI"
         .include "sfx.s"
+        .include "story.s"
+lchi_code_end:
+        .segment "STORY"       ; $F800 (gbot.cfg): the shared story messages
+storybank:
+        .incbin "../art/story-bank.bin"
 lchi_end:
 .assert lchi_end <= $FFFA, lderror, "LC code/tables overflow into the vectors"
         .segment "CODE"
@@ -2502,3 +2540,5 @@ sprites_end:
         .segment "POWERAUX"    ; track 8: power room messages and the dark
                                ; room's stamps
         .incbin "../art/aux-power.bin"
+        .segment "SUBAUX"      ; track 11: substation messages and stamps
+        .incbin "../art/aux-substation.bin"
