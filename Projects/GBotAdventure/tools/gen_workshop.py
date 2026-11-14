@@ -269,13 +269,15 @@ MESSAGES=[
     'CHAMBER: 6:03. NEXT MINUTE... SOON.',    # 91 chamber after the lead
     'CHAMBER: SPACE TO PLUG IN THE LEAD',     # 92 carrying the lead
     'CONSOLE: LOOP HOLDS. 6:03 AND TICKING',  # 93 console after the lead
+    'G-BOT: ...HAVE I DONE THIS BEFORE?',     # 94 deja vu at the breaker, first loop
+    'G-BOT: ...I HAVE DONE THIS BEFORE.',     # 95 deja vu after a rerun
 ]
 # Which room's disk bank carries each message (status lines are per room).
 # 'story': the shared story bank in language-card RAM (every room's bank
 # links on to it): the twist-two lines, shown from any room.
 MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
            2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64],
-           4:[28,60,63,64],'story':list(range(65,94))}
+           4:[28,60,63,64],'story':list(range(65,96))}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
 # 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door

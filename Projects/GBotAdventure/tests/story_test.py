@@ -13,7 +13,7 @@ lbl=(ROOT/'build/gbot.lbl').read_text()
 def sym(n):return int(re.search(r'al ([0-9A-F]+) \.'+n+r'\b',lbl).group(1),16)
 MAIN,FLASH=sym('main'),sym('flash_shot')
 PX,REPAIR,MESSAGE,FEEDBACK,ROOM,PANEL,FUSE,GSTATE,LABOPEN,CONSOLE,TUNESTEP,TUNEPOS,TALK=0x70,0x83,0x85,0x88,0x8A,0x8C,0x8D,0x92,0x9D,0xA9,0xAA,0xAB,0xAC
-SOUNDOFF,SPKCNT,JINGLES,LOOPS,CHOICE,REFUSED,LEAD,WAKE=0xB7,0xBF,0xC1,0xCB,0xCC,0xCD,0xCE,0xCF
+SOUNDOFF,SPKCNT,JINGLES,LOOPS,CHOICE,REFUSED,LEAD,WAKE,HESIT,DEJA=0xB7,0xBF,0xC1,0xCB,0xCC,0xCD,0xCE,0xCF,0xD0,0xD1
 NAMES=('workshop','power','security','lab','substation')
 failures=[]
 def ok(c,d):
@@ -71,6 +71,15 @@ with tempfile.TemporaryDirectory() as tmp:
         frames(4);return t
     def at(x,y,d):poke(PX,[x,y,d,0]);frames(2)
     def hide():poke(0xA6,[0,250,0]);poke(FEEDBACK,[0])
+    def hesitate(want_msg,shoot=None):
+        """Space at the breaker, first time this loop: the deja-vu glitch,
+        then the prompt. Returns (ticks, cycles, poses seen, sfx id)."""
+        t=step(' ');ticks=1;poses=[b(0x77)];msg=b(MESSAGE);h=b(HESIT);c0=b(CHOICE);fx=b(0xC4)
+        ok(msg==want_msg and h==1 and c0==0,'first probe this loop: message %d, no prompt yet (got %d, HESIT %d, CHOICE %d)'%(want_msg,msg,h,c0))
+        while b(CHOICE)==0 and ticks<80:
+            t+=step();ticks+=1;poses.append(b(0x77));fx=8 if b(0xC4)==8 else fx
+            if shoot and ticks==7:shot(shoot)
+        return ticks,t,poses,fx
     def runs_to(msg,limit=400):
         seen=[b(MESSAGE)]
         for _ in range(limit):
@@ -99,8 +108,14 @@ with tempfile.TemporaryDirectory() as tmp:
         # 2) the breaker and the choice
         at(120,56,3);ok(b(0x84)==1 and b(MESSAGE)==69,'breaker apron: MAIN BREAKER: SPACE TO PROBE');shot('2_breaker')
         at(120,60,3);step('W');frames(4);ok(b(0x71)==56,'cabinet front stops G-Bot at y=56')
-        at(120,56,3);step(' ');frames(2);ok(b(CHOICE)==1 and b(MESSAGE)==70,'Space: RESTORE FULL POWER?  Y YES / N NO');shot('3_choice_prompt')
+        at(120,56,3);ticks,cyc,poses,fx=hesitate(94,'2_hesitation')
+        ok(13 in poses and 12 in poses and 0 in poses and poses.index(13)<poses.index(12),'the glitch: probe arm up, stalls, eyes flicker (poses %s)'%poses)
+        ok(510000<=cyc<=1100000,'it lasts %.2f s (%d ticks), then the prompt'%(cyc/1020484,ticks))
+        ok(fx==8,'a crackle plays as he glitches (sound on)')
+        ok(b(MESSAGE)==70 and b(DEJA)==1,'then: RESTORE FULL POWER?  Y YES / N NO');frames(2);shot('3_choice_prompt')
+        print('HESITATION %d ticks, %d cycles (%.2f s)'%(ticks,cyc,cyc/1020484),flush=True)
         step('\x1b');frames(1);ok(b(CHOICE)==0 and b(MESSAGE)==69,'Escape cancels the choice')
+        step(' ');frames(2);ok(b(CHOICE)==1 and b(HESIT)==0 and b(MESSAGE)==70,'the second probe in the same loop asks at once (no deja vu)');step('\x1b');frames(1)
         step(' ');frames(2);step('S');frames(6);ok(b(CHOICE)==0,'walking away cancels the choice')
         at(120,56,3);step(' ');frames(9)
         for k in 'ABCQ':step(k)
@@ -147,7 +162,9 @@ with tempfile.TemporaryDirectory() as tmp:
         # 5) a second rerun, muted
         frames(100);at(122,106,0);door(2,122,48,0);door(1,14,90,2)
         step('M');frames(2);ok(b(SOUNDOFF)==1,'M: sound off')
-        door(4,14,90,2);at(120,56,3);step(' ');frames(2);s0=spk();t_wake2=step('Y')
+        door(4,14,90,2);at(120,56,3);s0=spk();ticks2,_,_,_=hesitate(95)
+        ok(b(CHOICE)==1 and spk()==s0,'after a rerun: G-BOT: ...I HAVE DONE THIS BEFORE. then the prompt (muted: no clicks)')
+        t_wake2=step('Y')
         ok(b(ROOM)==0 and b(LOOPS)==2 and b(MESSAGE)==74,'second rerun: LOOPS=2; G-BOT: ...STILL A BAD IDEA. AGAIN.')
         ok(spk()==s0,'sound off: the rerun and the wake make no speaker clicks')
         frames(4);door(1,122,120,3);door(2,224,104,1);poke(0x8F,[3,1,0]);door(3,122,120,3);hide()

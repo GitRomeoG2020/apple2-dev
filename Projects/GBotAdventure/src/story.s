@@ -31,6 +31,9 @@ MSG_GOODBOT=90
 MSG_SOON=91
 MSG_PLUGHINT=92
 MSG_TICKING=93
+MSG_DEJA1=94
+MSG_DEJAN=95
+HESITATE=14                    ; deja-vu ticks before the prompt (~0.8 s)
 
 ; ---- rooms 3 and 4 have their own keys. In: A = key. Out: C=1 used, else A, X kept.
 roomkeys:
@@ -133,7 +136,16 @@ power_east:                    ; the power room's east door (front half)
 
 ; ---- substation status line (A = message)
 sub_context:
-        lda CHOICE
+        lda HESIT              ; the deja vu has passed: now the question
+        beq @ask
+        lda #0
+        sta HESIT
+        lda BURST              ; (unless he walked off mid-glitch)
+        bne @ask
+        lda NEAR
+        beq @ask
+        sta CHOICE
+@ask:   lda CHOICE
         beq @plain
         lda NEAR
         bne :+
@@ -153,7 +165,23 @@ sub_context:
 sub_probe:
         lda NEAR
         beq :+
+        ldx LOOPS              ; first probe in this loop: deja vu
+        inx
+        cpx DEJA
+        beq @ask
+        stx DEJA
         lda #1
+        sta HESIT
+        lda #MSG_DEJA1         ; G-BOT: ...HAVE I DONE THIS BEFORE?
+        ldx LOOPS
+        beq @say
+        lda #MSG_DEJAN         ; G-BOT: ...I HAVE DONE THIS BEFORE.
+@say:   sta MESSAGE
+        lda #HESITATE+2
+        sta FEEDBACK
+        lda #SFX_CRACKLE       ; a little time glitch
+        jmp sfx_start
+@ask:   lda #1
         sta CHOICE             ; the prompt
         lda #0
         sta FEEDBACK
@@ -378,3 +406,9 @@ carrying:                      ; Z=1: the HUD shows a carried fuse or lead
         lda LEAD
         cmp #1
 :       rts
+
+; G-Bot's pose by PROBE ticks left while he hesitates (index 0..HESITATE):
+; the probe goes up (13), stalls and stutters with the eyes flickering
+; (blink 12 / idle 0), then he just stands there, wondering.
+hesitframe:
+        .byte 0,0,0, 12,0,12,13,12,0,12,0, 13,13,13,13

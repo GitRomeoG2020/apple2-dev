@@ -176,7 +176,7 @@ play only where the game already pauses.
 | Click | each A/D tuning step; sound back on | 1 frame |
 | Robotic beep | the guard rebooting (first entry to security) | 7 frames |
 | Chord | LOCKED! NEXT PHASE... | 5 frames |
-| Electric crackle | the scientist flickering in (at most every ~12 s) | 4 frames |
+| Electric crackle | the scientist flickering in (at most every ~12 s); G-Bot's deja vu at the breaker | 4 frames |
 | Footstep tick | every 8th frame while walking (2 clicks) | a few cycles |
 | "Fixed it!" tune | the workbench repair completing (G-Bot is still holding) | ~0.7 s, blocking |
 | Power-on hum | the fuse fitted (inside the room's reload) | ~54 ms, blocking |
@@ -352,11 +352,15 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    **SUBSTATION: THE BIG SWITCH**. The room clock says **11:59**.
 6. The **MAIN BREAKER** cabinet stands centre-back on a striped plinth, its
    knife switch hanging at **OFF**. On the right, a coiled **trickle lead** hangs on a
-   hook beside a transformer with a sign: **DO NOT RERUN**. The west door leads
-   back to the power room.
-7. Walk up to the cabinet: **MAIN BREAKER: SPACE TO PROBE**. Press **Space**:
-   **RESTORE FULL POWER?  Y YES / N NO**. **Esc** or walking away cancels;
-   other keys don't answer.
+   hook beside a wall transformer, fed from the ceiling through a stack of
+   insulators. The west door leads back to the power room.
+7. Walk up to the cabinet: **MAIN BREAKER: SPACE TO PROBE**. Press **Space**.
+   The first time in each loop, G-Bot hesitates: his probe goes up, stalls
+   and stutters, his eyes flicker, and there is a little crackle (about
+   0.9 s): **G-BOT: ...HAVE I DONE THIS BEFORE?** After a rerun it's
+   **G-BOT: ...I HAVE DONE THIS BEFORE.** Then (and straight away on any
+   later probe in the same loop): **RESTORE FULL POWER?  Y YES / N NO**.
+   **Esc** or walking away cancels; other keys don't answer.
 
 **Y, restore full power:**
 - **FULL POWER! HERE WE GO AGAIN-**, a surge, then the room strobes four
@@ -393,6 +397,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
   **CONSOLE: BREAKER OFF. GOOD BOT.**)
 
 ![The main breaker](screenshots/story_2_breaker_enhanced.png)
+
+![Deja vu: HAVE I DONE THIS BEFORE?](screenshots/story_2_hesitation_enhanced.png)
 
 ![The choice](screenshots/story_3_choice_prompt_enhanced.png)
 
@@ -516,7 +522,7 @@ required native build inputs, not modern images loaded by the game.
   buffer. The banks: workshop 364 bytes (12 messages), power room 510 (18),
   security 354 (13), lab 988 (32, including the dialogue and the tuning meter
   template), substation 71 (4). Every bank ends with a link (`$FE`) to the
-  shared **story bank** in the language card (`$F800`, 1,009 bytes, 29
+  shared **story bank** in the language card (`$F800`, 1,081 bytes, 31
   messages: the breaker, both branches and the loop-aware lines), so those
   lines show in any room. The first four **ENTERING ...** lines (the substation's is in the story bank) sit in the bank of each room that
   has a door to that room, so the bank being left always has the line it
@@ -532,9 +538,9 @@ required native build inputs, not modern images loaded by the game.
   | power room, lit | 802 | 50 | 1,306 | 2,209 | pool |
   | security | 734 | 31 | 1,253 | 2,050 | aux 9 |
   | lab | 573 | 31 | 2,088 | 2,724 | aux 10 + pool |
-  | substation | 539 | 31 | 1,096 | 1,698 | aux 11 |
+  | substation | 541 | 30 | 1,086 | 1,688 | aux 11 |
 
-  All six pictures take 13,373 bytes, against 49,152 as full art (the power
+  All six pictures take 13,363 bytes, against 49,152 as full art (the power
   room grew its east door). The
   interpreter (`stamps`) draws a room in about 0.3 s; it maps language-card
   bank 1 while it draws, so it and everything it reads (fonts, row tables) sit
@@ -546,7 +552,8 @@ required native build inputs, not modern images loaded by the game.
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$B7–$CA` sound and tunes; `$CB` loops (reruns so
   far), `$CC` breaker prompt, `$CD` refused, `$CE` trickle lead (0 on its
-  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun; `$26`, `$2B`,
+  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun, `$D0` the deja vu in progress, `$D1` the
+  loop it last happened in; `$26`, `$2B`,
   `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
 - **Language card (16 KB at `$D000–$FFFF`).** The boot reads the 12 KB of
@@ -560,13 +567,13 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DF05`: engine code (free to `$DFFF`: **250 bytes**);
+  - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$F58D`: the stamp interpreter, sound effects and tunes, and the
+  - `$EC80–$F5D4`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
-  - `$F58E–$F7FF`: **free, 626 bytes**;
-  - `$F800–$FBF0`: the story bank (1,009 bytes);
-  - `$FBF1–$FFF9`: **free, 1,033 bytes**;
+  - `$F5D5–$F7FF`: **free, 555 bytes**;
+  - `$F800–$FC38`: the story bank (1,081 bytes);
+  - `$FC39–$FFF9`: **free, 961 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **361 bytes** free).
 
@@ -576,9 +583,9 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,646
-  bytes** (8,192 at `$6000`, 250 + 626 + 1,033 in the language card, 361 in
-  the pool, 184 at `$BF48`). The substation story took 1,901 of them. Before the language card the code area had 421
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,486
+  bytes** (8,192 at `$6000`, 233 + 555 + 961 in the language card, 361 in
+  the pool, 184 at `$BF48`). The substation story took 2,061 of them. Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
@@ -750,7 +757,8 @@ combine Bobbin's completed video-frame count and partial-frame cycle count.
 `tests/story_test.py` drives the main-breaker story with state pokes and real
 keys on both machines: the sealed east door and its message, the door
 opening once the console is in phase (its ENTERING line read from the story
-bank), the cabinet's solidity, the prompt, Esc, walking away and stray keys,
+bank), the cabinet's solidity, the deja-vu hesitation (its line, poses,
+crackle and length, once per loop), the prompt, Esc, walking away and stray keys,
 then **N** (the lead, the new task, the chamber, every line to TO BE
 CONTINUED with its stingers, and the console and chamber afterwards), then
 **Y**: a breakpoint inside the strobe proves the shown page is the room's
