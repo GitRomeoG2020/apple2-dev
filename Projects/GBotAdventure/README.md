@@ -595,7 +595,7 @@ saves an old | new | red-difference sheet,
 `screenshots/<room>_stamps_vs_art_<machine>.png`. The whole run also keeps
 comparing both pages and `$8000` against the old art in every frame.
 
-The IIe run checked **3,072 frames** (166 checks), the II+ run **3,066** (165),
+The IIe run checked **3,072 frames** (175 checks), the II+ run **3,066** (174),
 with both full pages compared each time. The HUD-strip change moved every
 room's front edge from G-Bot row 114 to 120, and the walk paths in the tests
 were adjusted to match: arrivals through the bottom doorways, the south walls,
