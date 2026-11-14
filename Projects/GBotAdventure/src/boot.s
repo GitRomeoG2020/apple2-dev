@@ -2,7 +2,8 @@
 ; Rockfall loader. NO write routine, score sector or game-specific persistence.
 ; The boot ROM loads T0 physical sectors 0..4 at $0800; the one-time boot code
 ; at $0C00 reads the code tracks to $6000 and moves them into the language
-; card, then the workshop, G-Bot's frames and the workshop aux track.
+; card (bank 2), the stamp pool into bank 1, then the workshop, G-Bot's frames
+; and the workshop aux track.
 ; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
 ; room background (two whole tracks) into $8000 on a room transition, and
 ; LOADONE ($0808) for an aux track. Track numbers: layout.inc.
@@ -462,6 +463,24 @@ start:  cld
         sta $FFFA,x
         dex
         bpl @vec
+        lda #POOL_TRACK          ; the stamp pool -> $6000, then LC bank 1
+        ldx #1
+        ldy #>GAME
+        jsr bootread
+        bit $C08B                ; read and write RAM, bank 1
+        bit $C08B
+        ldy #0
+        ldx #16
+@pool:  lda GAME,y
+@poold: sta LCGAME,y
+        iny
+        bne @pool
+        inc @pool+2
+        inc @poold+2
+        dex
+        bne @pool
+        bit $C083                ; bank 2 (the game's code) for good
+        bit $C083
         lda #WORKSHOP_TRACK      ; workshop room and G-Bot's frames -> $8000-$BFFF
         ldx #4
         ldy #$80

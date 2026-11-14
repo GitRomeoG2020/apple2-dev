@@ -34,7 +34,8 @@ def _power(on):
         return power(on)
     return f
 # variant: (room, home, compiler). Rooms not listed are still full 8K art.
-STAMPED={'power':(1,'aux',_power(False)),'security':(2,'aux',_security)}
+STAMPED={'power':(1,'aux',_power(False)),'security':(2,'aux',_security),
+         'powerlit':(1,'pool',_power(True))}
 
 def entries(room):
     for i in MSG_ROOMS[room]:

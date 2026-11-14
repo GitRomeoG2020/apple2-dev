@@ -171,6 +171,7 @@ def main():
             # An impatient key mid-load: unflushed, 'S' would turn G-Bot round
             # at the arrival doorway and walk him straight back out.
             if first:q({'cmd':'keys','text':'S'})
+        disk_reads=[0]   # loader entries seen so far
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
             room_before=(where(),lit())
@@ -183,7 +184,7 @@ def main():
                 if not wait(lambda:q({'cmd':'cpu'})['paused'],60):raise RuntimeError('frame deadline exceeded: %s'%q({'cmd':'cpu'}))
                 after=q({'cmd':'cpu'})
                 if after['pc'] not in LOADERS:break
-                at_read(after['pc'],reads==0,room_before[0]);reads+=1
+                at_read(after['pc'],reads==0,room_before[0]);reads+=1;disk_reads[0]+=1
                 q({'cmd':'resume'})
             for a in LOADERS:q({'cmd':'break_clear','addr':a})
             if (where(),lit())!=room_before:
@@ -229,7 +230,7 @@ def main():
             q({'cmd':'break_set','addr':mainpc})
             if not wait(lambda:q({'cmd':'cpu'})['paused'],40):raise RuntimeError('boot deadline exceeded')
             ok(peek(0x7F,1)==b'\xa5','self-boot to workshop on '+args.machine)
-            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 8) to $1440')
+            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 9) to $1440')
             ok(sum(len(v) for v in MSG_ROOMS.values())>=len(TEXTS),'every status message is in a room bank')
             verify();capture('idle')
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
@@ -312,7 +313,7 @@ def main():
             workshop_cycles=list(cycles)
             position(122,64);press('W',4);press('W',4);press('W',4)
             ok(where()==1 and tuple(state()[:3])==(122,120,3),'unlocked door: walking north into it streams in the power room')
-            ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (11) with its own status line')
+            ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (10) with its own status line')
             stamp_check('power',1,'power_dark')
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
@@ -376,11 +377,14 @@ def main():
             for _ in range(12):frame(' ')
             ok(peek(0x8C,1)==b'\x01','held/repeating Space never fits the fuse')
             frame('R');ok(peek(0x8C,1)==b'\x02' and peek(0x85,1)==bytes([17]),'R starts FITTING FUSE')
+            reads_before_fit=disk_reads[0]
             for _ in range(8):frame('A')
             ok(tuple(state()[:2])==(50,56),'fitting holds G-Bot in place')
             for _ in range(24):frame()
             ok(peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and lit(),'fuse fitted: power restored')
-            ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room streamed from tracks 9-10, POWER RESTORED message, HUD fuse gone')
+            ok(disk_reads[0]==reads_before_fit,'the room lights up with no disk read')
+            ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room drawn in place from the bank-1 stamp pool (no disk read), POWER RESTORED message, HUD fuse gone')
+            stamp_check('powerlit',1,'power_lit',True)
             for _ in range(4):frame()
             capture('lit','power')
             press(' ',4);ok(peek(0x85,1)==bytes([20]),'probing the live panel: PANEL ONLINE')
@@ -393,7 +397,7 @@ def main():
             position(14,90,1);press('A',4)
             ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
             ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
-            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 12')
+            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 11')
             # The security room has no room tracks: its aux track's stamp
             # library and script drew it, and it must be the original art.
             stamp_check('security',2,'security')
@@ -443,8 +447,8 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 13-14')
-            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 15')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 12-13')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 14')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
             capture('arrive','lab')
@@ -555,7 +559,7 @@ def main():
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
-            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 12')
+            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 11')
             ok(peek(0x92,1)==b'\x02' and peek(0x9D,1)==b'\x01','guard still patrolling, lab door still open')
             frame();capture('from_lab','security')
             press('W',4);ok(where()==3,'security -> lab again')

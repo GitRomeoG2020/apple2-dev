@@ -678,8 +678,7 @@ transition:
         ldy PANEL
         cpy #3
         bne @load
-        ldx #LITVARIANT
-        lda #POWERLIT_TRACK
+        ldx #LITVARIANT        ; (drawn from the pool: no room tracks)
 @load:  sta ROOMTRK
         stx VARIANT
         lda stamphi,x          ; a stamp-built variant: its script is on the
@@ -2453,17 +2452,17 @@ room: .incbin "../art/workshop-room.hgr"
 sprite_frames: .incbin "../art/gbot-sprites.bin"
 sprites_end:
 .assert sprites_end <= $C000, lderror, "Sprites overflow 48K RAM"
-        .segment "POWERLIT"    ; tracks 9-10
-power_lit: .incbin "../art/power-room-lit.hgr"
-        .segment "SECAUX"      ; track 12: security messages, guard frames and
+        .segment "POOL"        ; track 4: the stamp pool, read at boot into
+        .incbin "../art/stamp-pool.bin"   ; language-card bank 1
+        .segment "SECAUX"      ; track 11: security messages, guard frames and
                                ; the stamp library + script its room is drawn from
         .incbin "../art/aux-security.bin"
-        .segment "LABROOM"     ; tracks 13-14
+        .segment "LABROOM"     ; tracks 12-13
 lab_room: .incbin "../art/lab-room.hgr"
-        .segment "LABAUX"      ; track 15: lab messages + scientist frames
+        .segment "LABAUX"      ; track 14: lab messages + scientist frames
         .incbin "../art/aux-lab.bin"
-        .segment "WORKAUX"     ; track 8: workshop messages (read at boot)
+        .segment "WORKAUX"     ; track 9: workshop messages (read at boot)
         .incbin "../art/aux-workshop.bin"
-        .segment "POWERAUX"    ; track 11: power room messages and the dark
+        .segment "POWERAUX"    ; track 10: power room messages and the dark
                                ; room's stamps
         .incbin "../art/aux-power.bin"
