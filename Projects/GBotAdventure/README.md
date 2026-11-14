@@ -163,13 +163,28 @@ play only where the game already pauses.
 | Click | each A/D tuning step; sound back on | 1 frame |
 | Robotic beep | the guard rebooting (first entry to security) | 7 frames |
 | Chord | LOCKED! NEXT PHASE... | 5 frames |
-| Rising jingle | ...AND THE LAB DOOR CLICKS OPEN | 9 frames |
 | Electric crackle | the scientist flickering in (at most every ~12 s) | 4 frames |
 | Footstep tick | every 8th frame while walking (2 clicks) | a few cycles |
-| Rising jingle | the workbench repair completing (G-Bot is still holding) | ~60 ms, blocking |
+| "Fixed it!" tune | the workbench repair completing (G-Bot is still holding) | ~0.7 s, blocking |
 | Power-on hum | the fuse fitted (inside the room's reload) | ~54 ms, blocking |
-| Hum + chord | the console coming into phase as she starts to talk | ~69 ms, blocking |
-| Door chirp | every door (as before) | ~22 ms, during the door |
+| Hum + fanfare | the console coming into phase as she starts to talk | ~1.1 s, blocking |
+| Unlock stinger | ...AND THE LAB DOOR CLICKS OPEN (the whole room, guard included, holds for it) | ~0.4 s, blocking |
+| Cut-off reveal | IT RUNS AGAIN- : a slow climb cut off mid-note by a crackle | ~0.75 s, blocking |
+| Door chirp | every door with no room tune | ~22 ms, during the door |
+| Room motif | entering a room: see below | ~0.45 s, during the door |
+
+**Room tunes.** Entering a room may play one of four short motifs: the
+workshop's tinkering hop up the C chord, the power room's warming-up climb,
+security's tiptoe past the guard, and the lab's whole-tone wonder. The
+first-ever entry to a room always plays one (the workshop's plays at boot);
+after that it's a coin flip, and a played motif is the room's own half the
+time, otherwise any of the four. The coin is an 8-bit LFSR mixed with the frame
+counter, so the player's pace decides. The motif plays during the door, after
+the ENTERING line and before the disk read, in place of the chirp and the
+drive's spin-up wait, which it outlasts. That makes a door with a motif about
+0.4 s longer (up to 0.46 s from the workshop, whose door animation already
+covers the spin-up); a door without one costs what it did before. Walking is
+untouched. M off: no motifs.
 
 The effects engine is `src/sfx.s`; which message plays which sound is
 generated (`MSG_SFX` in `tools/gen_workshop.py`).
@@ -458,11 +473,11 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DEAB`: engine code (free to `$DFFF`: **340 bytes**);
+  - bank 2 `$D000–$DEBF`: engine code (free to `$DFFF`: **320 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
   - `$EC80–$EFF3`: the stamp interpreter;
-  - `$EFF4–$F1B9`: sound effects engine and tables (454 bytes);
-  - `$F1BA–$FFF9`: **free, 3,648 bytes**;
+  - `$EFF4–$F29A`: sound effects, tunes and their tables (679 bytes);
+  - `$F29B–$FFF9`: **free, 3,423 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **428 bytes** free).
 
@@ -472,8 +487,8 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **12,792
-  bytes** (8,192 at `$6000`, 340 + 3,648 in the language card, 428 in
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **12,547
+  bytes** (8,192 at `$6000`, 320 + 3,423 in the language card, 428 in
   the pool, 184 at `$BF48`). Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
@@ -485,17 +500,21 @@ required native build inputs, not modern images loaded by the game.
 **Door timing.** Measured per door in Bobbin (`tests/door_timing.py`; the IIe
 and II+ give the same numbers):
 
-| Door | First version | Full art (fast loader) | Stamp rooms |
-| --- | --- | --- | --- |
-| workshop → power room (dark) | 2.78 s | 1.17 s | **0.80 s** |
-| power room (dark) → workshop | 2.20 s | 1.27 s | **0.86 s** |
-| workshop → power room (lit) | 2.78 s | 1.31–1.32 s | **0.78 s** |
-| power room → security | 1.77 s | 0.98 s | **0.98 s** |
-| security → lab | 1.75 s | 1.26 s | **0.91 s** |
-| lab → security | 1.95 s | 1.00 s | **0.98 s** |
-| security → power room (lit) | 1.93 s | 1.19 s | **0.72 s** |
-| power room (lit) → workshop | 2.20 s | 1.26 s | **0.85 s** |
-| fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |
+| Door | First version | Full art (fast loader) | Stamp rooms | With a room tune |
+| --- | --- | --- | --- | --- |
+| workshop → power room (dark) | 2.78 s | 1.17 s | **0.80 s** | ~1.26 s (first entry: always) |
+| power room (dark) → workshop | 2.20 s | 1.27 s | **0.86 s** | ~1.24 s |
+| workshop → power room (lit) | 2.78 s | 1.31–1.32 s | **0.78 s** | 1.24 s |
+| power room → security | 1.77 s | 0.98 s | **0.98 s** | 1.36 s |
+| security → lab | 1.75 s | 1.26 s | **0.91 s** | 1.29 s |
+| lab → security | 1.95 s | 1.00 s | **0.98 s** | 1.37 s |
+| security → power room (lit) | 1.93 s | 1.19 s | **0.72 s** | 1.09 s |
+| power room (lit) → workshop | 2.20 s | 1.26 s | **0.85 s** | 1.23 s |
+| fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |  |
+
+A room tune plays during the door in place of the chirp and the spin-up wait;
+`tests/tune_test.py` measures doors with and without one (a tune may add at
+most 0.5 s; doors without one must match the table).
 
 Where the time went:
 - the half-second pause in the workshop doorway is gone; the door slides open
