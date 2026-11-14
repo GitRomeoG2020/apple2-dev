@@ -1,12 +1,11 @@
 ; G-Bot: After Hours -- read-only Disk II loader, derived from the workshop's
 ; Rockfall loader. NO write routine, score sector or game-specific persistence.
-; ROM loads T0 physical sectors 0..3 at $0800. Tracks 1..6 -> $6000..$BFFF.
+; The boot ROM loads T0 physical sectors 0..4 at $0800; the one-time boot code
+; at $0C00 reads the code tracks to $6000 and moves them into the language
+; card, then the workshop, G-Bot's frames and the workshop aux track.
 ; The loader stays resident: the game calls LOADROOM ($0805) to stream one 8K
-; room background (two whole tracks) into $8000 on a room transition.
-; Disk map: T3-4 workshop room (part of the boot load).
-; Rooms beside their aux tracks (messages + actor frames, -> $1000): T7 workshop
-; aux (at boot), T8-9 dark / T10-11 lit power room, T12 aux; T13-14 security,
-; T15 aux; T16-17 lab, T18 aux.
+; room background (two whole tracks) into $8000 on a room transition, and
+; LOADONE ($0808) for an aux track. Track numbers: layout.inc.
         .setcpu "6502"
 SLOT=$2B
 CURPH=$3C
@@ -32,104 +31,18 @@ SH=$0E00                         ; decode tables built at boot: v<<2, and the
 T0=$0E40                         ; three bit-reversed 2-bit fields of v
 T1=$0E80
 T2=$0EC0
-GAME=$6000                       ; tracks 1-2 land here, then move to the
-LCGAME=$D000                     ; language card (bank 2, $D000-$EFFF)
+GAME=$6000                       ; tracks 1-3 land here, then move to the
+LCGAME=$D000                     ; language card ($D000-$FFFF, bank 2)
+        .include "layout.inc"
         .export wait
         .segment "BOOT"
-        .byte 4
+        .byte 5                  ; the boot ROM loads physical sectors 0-4
         jmp start
-ntracks:.byte 6                  ; $0804: tracks in the boot load
+ntracks:.byte CODE_TRACKS        ; $0804: code tracks in the boot load
         jmp loadroom             ; $0805: LOADROOM entry used by the game
         jmp loadone              ; $0808: LOADONE, a single track (sectors SFIRST..SEND-1)
         jmp motoroff             ; $080B: MOTOROFF, after a door's last read
-start:  cld
-        stx SLOT
-        jsr $FC58
-        ldy #0
-@msg:   lda msg,y
-        beq @go
-        ora #$80
-        sta $05A8+7,y
-        iny
-        bne @msg
-@go:    bit $C051
-        bit $C054
-        ldx SLOT
-        lda $C08E,x
-        lda #0
-        sta CURPH
-        sta SFIRST
-        sta SPUN
-        lda #16
-        sta SEND
-        lda #$20                 ; raw nibbles go to HGR page 1 while booting
-        sta RAWHI
-        ldx #63
-@tab:   txa
-        asl a
-        asl a
-        sta SH,x
-        txa
-        and #3
-        tay
-        lda rev2,y
-        sta T0,x
-        txa
-        lsr a
-        lsr a
-        and #3
-        tay
-        lda rev2,y
-        sta T1,x
-        txa
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        tay
-        lda rev2,y
-        sta T2,x
-        dex
-        bpl @tab
-        ldx SLOT
-        lda #>GAME
-        sta PAGE0
-        lda #1
-        sta TRK
-        ldx ntracks
-        inx
-        stx LASTT
-        jsr readtracks
-        lda #7                   ; workshop aux track (messages) -> $1000-$1FFF
-        sta TRK
-        lda #8
-        sta LASTT
-        lda #$10
-        sta PAGE0
-        jsr readtracks
-        ; Language card: read and write RAM, bank 2 (two reads of $C083), for
-        ; good. The game's 8K of code and tables move from $6000 to $D000;
-        ; $6000-$7FFF is free from here on. Nothing calls the ROM after this:
-        ; WAIT has a RAM copy below, and the vectors bounce to the ROM's own.
-        bit $C083
-        bit $C083
-        ldy #0
-        ldx #$20
-@lc:    lda GAME,y
-@lcd:   sta LCGAME,y
-        iny
-        bne @lc
-        inc @lc+2
-        inc @lcd+2
-        dex
-        bne @lc
-        ldx #5
-@vec:   lda vectors,x
-        sta $FFFA,x
-        dex
-        bpl @vec
-        ldx SLOT
-        jmp LCGAME
+; NMI, RESET and IRQ/BRK vectors (LC RAM is mapped while the game runs)
 vectors:.word vnmi,vreset,virq
 ; NMI, RESET and IRQ/BRK land here with LC RAM mapped: map the ROM back in
 ; (read ROM, write RAM bank 2) and continue through the ROM's own vector.
@@ -139,6 +52,7 @@ vreset: bit $C082
         jmp ($FFFC)
 virq:   bit $C082
         jmp ($FFFE)
+
 
 ; readtracks: read tracks TRK..LASTT-1 (sectors SFIRST..SEND-1) into pages
 ; PAGE0.. (16 per track). Each track is read in about one revolution: sectors
@@ -470,6 +384,102 @@ wait:   sec
         rts
 .assert >wait = >(*-1), error, "wait crosses a page: its timing would change"
 steptime: .byte $56,$40,$34,$2E,$2C   ; WAIT values per half-track step
+
+        .segment "BOOT2"         ; $0C00: run once at boot (later the stamp
+                                 ; interpreter's text buffer)
+start:  cld
+        sei                      ; (no IRQ source; the vectors change below)
+        stx SLOT
+        jsr $FC58
+        ldy #0
+@msg:   lda msg,y
+        beq @go
+        ora #$80
+        sta $05A8+7,y
+        iny
+        bne @msg
+@go:    bit $C051
+        bit $C054
+        ldx SLOT
+        lda $C08E,x
+        lda #0
+        sta CURPH
+        sta SFIRST
+        sta SPUN
+        lda #16
+        sta SEND
+        lda #$20                 ; raw nibbles go to HGR page 1 while booting
+        sta RAWHI
+        ldx #63
+@tab:   txa
+        asl a
+        asl a
+        sta SH,x
+        txa
+        and #3
+        tay
+        lda rev2,y
+        sta T0,x
+        txa
+        lsr a
+        lsr a
+        and #3
+        tay
+        lda rev2,y
+        sta T1,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        tay
+        lda rev2,y
+        sta T2,x
+        dex
+        bpl @tab
+        lda #1                   ; code and tables: tracks 1-3 -> $6000-$8FFF
+        ldx #CODE_TRACKS
+        ldy #>GAME
+        jsr bootread
+        ; Language card: read and write RAM, bank 2 (two reads of $C083), for
+        ; good. The game's 12K of code and tables move from $6000 to $D000;
+        ; $6000-$7FFF is free from here on. Nothing calls the ROM after this:
+        ; WAIT has a RAM copy below, and the vectors bounce to the ROM's own.
+        bit $C083
+        bit $C083
+        ldy #0
+        ldx #CODE_TRACKS*16
+@lc:    lda GAME,y
+@lcd:   sta LCGAME,y
+        iny
+        bne @lc
+        inc @lc+2
+        inc @lcd+2
+        dex
+        bne @lc
+        ldx #5
+@vec:   lda vectors,x
+        sta $FFFA,x
+        dex
+        bpl @vec
+        lda #WORKSHOP_TRACK      ; workshop room and G-Bot's frames -> $8000-$BFFF
+        ldx #4
+        ldy #$80
+        jsr bootread
+        lda #WORKAUX_TRACK       ; workshop aux track (messages) -> $1000-$1FFF
+        ldx #1
+        ldy #$10
+        jsr bootread
+        ldx SLOT
+        jmp LCGAME
+bootread:                        ; A = first track, X = tracks, Y = first page
+        sta TRK
+        sty PAGE0
+        stx LASTT
+        clc
+        adc LASTT
+        sta LASTT
+        jmp readtracks
 msg: .byte "G-BOT: AFTER HOURS / LOADING",0
 
         .segment "DNIB"          ; at $0B96: 6+2 nibble -> 6-bit value

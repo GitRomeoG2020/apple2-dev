@@ -215,31 +215,54 @@ def security():
     from gen_security import room
     return compile_room(room(False),lines=LINES)
 
-def pack(out,base,taken,script,lib):
-    """Place header+script at STAMPBASE and the stamps (largest first) in the
-    free bytes of a 4K aux track image `out` (based at `base`)."""
-    n=len(lib); head=bytes([n])
-    free=[True]*len(out)
-    for a,b in taken:
-        for k in range(a-base,b-base):free[k]=False
-    at=STAMPBASE-base; size=1+2*n+len(script)
-    assert all(free[at:at+size]),'stamp script does not fit'
-    for k in range(at,at+size):free[k]=False
+def place(areas,script,lib):
+    """Put a variant into memory areas [(image, free flags, base address)]:
+    its header and script at the first area's start if that is an aux track
+    ($1000), else first-fit; stamps (largest first) first-fit across the areas
+    in order. Returns the header address."""
+    n=len(lib); assert n<128
+    size=1+2*n+len(script)
+    def fit(ln,only=None):
+        for img,fr,base in (areas if only is None else [only]):
+            k=0
+            while k+ln<=len(img):
+                if all(fr[k:k+ln]):
+                    for j in range(k,k+ln):fr[j]=False
+                    return img,base+k
+                k+=1
+        raise AssertionError('stamp data does not fit')
+    img0,fr0,base0=areas[0]
+    if base0==STAMPBASE:
+        assert all(fr0[:size]),'stamp script does not fit at $1000'
+        for k in range(size):fr0[k]=False
+        hdr=STAMPBASE;himg=img0
+    else:
+        himg,hdr=fit(size,areas[0])
     addr=[0]*n
     for sid in sorted(range(n),key=lambda k:-len(lib[k])):
-        ln=len(lib[sid]); k=0
-        while k+ln<=len(out) and not all(free[k:k+ln]):k+=1
-        assert k+ln<=len(out),'stamp library does not fit in the aux track'
-        out[k:k+ln]=lib[sid]; addr[sid]=base+k
-        for j in range(k,k+ln):free[j]=False
-    out[at:at+size]=head+bytes(a&255 for a in addr)+bytes(a>>8 for a in addr)+script
-    return sum(free)
+        img,a=fit(len(lib[sid]))
+        base=next(b for i,_,b in areas if i is img)
+        img[a-base:a-base+len(lib[sid])]=lib[sid]; addr[sid]=a
+    hb=next(b for i,_,b in areas if i is himg)
+    himg[hdr-hb:hdr-hb+size]=bytes([n])+bytes(a&255 for a in addr)+bytes(a>>8 for a in addr)+script
+    return hdr
 
-def from_aux(aux,base=0x1000):
-    """Read the script and library back out of an aux track image."""
-    at=STAMPBASE-base; n=aux[at]; lo=aux[at+1:at+1+n]; hi=aux[at+1+n:at+1+2*n]
-    lib=[aux[(l|h<<8)-base:] for l,h in zip(lo,hi)]
-    return aux[at+1+2*n:],lib
+def read_back(hdr,mem):
+    """Script and library of the variant whose header is at `hdr`; mem(addr)
+    returns the memory from addr on (aux track at $1000 or the pool)."""
+    h=mem(hdr); n=h[0]; lo=h[1:1+n]; hi=h[1+n:1+2*n]
+    return h[1+2*n:],[mem(l|k<<8) for l,k in zip(lo,hi)]
+
+def from_aux(aux,base=0x1000,pool=b'',poolbase=0xD000):
+    """Read the script and library of the aux-home variant back out."""
+    def mem(a):
+        return aux[a-base:] if base<=a<base+len(aux) else pool[a-poolbase:]
+    return read_back(STAMPBASE,mem)
+
+# The dark and lit power rooms: no long lines (its floor rays are dotted).
+def power(on):
+    from gen_power_room import room
+    return compile_room(room(on),'POWER ROOM')
 
 if __name__=='__main__':
     s,lib=security()

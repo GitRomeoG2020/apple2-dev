@@ -40,11 +40,16 @@ with tempfile.TemporaryDirectory() as tmp:
         until_paused()
         for _ in range(3):q({'cmd':'resume'});until_paused()
         poke=lambda a,d:q({'cmd':'poke','addr':a,'data':d})
-        poke(0x83,[3]);poke(0x8C,[3]);poke(0x8D,[2]);poke(0x9D,[1])   # all doors open
+        poke(0x83,[3]);poke(0x8D,[2]);poke(0x9D,[1])   # all doors open
         names=['WORKSHOP','POWER ROOM','SECURITY','THE LAB']
-        route=[(1,122,120,3),(2,224,104,1),(3,122,120,3),(2,122,48,0),(1,14,90,2),(0,122,48,0),(1,122,120,3)]
+        # First the dark power room (breaker off) both ways, then every door
+        # with the power room lit.
+        route=[(0,1,122,120,3),(0,0,122,48,0),
+               (3,1,122,120,3),(3,2,224,104,1),(3,3,122,120,3),(3,2,122,48,0),(3,1,14,90,2),(3,0,122,48,0),(3,1,122,120,3)]
         room=0
-        for nxt,x,y,d in route:
+        for panel,nxt,x,y,d in route:
+            poke(0x8C,[panel])
+            names[1]='POWER ROOM' if panel==3 else 'POWER DARK'
             poke(0x98,[nxt,x,y,d]);poke(0x8B,[1])
             r=q({'cmd':'cpu'});t0=now(r);first=None;reads=0;marks=[]   # the door's game tick starts
             while True:

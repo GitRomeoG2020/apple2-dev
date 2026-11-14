@@ -46,8 +46,10 @@ def main():
     scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
     from gen_banks import aux as aux_track
     auxes={r:aux_track(r)[0] for r in range(4)}
-    # Doors read only aux sectors 4..end-1 (the rest is scratch or empty).
-    auxend={r:max(i for i,v in enumerate(auxes[r]) if v)//256+1 for r in range(4)}
+    # Doors read aux sectors first..end-1 per variant (rooms 0-3, 4 = the lit
+    # power room): the bank, actor frames and any stamp script on the track.
+    from gen_banks import build as build_banks
+    auxsectors=build_banks()[6]
     from gen_workshop import ENTER_MSG
     ROOMNAMES=('workshop','power','security','lab')
     from gen_workshop import MESSAGES as TEXTS,MSG_ROOMS
@@ -121,6 +123,33 @@ def main():
                     raise AssertionError('page%d mismatch, %d bytes; first %s; state %s'%(n,len(diffs),diffs[:12],list(st)))
             poses.add(st[7]);shifts.add(st[0]%7);checks+=1
             return st
+        def stamp_check(key,where_,name,lit_=False):
+            """A stamp-built variant: its script (aux track or pool) rebuilds the
+            original art byte for byte, the engine drew exactly that (status
+            line aside), and old | new | red diff goes to a screenshot."""
+            from gen_banks import build
+            from gen_stamps import read_back,run as run_stamps
+            from gen_concept import decode
+            imgs,pool,hdr,*_=build()
+            def mem(a):return imgs[where_][a-0x1000:] if a<0x2000 else pool[a-0xD000:]
+            sc,lb=read_back(hdr[key],mem)
+            old_art=arts[(where_,lit_)]
+            ok(run_stamps(sc,lb)==old_art,'%s: stamp script %s reproduces the original art byte for byte (%d stamps, %d bytes)'%(name,'in the bank-1 pool' if hdr[key]>=0xD000 else 'on its aux track',len(lb),sum(map(len,lb))))
+            drawn=peek(0x8000,8192)
+            rows=[y for y in range(192) if not 177<=y<182]
+            same=all(drawn[offset(y):offset(y)+40]==old_art[offset(y):offset(y)+40] for y in rows)
+            ok(same,'%s: the engine drew the room from stamps exactly as the old art (status line aside)'%name)
+            from PIL import Image
+            old=decode(old_art).convert('RGB');new=decode(peek(0x2000+state()[6]*8192,8192)).convert('RGB')
+            diff=Image.new('RGB',(280,192))
+            for y in rows:
+                for x in range(280):
+                    if drawn[offset(y)+x//7]!=old_art[offset(y)+x//7]:diff.putpixel((x,y),(255,0,0))
+            sheet=Image.new('RGB',(280*3+8,192),(40,40,40))
+            for k,im in enumerate((old,new,diff)):sheet.paste(im,(k*288,0))
+            out=ROOT/'screenshots'/('%s_stamps_vs_art_%s.png'%(name,args.machine))
+            sheet.resize((sheet.width*2,384),Image.Resampling.NEAREST).save(out)
+            print('SCREENSHOT '+str(out),flush=True)
         transitions=[];banks_seen=set();doors=[];door_times={};door_shots=set()
         LOADERS=(0x0805,0x0808)   # LOADROOM / LOADONE entries: a disk read starts
         def at_read(pc,first,room0):
@@ -162,7 +191,7 @@ def main():
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
                 door_times.setdefault((room_before[0],where()),[]).append(transitions[-1])
                 # ...and the room's aux track (message bank, actor frames) is in.
-                w=where();e=auxend[w]*256
+                w=where();e=auxsectors[4 if lit() else w][1]*256
                 if peek(0x9E,1)[0]!=w or peek(0x1440,e-0x440)!=auxes[w][0x440:e]:
                     raise AssertionError('aux track for room %d not loaded'%w)
                 banks_seen.add(w)
@@ -200,7 +229,7 @@ def main():
             q({'cmd':'break_set','addr':mainpc})
             if not wait(lambda:q({'cmd':'cpu'})['paused'],40):raise RuntimeError('boot deadline exceeded')
             ok(peek(0x7F,1)==b'\xa5','self-boot to workshop on '+args.machine)
-            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 7) to $1440')
+            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 8) to $1440')
             ok(sum(len(v) for v in MSG_ROOMS.values())>=len(TEXTS),'every status message is in a room bank')
             verify();capture('idle')
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
@@ -283,7 +312,8 @@ def main():
             workshop_cycles=list(cycles)
             position(122,64);press('W',4);press('W',4);press('W',4)
             ok(where()==1 and tuple(state()[:3])==(122,120,3),'unlocked door: walking north into it streams in the power room')
-            ok(peek(0x8000,8192)==background(3,8,1),'dark power room loaded from tracks 8-9 with its own status line')
+            ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (11) with its own status line')
+            stamp_check('power',1,'power_dark')
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
             capture('arrive','power')
@@ -350,7 +380,7 @@ def main():
             ok(tuple(state()[:2])==(50,56),'fitting holds G-Bot in place')
             for _ in range(24):frame()
             ok(peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and lit(),'fuse fitted: power restored')
-            ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room streamed from tracks 10-11, POWER RESTORED message, HUD fuse gone')
+            ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room streamed from tracks 9-10, POWER RESTORED message, HUD fuse gone')
             for _ in range(4):frame()
             capture('lit','power')
             press(' ',4);ok(peek(0x85,1)==bytes([20]),'probing the live panel: PANEL ONLINE')
@@ -363,29 +393,11 @@ def main():
             position(14,90,1);press('A',4)
             ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
             ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
-            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 13')
+            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 12')
             # The security room has no room tracks: its aux track's stamp
             # library and script drew it, and it must be the original art.
-            from gen_stamps import from_aux,run as run_stamps,security as compiled
-            from gen_concept import decode
-            st_script,st_lib=from_aux(auxes[2]);sc,lb=compiled()
-            ok(run_stamps(st_script,st_lib)==arts[(2,False)] and st_script[:len(sc)]==sc,'stamp script on disk reproduces the original security art byte for byte (%d-byte script, %d stamps, %d bytes)'%(len(sc),len(lb),sum(map(len,lb))))
-            drawn=peek(0x8000,8192);old_art=arts[(2,False)]
-            rows=[y for y in range(192) if not 177<=y<182]
-            same=all(drawn[offset(y):offset(y)+40]==old_art[offset(y):offset(y)+40] for y in rows)
-            ok(same,'the engine drew the security room from stamps exactly as the old art (status line aside)')
+            stamp_check('security',2,'security')
             frame();capture('arrive','security')
-            # Side by side: old full art | stamp-drawn screen | differences (red).
-            from PIL import Image
-            old=decode(old_art).convert('RGB');new=decode(peek(0x2000+state()[6]*8192,8192)).convert('RGB')
-            diff=Image.new('RGB',(280,192))
-            for y in rows:
-                for x in range(280):
-                    if offset(y)+x//7<8192 and drawn[offset(y)+x//7]!=old_art[offset(y)+x//7]:diff.putpixel((x,y),(255,0,0))
-            sheet=Image.new('RGB',(280*3+8,192),(40,40,40))
-            for k,im in enumerate((old,new,diff)):sheet.paste(im,(k*288,0))
-            sheet.resize((sheet.width*2,384),Image.Resampling.NEAREST).save(ROOT/'screenshots'/('security_stamps_vs_art_'+args.machine+'.png'))
-            print('SCREENSHOT '+str(ROOT/'screenshots'/('security_stamps_vs_art_'+args.machine+'.png')),flush=True)
             gxs=[]
             for _ in range(45):frame();gxs.append(peek(0x8F,1)[0])
             ok(peek(0x92,1)==b'\x02','guard wakes and starts patrolling')
@@ -431,8 +443,8 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 14-15')
-            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 16')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 13-14')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 15')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
             capture('arrive','lab')
@@ -543,7 +555,7 @@ def main():
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
-            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 13')
+            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 12')
             ok(peek(0x92,1)==b'\x02' and peek(0x9D,1)==b'\x01','guard still patrolling, lab door still open')
             frame();capture('from_lab','security')
             press('W',4);ok(where()==3,'security -> lab again')

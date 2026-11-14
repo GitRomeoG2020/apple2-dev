@@ -90,6 +90,10 @@ TALK=$AC                      ; the scientist is talking: she holds still, G-Bot
 LOCKOUT=$AD                   ; frames after a door during which keys are dropped
 LOCK_FRAMES=4
 ROOMTRK=$AE                   ; transition: the new room's first track
+HDR=$B0                       ; stamps: the variant's header (count, lows, highs)
+LOP=$B2                       ;   -> its stamp address lows
+HIP=$B4                       ;   -> and highs
+VARIANT=$B6                   ; transition: room, or LITVARIANT (its aux sectors)
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -105,16 +109,8 @@ BANK=$1440                    ; this room's messages, from its aux track
 LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
 LOADONE=$0808                 ; same, sectors SFIRST..SEND-1 of one track
 MOTOROFF=$080B                ; the motor runs across one door's reads
-WORKSHOP_TRACK=3
-WORKAUX_TRACK=7               ; each room's aux track sits beside its room
-POWER_TRACK=8
-POWERLIT_TRACK=10
-POWERAUX_TRACK=12
-STAMP_ROOM=2                  ; security: drawn from stamps on its aux track
-GUARD_TRACK=13                ; (its aux track: bank, guard frames, stamps)
-LAB_TRACK=14
-SCI_TRACK=16
-STAMPLIB=$1000                ; stamp count, address lows, highs, then the script
+        .include "layout.inc"   ; track numbers
+LITVARIANT=4                  ; stamp variant of the lit power room
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -124,7 +120,7 @@ GSTEP=3                       ; ticks per one-byte guard step
 SPAWNX=224                    ; security-room entry checkpoint
 SPAWNY=104
 
-        .export entry, main, code_end, transition, stamps, st_next
+        .export entry, main, code_end, transition, stamps, st_next, lchi_end
         .import wait                  ; RAM copy of the monitor WAIT (boot.s)
         .segment "CODE"
 entry:  cld
@@ -670,26 +666,33 @@ transition:
         sta PY
         lda NDIR
         sta DIR
-        ldx ROOM
-        lda roomtrack,x
-        cpx #1
-        bne @load
-        ldy PANEL
-        cpy #3
-        bne @load
-        lda #POWERLIT_TRACK
-@load:  sta ROOMTRK
         lda PAGE               ; the loader's raw nibbles go to the hidden page
         eor #1
         tax
         lda pagehigh,x
         sta RAWHI
+        ldx ROOM               ; X = stamp variant: the room, or the lit
+        lda roomtrack,x        ; power room once its breaker is on
+        cpx #1
+        bne @load
+        ldy PANEL
+        cpy #3
+        bne @load
+        ldx #LITVARIANT
+        lda #POWERLIT_TRACK
+@load:  sta ROOMTRK
+        stx VARIANT
+        lda stamphi,x          ; a stamp-built variant: its script is on the
+        beq @full              ; room's aux track or in the bank-1 pool
+        sta HDR+1
+        lda stamplo,x
+        sta HDR
         ldx ROOM
-        cpx #STAMP_ROOM        ; a stamp-built room: one aux track, then draw
-        bne @full
+        cpx ACTLOADED          ; (same room: the fuse lit it; nothing to read,
+        beq :+                 ;  the lit room's script is in the pool)
         stx ACTLOADED
         jsr load_aux
-        jsr MOTOROFF
+:       jsr MOTOROFF
         jsr stamps
         jmp @drawn
 @full:  ldx ROOM               ; this room's messages and actor frames too?
@@ -745,7 +748,7 @@ load_bg:lda ROOMTRK
         ldy #>room
         jmp LOADROOM
 load_aux:
-        ldx ROOM
+        ldx VARIANT            ; (the lit power room needs only the bank sectors)
         lda auxfirst,x         ; sectors 0-3 are scratch (or stamps); read to auxend-1
         sta SFIRST
         lda auxend,x
@@ -753,9 +756,13 @@ load_aux:
         lda auxtrack,x
         ldy #$10
         jmp LOADONE
-; ---- stamps: draw a stamp-built room into $8000 from its aux track's script
-; (format: tools/gen_stamps.py). Runs once at the door, before the scratch
-; area at $1000-$143F (which holds the script) is used again.
+; ---- stamps: draw a stamp-built room variant into $8000 from the script at
+; HDR (format: tools/gen_stamps.py): on its aux track (run at the door, before
+; the scratch area at $1000-$143F, which holds the script, is used again) or
+; in the stamp pool in language-card bank 1. Everything here and everything
+; it reads (fonts, row tables) lies at $E000 or above, outside the banked 4K,
+; so bank 1 stays mapped for the whole draw.
+        .segment "LCHI"
 SP=SRC                         ; script pointer
 LE=BG                          ; line: error (16-bit)
 D1=MP                          ; 2*ady
@@ -778,7 +785,9 @@ STBUF=$0C00                    ; 40 bytes the loader no longer uses (not $1140:
                                ; the script itself lives in that scratch area)
 HIV=SHIFT                      ; (render scratch) palette bit for this line
 SKIPV=XB                       ; (render scratch) parity not drawn
-stamps: lda #0
+stamps: bit $C08B              ; LC RAM bank 1, read and write
+        bit $C08B
+        lda #0
         tay
 @clr:
 .repeat 32,PG
@@ -786,16 +795,33 @@ stamps: lda #0
 .endrepeat
         iny
         bne @clr
-        lda STAMPLIB           ; script = STAMPLIB + 1 + 2 * count
-        asl a
-        adc #<(STAMPLIB+1)
+        lda HDR                ; LOP = HDR + 1
+        clc
+        adc #1
+        sta LOP
+        lda HDR+1
+        adc #0
+        sta LOP+1
+        ldy #0
+        lda (HDR),y            ; HIP = LOP + count, script = HIP + count
+        clc
+        adc LOP
+        sta HIP
+        lda LOP+1
+        adc #0
+        sta HIP+1
+        lda (HDR),y
+        clc
+        adc HIP
         sta SP
-        lda #>(STAMPLIB+1)
+        lda HIP+1
         adc #0
         sta SP+1
 st_next:ldy #0
         lda (SP),y
         bne :+
+        bit $C083              ; back to bank 2 (the game's code), read/write
+        bit $C083
         rts
 :       asl a
         tax
@@ -924,23 +950,18 @@ st_block:jsr st_params         ; row, col, width, height, bytes
         adc #5
         jmp st_adv
 st_stamp:                      ; id, row, col
-        ldy #1
-        lda (SP),y
-        tax                    ; id
-        iny
+        ldy #2
         lda (SP),y
         sta YV
         iny
         lda (SP),y
         sta TMPV               ; stamp's left column
-        inx                    ; lo[id] is at STAMPLIB+1+id (page $10)
-        lda STAMPLIB&$FF00,x
+        ldy #1
+        lda (SP),y
+        tay                    ; id
+        lda (LOP),y
         sta FP
-        txa
-        clc
-        adc STAMPLIB           ; + count -> hi[id]
-        tax
-        lda STAMPLIB&$FF00,x
+        lda (HIP),y
         sta FP+1
         ldy #0
         lda (FP),y
@@ -1180,6 +1201,7 @@ st_xstep:                      ; Y is the column
         dey
 :       rts
 st_bit: .byte 1,2,4,8,16,32,64
+        .segment "CODE"
 ; A rising chirp on the speaker, ~22 ms: the door opens.
 door_sound:
         ldy #$60
@@ -2353,8 +2375,8 @@ advance_buffers:
         .include "security.inc"
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
-roomtrack: .byte WORKSHOP_TRACK,POWER_TRACK,0,LAB_TRACK
-auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK
+roomtrack: .byte WORKSHOP_TRACK,0,0,LAB_TRACK   ; full-art rooms
+auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
 phasetime: .byte 28,6,40,6
@@ -2419,25 +2441,29 @@ carry_table:
  .endrepeat
 .endrepeat
 code_end:
-.assert code_end <= $F000, lderror, "Code/table overflow past $EFFF"
+        .segment "LCHI"
+lchi_end:
+.assert lchi_end <= $FFFA, lderror, "LC code/tables overflow into the vectors"
+        .segment "CODE"
+code_end2:
+.assert code_end2 <= $E000, lderror, "Bank-2 code overflows $DFFF"
         .segment "BACKGROUND"
 room: .incbin "../art/workshop-room.hgr"
         .segment "SPRITES"
 sprite_frames: .incbin "../art/gbot-sprites.bin"
 sprites_end:
 .assert sprites_end <= $C000, lderror, "Sprites overflow 48K RAM"
-        .segment "POWERROOM"   ; disk tracks 8-9; streamed into $8000
-power_room: .incbin "../art/power-room.hgr"
-        .segment "POWERLIT"    ; tracks 10-11
+        .segment "POWERLIT"    ; tracks 9-10
 power_lit: .incbin "../art/power-room-lit.hgr"
-        .segment "SECAUX"      ; track 13: security messages, guard frames and
+        .segment "SECAUX"      ; track 12: security messages, guard frames and
                                ; the stamp library + script its room is drawn from
         .incbin "../art/aux-security.bin"
-        .segment "LABROOM"     ; tracks 14-15
+        .segment "LABROOM"     ; tracks 13-14
 lab_room: .incbin "../art/lab-room.hgr"
-        .segment "LABAUX"      ; track 18: lab messages + scientist frames
+        .segment "LABAUX"      ; track 15: lab messages + scientist frames
         .incbin "../art/aux-lab.bin"
-        .segment "WORKAUX"     ; track 7: workshop messages (read at boot)
+        .segment "WORKAUX"     ; track 8: workshop messages (read at boot)
         .incbin "../art/aux-workshop.bin"
-        .segment "POWERAUX"    ; track 12: power room messages
+        .segment "POWERAUX"    ; track 11: power room messages and the dark
+                               ; room's stamps
         .incbin "../art/aux-power.bin"
