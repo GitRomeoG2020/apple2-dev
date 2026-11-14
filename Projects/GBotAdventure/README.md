@@ -145,6 +145,34 @@ while playing: each room change reads that room from the disk.
 | R | Reconnect the loose lead / fit the fuse / start tuning and lock a phase at the lab console |
 | A / D (while tuning) | Move the phase cursor left / right (G-Bot stays put) |
 | Escape | Cancel inspection or tuning (walking away from an inspection also cancels) |
+| M | Sound effects on / off (shows **SOUND ON** / **SOUND OFF** briefly; S is taken by walking) |
+
+### Sound
+
+Short speaker effects (sound starts **on**; **M** toggles it, and off silences
+everything, the door chirp included). Most play inside the main loop's existing
+~3,000-cycle end-of-frame throttle: one ~3 ms tone burst per frame in place of
+the old idle wait, so the frame rate does not change. The few longer jingles
+play only where the game already pauses.
+
+| Effect | Trigger | Length |
+| --- | --- | --- |
+| Scanning warble | Space (probe) | 5 frames (~3 ms each) |
+| Low buzz | a failed or not-applicable action: NO CONTACT, MOVE CLOSER, NO POWER, TOO DARK, sealed doors, empty locker, NOTHING TO PROBE, lab door locked, guard catch, OUT OF PHASE, tuning cancelled | 4 frames |
+| Chime | FOUND A FUSE! | 4 frames |
+| Click | each A/D tuning step; sound back on | 1 frame |
+| Robotic beep | the guard rebooting (first entry to security) | 7 frames |
+| Chord | LOCKED! NEXT PHASE... | 5 frames |
+| Rising jingle | ...AND THE LAB DOOR CLICKS OPEN | 9 frames |
+| Electric crackle | the scientist flickering in (at most every ~12 s) | 4 frames |
+| Footstep tick | every 8th frame while walking (2 clicks) | a few cycles |
+| Rising jingle | the workbench repair completing (G-Bot is still holding) | ~60 ms, blocking |
+| Power-on hum | the fuse fitted (inside the room's reload) | ~54 ms, blocking |
+| Hum + chord | the console coming into phase as she starts to talk | ~69 ms, blocking |
+| Door chirp | every door (as before) | ~22 ms, during the door |
+
+The effects engine is `src/sfx.s`; which message plays which sound is
+generated (`MSG_SFX` in `tools/gen_workshop.py`).
 
 The Apple II keyboard reports **key events, not independent held-key states**.
 A tap starts a short, bounded four-tick walk (up to eight pixels); the robot then
@@ -430,10 +458,11 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DE6E`: engine code (free to `$DFFF`: **401 bytes**);
+  - bank 2 `$D000–$DEAB`: engine code (free to `$DFFF`: **340 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$EFF3`: the stamp interpreter (free to `$EFFF`: 12 bytes);
-  - `$F000–$FFF9`: **free, 4,090 bytes**;
+  - `$EC80–$EFF3`: the stamp interpreter;
+  - `$EFF4–$F1B9`: sound effects engine and tables (454 bytes);
+  - `$F1BA–$FFF9`: **free, 3,648 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **428 bytes** free).
 
@@ -443,8 +472,8 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **13,307
-  bytes** (8,192 at `$6000`, 401 + 12 + 4,090 in the language card, 428 in
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **12,792
+  bytes** (8,192 at `$6000`, 340 + 3,648 in the language card, 428 in
   the pool, 184 at `$BF48`). Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
