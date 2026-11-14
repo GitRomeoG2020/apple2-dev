@@ -3,8 +3,8 @@
 
 The small room behind the power room's east door: the MAIN BREAKER, its big
 knife switch resting OFF on a striped plinth, cables climbing to the ceiling, a
-wall transformer under a sign that says what it thinks of the idea, and a
-coiled trickle lead on a hook. Its clock disagrees with everyone (11:59).
+wall transformer fed through a stack of insulators, and a coiled trickle lead
+on a hook. Its clock disagrees with everyone (11:59).
 Drawn into $8000 from stamps on its aux track (tools/gen_stamps.py).
 """
 from pathlib import Path
@@ -57,9 +57,13 @@ def room():
     for i in range(3):
         p.ellipse((184+i,34+i*5,196-i,44+i*5),O); p.ellipse((186+i,36+i*5,194-i,42+i*5),K)
     p.line([(190,52),(188,62)],O); p.rect((186,62,190,65),T)    # its plug
-    # Wall transformer, under a sign with an opinion.
-    p.line([(206,22),(258,22),(258,44),(206,44),(206,22)],O)
-    p.text(214,26,'DO NOT',T); p.text(216,35,'RERUN',T)
+    # Wall transformer, fed from the ceiling through a stack of insulators.
+    p.line([(232,7),(232,24)],B,2)
+    for i,y in enumerate(range(24,46,4)):
+        w=6 if i%2 ==0 else 4
+        p.rect((232-w,y,232+w,y+1),T)
+    p.line([(232,24),(232,46)],T)
+    p.line([(214,40),(214,32),(220,28)],V); p.line([(250,40),(250,32),(244,28)],V)   # its brackets
     p.rect((210,50,254,72),K)
     p.line([(210,72),(210,50),(254,50),(254,72)],B,2)
     for x in range(216,252,6): p.line([(x,53),(x,69)],V)

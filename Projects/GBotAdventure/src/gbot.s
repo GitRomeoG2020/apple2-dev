@@ -116,6 +116,8 @@ CHOICE=$CC                    ; the main breaker's RESTORE? Y/N prompt is up
 REFUSED=$CD                   ; G-Bot said no (since the last loop)
 LEAD=$CE                      ; trickle lead: 0 on its hook, 1 carried, 2 in the chamber
 WAKE=$CF                      ; the loop is resetting: this door wakes him in the workshop
+HESIT=$D0                     ; deja vu at the breaker in progress
+DEJA=$D1                      ; LOOPS+1 when he last hesitated (once per loop)
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -155,7 +157,7 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
-        ldx #WAKE-SOUNDOFF
+        ldx #DEJA-SOUNDOFF
 @sfxz:  sta SOUNDOFF,x
         dex
         bpl @sfxz
@@ -345,7 +347,10 @@ keyboard:
         jsr sfx_start
         jsr probe_contact
         lda #8
-        sta PROBE
+        ldx HESIT
+        beq :+
+        lda #HESITATE          ; deja vu: he holds the probe a little longer
+:       sta PROBE
         lda #0
         sta BURST
         sta DIR
@@ -2112,7 +2117,12 @@ prepare:
         sta FRAME
         lda PROBE
         beq @walk
-        lda #13
+        ldx HESIT
+        beq :+
+        tax
+        lda hesitframe,x       ; the arm stalls, the eyes flicker
+        jmp @set
+:       lda #13
         bne @set
 @walk:  lda MOVING
         beq @idle
