@@ -105,6 +105,12 @@ JINGLES=$C1                   ;   blocking jingles played (test visibility)
 TOGV=$C2                      ;   clicks in the last tone unit
 TCNT=$C3                      ;   passes to the next click
 SFXLAST=$C4                   ;   last effect started (test visibility)
+SEED=$C5                      ; room tunes: random generator state
+VISITED=$C6                   ;   rooms entered so far (bit per room)
+TUNES=$C7                     ;   room tunes played (test visibility)
+TUNELAST=$C8                  ;   motif of the last one (0-3)
+TUNED=$C9                     ;   this door played one
+TUNERND=$CA                   ;   this door's random byte
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -144,7 +150,7 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
-        ldx #SFXLAST-SOUNDOFF
+        ldx #TUNERND-SOUNDOFF
 @sfxz:  sta SOUNDOFF,x
         dex
         bpl @sfxz
@@ -214,6 +220,10 @@ entry:  cld
         bit $C057
         bit $C052              ; full HGR; instructions are native HGR pixels
         bit $C050
+        lda #1                 ; the workshop is entered at boot: its motif
+        sta VISITED
+        lda #0
+        jsr play_motif
         lda #$A5
         sta READY
 main:   lda PAGE
@@ -676,13 +686,18 @@ transition:
         sta MESSAGE            ; on both pages at once, before any disk read
         jsr draw_status
         jsr copy_status
+        jsr room_tune          ; maybe a short motif (it covers chirp and spin-up)
+        lda TUNED
+        bne :+
         jsr door_sound
-        lda ROOM
+:       lda ROOM
         bne @spin
         jsr open_door          ; workshop: the rear door slides open (shown on
         jsr show_one           ; one page; no pause in the doorway)
         jmp @spun
-@spin:  lda #$90               ; rest of the ~90 ms spin-up (~54 ms)
+@spin:  lda TUNED              ; (a motif already outlasted the spin-up)
+        bne @spun
+        lda #$90               ; rest of the ~90 ms spin-up (~54 ms)
         jsr wait
 @spun:  lda #1
         sta SPUN               ; the loader need not wait again

@@ -182,7 +182,7 @@ def main():
         # Sound effects: SPKCNT ($BF) counts every speaker click the engine
         # makes, JINGLES ($C1) the blocking jingles, SFXLAST ($C4) the last
         # effect started (src/sfx.s ids).
-        FX=dict(buzz=1,chime=2,warble=3,click=4,guard=5,chord=6,open=7,crackle=8,online=9,rise=10,hum=11)
+        FX=dict(buzz=1,chime=2,warble=3,click=4,guard=5,chord=6,open=7,crackle=8,online=9,rise=10,hum=11,cutoff=12)
         def spk():a,b=peek(0xBF,2);return a|b<<8
         def jingles():return peek(0xC1,1)[0]
         def fxlast():return peek(0xC4,1)[0]
@@ -255,6 +255,7 @@ def main():
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
             st=state();start=st[:2];s0=spk()
             ok(peek(0xB7,1)==b'\0','sound starts on')
+            ok(peek(0xC6,3)==bytes([1,1,0]),'boot: the workshop counts as entered and its motif played')
             for key,dir,dx,dy in [('D',2,8,0),('S',0,0,8),('A',1,-8,0),('W',3,0,-8)]:
                 before=state();after=press(key)
                 ok((after[0],after[1],after[2])==(before[0]+dx,before[1]+dy,dir),'WASD '+key+' moves eight pixels, faces correctly and stops')
@@ -478,13 +479,12 @@ def main():
             capture('desk','security')
             ok(peek(0x9D,1)==b'\x01','probing the desk releases the lab door (LABOPEN)')
             ok(peek(0x8000,8192)==background(3,27,2,2,labopen=True),'lock lamp on the security art turns green')
+            j0=jingles();s0=spk()
             for _ in range(100):
                 frame()
                 if peek(0x85,1)==bytes([30]):break
             ok(peek(0x85,1)==bytes([30]),'desk line runs on: ...AND THE LAB DOOR CLICKS OPEN')
-            s0=spk()
-            for _ in range(3):frame()
-            ok(fxlast()==FX['open'] and clicks(s0)>0,'SFX lab door opens: rising jingle in the frame slot (%d clicks)'%clicks(s0))
+            ok(jingles()==j0+1 and fxlast()==FX['open'] and clicks(s0)>=100,'SFX lab door unlocked: stinger, the room holds for it (%d clicks)'%clicks(s0))
             capture('labdoor_open','security')
             position(60,54,3);press('W');ok(tuple(state()[:2])==(60,54),'security desk is solid')
             # Round trips through all three rooms.
@@ -594,7 +594,7 @@ def main():
             ok(peek(0xA9,1)==b'\x03' and peek(0xAC,1)==b'\x01' and peek(0x85,1)==bytes([49]),'phase 3 locked: console in phase, she speaks')
             ok(tuple(peek(0xA6,1)+peek(0xA8,1))==(2,2),'she stabilises solid at the console')
             frame();frame();capture('talk','lab')
-            seq=[49];solid=True;held=True
+            seq=[49];solid=True;held=True;j0=jingles()
             for _ in range(700):
                 st=frame(' ' if len(seq)==2 and _%7==0 else ('A' if len(seq)==3 and _%9==0 else None))
                 m=peek(0x85,1)[0]
@@ -612,6 +612,7 @@ def main():
             ok(seq==list(range(49,58)),'dialogue plays in order: %s'%seq)
             ok(solid,'she stays solid in one place for the whole conversation')
             ok(held,'G-Bot listens: Space and walk keys are ignored while she talks')
+            ok(jingles()==j0+1,'SFX the reveal ends on a stinger cut off at IT RUNS AGAIN-')
             for _ in range(60):frame()
             ok(peek(0xA9,1)==b'\x03','console stays in phase')
             press(' ',4);ok(peek(0x85,1)==bytes([58]),'re-probe: CONSOLE: IN PHASE. NO FULL POWER!')
@@ -643,7 +644,7 @@ def main():
             ok(peek(0xAD,1)==b'\0','keys typed during every load were discarded (lockout checked after each door)')
             cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
-            ok(len(jingle_cycles)>=2 and max(jingle_cycles)<250000,'%d blocking-jingle frames (at pauses only), slowest %d cycles'%(len(jingle_cycles),max(jingle_cycles)))
+            ok(len(jingle_cycles)>=2 and max(jingle_cycles)<1500000,'%d stinger frames (story beats only), slowest %d cycles'%(len(jingle_cycles),max(jingle_cycles)))
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))
             print('EXACT PAGE CHECKS',checks,'BOTH PAGES, 8192 bytes each',flush=True)
         finally:

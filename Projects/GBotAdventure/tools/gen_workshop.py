@@ -245,12 +245,12 @@ MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
            2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64]}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
-# 1 buzz, 2 chime, 6 lock chord, 7 door-open jingle; +128 = blocking jingle
-# (only on messages that come with a pause: here the first dialogue line).
-SFX_BUZZ,SFX_CHIME,SFX_CHORD,SFX_OPEN,SFX_ONLINE=1,2,6,7,128+9
+# 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door
+# unlocked, 9 console online fanfare, 12 the reveal cut off at IT RUNS AGAIN-.
+SFX_BUZZ,SFX_CHIME,SFX_CHORD,SFX_OPEN,SFX_ONLINE,SFX_CUTOFF=1,2,6,128+7,128+9,128+12
 MSG_SFX={5:SFX_BUZZ,7:SFX_BUZZ,10:SFX_BUZZ,11:SFX_BUZZ,12:SFX_BUZZ,15:SFX_BUZZ,
          21:SFX_BUZZ,24:SFX_BUZZ,28:SFX_BUZZ,29:SFX_BUZZ,47:SFX_BUZZ,48:SFX_BUZZ,
-         14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE}
+         14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE,56:SFX_CUTOFF}
 # Door status line by destination room (workshop, power, security, lab).
 ENTER_MSG=(59,60,61,62)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56

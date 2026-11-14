@@ -20,6 +20,24 @@ SFX_CRACKLE=8
 SFX_ONLINE=9
 SFX_RISE=10
 SFX_HUM=11
+SFX_CUTOFF=12                  ; "IT RUNS AGAIN-": the reveal, cut off mid-note
+SFX_MOTIF0=13                  ; room motifs 13-16 (workshop, power, security, lab)
+; Note half-periods: ~18,500 / f passes.
+NC4=71
+NE4=56
+NG4=47
+NA4=42
+NB4=37
+NC5=35
+ND5=32
+NE5=28
+NFS5=25
+NG5=24
+NGS5=22
+NA5=21
+NC6=18
+NE6=14
+NG6=12
 UNIT_PASSES=110                ; 110 x 27 cycles ~ the 3,005-cycle throttle
 CRACKLE_GAP=160                ; frames (~12 s) between scientist crackles
 
@@ -230,9 +248,11 @@ sfx_next:
 .assert >sfx_skip = >(sfx_pass+4), error, "sfx loop branch crosses a page"
 
 sfxlo:  .byte <fx_buzz,<fx_chime,<fx_warble,<fx_click,<fx_guard,<fx_chord
-        .byte <fx_open,<fx_crackle,<fx_online,<fx_rise,<fx_hum
+        .byte <fx_open,<fx_crackle,<fx_online,<fx_rise,<fx_hum,<fx_cutoff
+        .byte <tune_workshop,<tune_power,<tune_security,<tune_lab
 sfxhi:  .byte >fx_buzz,>fx_chime,>fx_warble,>fx_click,>fx_guard,>fx_chord
-        .byte >fx_open,>fx_crackle,>fx_online,>fx_rise,>fx_hum
+        .byte >fx_open,>fx_crackle,>fx_online,>fx_rise,>fx_hum,>fx_cutoff
+        .byte >tune_workshop,>tune_power,>tune_security,>tune_lab
 ; Notes: half-period, units (~3 ms each; in the slot one unit per frame).
 fx_buzz:    .byte 24,1, 30,1, 24,1, 30,1, 0,0
 fx_chime:   .byte 7,1, 5,1, 4,1, 4,1, 0,0
@@ -240,8 +260,72 @@ fx_warble:  .byte 11,1, 7,1, 11,1, 7,1, 11,1, 0,0
 fx_click:   .byte 40,1, 0,0
 fx_guard:   .byte 12,2, 0,1, 18,2, 0,1, 12,1, 0,0
 fx_chord:   .byte 13,1, 10,1, 8,1, 6,2, 0,0
-fx_open:    .byte 16,2, 12,2, 9,2, 6,3, 0,0
+; Lab door unlocked (blocking, ~0.4 s: the whole room holds for it).
+fx_open:    .byte 60,6, 0,10, NE5,18, NG5,18, NC6,18, NE6,60, 0,0
 fx_crackle: .byte 3,1, 0,1, 8,1, 2,1, 0,0
-fx_online:  .byte 60,8, 30,4, 13,2, 10,2, 8,2, 6,5, 0,0
-fx_rise:    .byte 17,4, 13,4, 11,4, 8,8, 0,0
+; Console in phase: power hum, then a fanfare (~1.1 s; dialogue starts).
+fx_online:  .byte NC4,30, NG4,30, 0,10
+            .byte NC5,24, 0,6, NC5,12, 0,4, NC5,12, 0,4, NG5,60, 0,10
+            .byte NE5,30, 0,4, NG5,30, 0,4, NC6,110, 0,0
+; Workbench repaired: "fixed it!" (~0.7 s, G-Bot is still holding).
+fx_rise:    .byte NG5,20, 0,4, NC6,20, 0,4, NE6,30, 0,8
+            .byte NC6,16, 0,4, NE6,30, 0,4, NG6,100, 0,0
 fx_hum:     .byte 70,6, 60,6, 35,6, 0,0
+; "IT RUNS AGAIN-": a slow climb that is cut off mid-note by a crackle.
+fx_cutoff:  .byte NA4,40, 0,6, NC5,40, 0,6, NE5,40, 0,6, NA5,40, 0,6
+            .byte NC6,60, 3,2, 0,1, 8,1, 2,2, 0,0
+; Room motifs (~0.4-0.5 s), earnest and a little playful.
+tune_workshop:                 ; tinkering: up the C chord and a hop
+            .byte NC5,26, 0,4, NE5,26, 0,4, NG5,26, 0,4, NE5,18, 0,4, NC6,36, 0,0
+tune_power: .byte NG4,28, 0,4, NB4,28, 0,4, ND5,28, 0,4, NG5,50, 0,0   ; warming up
+tune_security:                 ; tiptoe past the guard
+            .byte NE5,14, 0,14, NE5,14, 0,10, NG5,24, 0,8, NE5,14, 0,6, ND5,40, 0,0
+tune_lab:   .byte NC5,24, 0,3, ND5,24, 0,3, NE5,24, 0,3, NFS5,24, 0,3, NGS5,42, 0,0 ; wonder
+
+; A door: maybe a motif for the room being entered. Always on the first-ever
+; entry, otherwise 1 in 2; half the time the room's own motif, otherwise any
+; of the four. Played (whole, before the read) in place of the door chirp and
+; the motor spin-up wait. Sets TUNED when one played. Off: none (the room
+; still counts as visited).
+room_tune:
+        lda #0
+        sta TUNED
+        lda SEED               ; 8-bit LFSR (x^8+x^4+x^3+x^2+1), mixed with the
+        bne :+                 ; frame counter: the player's timing decides
+        lda #$5A
+:       asl a
+        bcc :+
+        eor #$1D
+:       sta SEED
+        eor TICKS
+        sta TUNERND
+        ldx NEXTROOM
+        lda roombit,x
+        bit VISITED
+        php
+        ora VISITED
+        sta VISITED
+        plp
+        beq @play              ; first time in: always
+        lda TUNERND
+        bpl @play              ; 1 in 2: none
+        rts
+@play:  lda TUNERND
+        and #$40
+        beq :+                 ; the room's own...
+        lda TUNERND
+        and #3                 ; ...or any of the four
+        tax
+:       txa
+; Play motif A (0-3) now. Off: nothing.
+play_motif:
+        ldx SOUNDOFF
+        bne @rts
+        sta TUNELAST
+        inc TUNES
+        inc TUNED
+        clc
+        adc #SFX_MOTIF0
+        jmp sfx_jingle
+@rts:   rts
+roombit:    .byte 1,2,4,8
