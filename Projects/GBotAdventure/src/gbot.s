@@ -93,6 +93,18 @@ HDR=$B0                       ; stamps: the variant's header (count, lows, highs
 LOP=$B2                       ;   -> its stamp address lows
 HIP=$B4                       ;   -> and highs
 VARIANT=$B6                   ; transition: room, or LITVARIANT (its aux sectors)
+SOUNDOFF=$B7                  ; sound effects: 0 on, 1 off (M toggles)
+SFXPTR=$B8                    ;   -> next note of the playing effect
+SFXLEFT=$BA                   ;   frames (units) left of the current note; 0 idle
+SFXPER=$BB                    ;   current note: half-period in loop passes, 0 rest
+SFXNEXT=$BC                   ;   effect queued behind the playing one
+SFXMSG=$BD                    ;   last message that was given its sound
+CRACKT=$BE                    ;   frames until the scientist may crackle again
+SPKCNT=$BF                    ;   16-bit count of speaker clicks (test visibility)
+JINGLES=$C1                   ;   blocking jingles played (test visibility)
+TOGV=$C2                      ;   clicks in the last tone unit
+TCNT=$C3                      ;   passes to the next click
+SFXLAST=$C4                   ;   last effect started (test visibility)
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -132,6 +144,10 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
+        ldx #SFXLAST-SOUNDOFF
+@sfxz:  sta SOUNDOFF,x
+        dex
+        bpl @sfxz
         lda #GXMIN
         sta GX
         ; ACTLOADED=0: boot read the workshop's aux track (its message bank
@@ -219,9 +235,8 @@ main:   lda PAGE
         inc TICKS
         bne :+
         inc TICKS+1
-:       lda #32
-        jsr wait               ; small fixed throttle; no IIe-only VBL dependency
-        jmp main
+:       jsr sfx_frame          ; small fixed throttle (~3,000 cycles; no IIe-only
+        jmp main               ; VBL dependency), spent playing any sound effect
 
 keyboard:
         lda LOCKOUT            ; just through a door: drop anything typed
@@ -235,7 +250,10 @@ keyboard:
         rts
 :
         bit $C010
-        ldy ROOM
+        jsr sound_key          ; M: sound on/off (C=1 when it was M)
+        bcc :+
+@used:  rts
+:       ldy ROOM
         ldx jobx,y
         ldy REPAIR,x
         cpy #2
@@ -246,7 +264,7 @@ keyboard:
         cpy #3
         bne :+
         jsr labkeys            ; console tuning / dialogue; C=1 key used
-        bcs @done
+        bcs @used
         ldy ROOM               ; (labkeys keeps A and X otherwise)
         ldx jobx,y
 :        cmp #$1B
@@ -308,6 +326,8 @@ keyboard:
         rts
 @probe: lda PROBE
         bne @done
+        lda #SFX_WARBLE        ; the scan (any buzz or chime follows it)
+        jsr sfx_start
         jsr probe_contact
         lda #8
         sta PROBE
@@ -400,7 +420,9 @@ labkeys:
         cmp #TUNE_LAST
         beq @used
         inc TUNEPOS
-@moved: lda #0
+@moved: lda #SFX_CLICK
+        jsr sfx_start
+        lda #0
         sta FEEDBACK
         sec
         rts
@@ -700,6 +722,8 @@ transition:
         beq :+
         lda #0
         sta POWERUP
+        lda #SFX_HUM           ; the room powers up (inside the reload pause)
+        jsr sfx_jingle
         lda #18                ; POWER RESTORED - WEST DOOR OPEN
         sta MESSAGE
         lda #96
@@ -709,7 +733,9 @@ transition:
         bne :+
         lda GSTATE
         bne :+
-        lda #1                 ; first visit: the guard is still booting
+        lda #SFX_GUARD         ; first visit: the guard is still booting
+        jsr sfx_start
+        lda #1
         sta GSTATE
         lda #40
         sta GTIMER
@@ -1187,6 +1213,10 @@ st_bit: .byte 1,2,4,8,16,32,64
         .segment "CODE"
 ; A rising chirp on the speaker, ~22 ms: the door opens.
 door_sound:
+        lda SOUNDOFF
+        bne @off
+        lda #$60-$18           ; its clicks, for the speaker count
+        jsr spk_add
         ldy #$60
 @tone:  lda $C030
         tya
@@ -1196,7 +1226,7 @@ door_sound:
         dey
         cpy #$18
         bne @tone
-        rts
+@off:   rts
 ; Status rows 177-181 of the canonical room -> both HGR pages.
 copy_status:
         ldx #177
@@ -1258,7 +1288,10 @@ scientist:
         ldy #0
 :       sty SCSPOT
 @set:   stx SCPHASE
-        lda phasetime,x
+        cpx #1
+        bne :+
+        jsr sfx_crackle        ; flickering in (keeps X)
+:       lda phasetime,x
         sta SCTIMER
 sci_show:
         ldx SCSPOT
@@ -1538,7 +1571,11 @@ interaction:
         sta PROBE
         sta FEEDBACK
         lda ROOM
-        cmp #1
+        bne :+
+        lda #SFX_RISE          ; workbench fixed (G-Bot is still holding)
+        jsr sfx_jingle
+        lda ROOM
+:       cmp #1
         bne @not_busy
         lda #2                 ; fuse fitted: reload the room, now lit
         sta FUSE
@@ -1673,6 +1710,8 @@ interaction:
         beq @patch
         sta LASTMSG
         jsr draw_status
+        lda MESSAGE
+        jsr msg_sfx
 @patch:
         ; Mutable canonical background is the sole restoration source.
         lda ROOM
@@ -2424,6 +2463,7 @@ carry_table:
 .endrepeat
 code_end:
         .segment "LCHI"
+        .include "sfx.s"
 lchi_end:
 .assert lchi_end <= $FFFA, lderror, "LC code/tables overflow into the vectors"
         .segment "CODE"
