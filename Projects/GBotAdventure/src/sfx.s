@@ -21,7 +21,12 @@ SFX_ONLINE=9
 SFX_RISE=10
 SFX_HUM=11
 SFX_CUTOFF=12                  ; "IT RUNS AGAIN-": the reveal, cut off mid-note
-SFX_MOTIF0=13                  ; room motifs 13-16 (workshop, power, security, lab)
+SFX_MOTIF0=13                  ; room motifs 13-17 (workshop, power, security, lab, substation)
+SFX_SURGE=18                   ; full power: the rising surge and a big chord
+SFX_ZAP=19                     ; a strobe crackle
+SFX_REWIND=20                  ; waking in the workshop again: a sad trombone
+SFX_UNSTICK=21                 ; the trickle lead: tick... tock... chime
+SFX_HOOK=22                    ; TO BE CONTINUED
 ; Note half-periods: ~18,500 / f passes.
 NC4=71
 NE4=56
@@ -249,10 +254,12 @@ sfx_next:
 
 sfxlo:  .byte <fx_buzz,<fx_chime,<fx_warble,<fx_click,<fx_guard,<fx_chord
         .byte <fx_open,<fx_crackle,<fx_online,<fx_rise,<fx_hum,<fx_cutoff
-        .byte <tune_workshop,<tune_power,<tune_security,<tune_lab
+        .byte <tune_workshop,<tune_power,<tune_security,<tune_lab,<tune_sub
+        .byte <fx_surge,<fx_zap,<fx_rewind,<fx_unstick,<fx_hook
 sfxhi:  .byte >fx_buzz,>fx_chime,>fx_warble,>fx_click,>fx_guard,>fx_chord
         .byte >fx_open,>fx_crackle,>fx_online,>fx_rise,>fx_hum,>fx_cutoff
-        .byte >tune_workshop,>tune_power,>tune_security,>tune_lab
+        .byte >tune_workshop,>tune_power,>tune_security,>tune_lab,>tune_sub
+        .byte >fx_surge,>fx_zap,>fx_rewind,>fx_unstick,>fx_hook
 ; Notes: half-period, units (~3 ms each; in the slot one unit per frame).
 fx_buzz:    .byte 24,1, 30,1, 24,1, 30,1, 0,0
 fx_chime:   .byte 7,1, 5,1, 4,1, 4,1, 0,0
@@ -290,6 +297,15 @@ tune_lab:   .byte NC5,24, 0,3, ND5,24, 0,3, NE5,24, 0,3, NFS5,24, 0,3, NGS5,42, 
 room_tune:
         lda #0
         sta TUNED
+        lda WAKE               ; waking from a rerun: the rewind, not a motif
+        beq :+
+        lda SOUNDOFF
+        bne @rts
+        lda #SFX_REWIND
+        jsr sfx_jingle
+        inc TUNED
+@rts:   rts
+:
         lda SEED               ; 8-bit LFSR (x^8+x^4+x^3+x^2+1), mixed with the
         bne :+                 ; frame counter: the player's timing decides
         lda #$5A
@@ -328,4 +344,15 @@ play_motif:
         adc #SFX_MOTIF0
         jmp sfx_jingle
 @rts:   rts
-roombit:    .byte 1,2,4,8
+roombit:    .byte 1,2,4,8,16
+tune_sub:   .byte NG4,20, 0,4, NG4,20, 0,4, NC5,20, 0,4, NB4,20, 0,4, NG4,46, 0,0  ; the big switch hums
+; Full power: a whine climbing to a big chord (~0.45 s).
+fx_surge:   .byte 60,2, 54,2, 48,2, 42,2, 37,2, 32,2, 28,2, 24,2, 21,2, 18,2, 15,2, 13,2, 11,2, 9,2
+            .byte NC5,12, NE5,12, NG5,12, NC6,60, 0,0
+fx_zap:     .byte 3,1, 9,1, 2,1, 6,1, 0,0
+; Waking in the workshop again: wah, wah, wah, waaah (~0.6 s).
+fx_rewind:  .byte NA4,36, 0,6, 44,36, 0,6, NG4,36, 0,6, 50,24, 52,6, 50,6, 52,6, 50,6, 52,6, 50,20, 0,0
+; The trickle lead: the ring ticks once, then a little chime of hope (~0.6 s).
+fx_unstick: .byte 3,2, 0,40, 4,2, 0,40, NC6,20, NE6,20, NG6,60, 0,0
+; TO BE CONTINUED: a hopeful, unfinished phrase (~0.8 s).
+fx_hook:    .byte NC5,24, 0,4, NE5,24, 0,4, NG5,24, 0,4, NA5,40, 0,8, NG5,24, 0,4, ND5,90, 0,0

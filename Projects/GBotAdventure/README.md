@@ -2,11 +2,13 @@
 
 ![The console is back in phase and the scientist can finally hold still long enough to talk to G-Bot, captured from the Apple IIe emulator's actual HGR page](screenshots/lab_talk_enhanced.png)
 
-**Sixth playable milestone: the first story beat.** Fix the workshop, find the
+**Seventh playable milestone: the big switch.** Fix the workshop, find the
 fuse, light the power room, slip past the security room's guard bot, unlock the
 lab, and tune the time chamber's drifting console back into phase, so the
 flickering scientist can finally hold still long enough to talk to G-Bot.
-Four connected rooms.
+She tells him not to restore full power. Then the **substation** opens, with
+the main breaker in it, and G-Bot gets to choose: **RESTORE FULL POWER? Y/N**.
+Five connected rooms.
 The official title is **G-Bot: After Hours**; the stable project folder remains
 `Projects/GBotAdventure`.
 
@@ -33,6 +35,16 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   arrival. Mashing a key during the load can no longer walk him back out of
   the door. A room change now takes **1.15–1.32 s**; it used to take 1.75–2.78 s.
 
+- **Twist two: the main breaker.** Once the scientist has been cut off, the
+  power room's new east door opens into the **SUBSTATION** (its clock says
+  11:59). Probing the **MAIN BREAKER** asks **RESTORE FULL POWER?  Y YES / N NO**.
+  **Y** flips it: a surge, the room strobes in negative, a white-out, and the
+  night **reruns**. G-Bot wakes in the workshop at 12:15 again
+  (**G-BOT: ...THAT WAS A BAD IDEA. AGAIN.**). The machines remember him, so
+  his repairs stay done, but the console drifts, the guard reboots, and
+  everyone notices the loop count going up. **N** listens to her: G-Bot takes
+  the **trickle lead** instead, plugs it into the time chamber, and the lab
+  clock moves for the first time: **TO BE CONTINUED**. See the walkthrough.
 - **A slim HUD.** The big in-game title band is gone. A one-row strip under each
   room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
   (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
@@ -104,17 +116,17 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   give a short clue, and some lines run on into a second one. The bay recognizes
   G-Bot. See the walkthrough below.
 - Every door works both ways, and the repair, fuse, power and lab-door states are
-  kept as G-Bot moves between all four rooms.
+  kept as G-Bot moves between all five rooms.
 - The original robot size, readable face, walking, blink and probe pose remain intact.
 
-This is a **four-room prototype**, not the finished adventure. There is no
-combat, lives, saves or story choice in this build yet. The scientist has said
-her piece: what G-Bot does about full power is the next chapter.
+This is a **five-room prototype**, not the finished adventure. There is no
+combat, lives or saves. There is one story choice, and its good branch stops
+at a **TO BE CONTINUED** hook.
 
 ## Play the included disk
 
 The self-booting [disk/gbot-after-hours.dsk](disk/gbot-after-hours.dsk) needs no build
-step. Target: **Apple II+ or IIe, 48 KB, Disk II**, stock NMOS 6502 instructions.
+step. Target: **Apple II+ or IIe, 64 KB (a II+ needs a language card), Disk II**, stock NMOS 6502 instructions.
 
 Close MAME before pulling disk updates. With the usual two PowerShell tabs:
 
@@ -129,7 +141,7 @@ git pull
 ```
 
 For II+, use `apple2p` instead of `apple2e`. In AppleWin, insert this `.dsk` in
-Drive 1 and boot an Apple II+/IIe with at least 48 KB. The disk is a raw boot disk,
+Drive 1 and boot an Apple II+/IIe with 64 KB. The disk is a raw boot disk,
 not a DOS filesystem. The program never writes to it. Keep the disk in drive 1
 while playing: each room change reads that room from the disk.
 
@@ -144,7 +156,8 @@ while playing: each room change reads that room from the disk.
 | Space | Extend probe; inspect the workbench, locker, breaker panel, security desk, or anything in the lab |
 | R | Reconnect the loose lead / fit the fuse / start tuning and lock a phase at the lab console |
 | A / D (while tuning) | Move the phase cursor left / right (G-Bot stays put) |
-| Escape | Cancel inspection or tuning (walking away from an inspection also cancels) |
+| Y / N | At the main breaker's prompt: restore full power, or leave it off |
+| Escape | Cancel inspection, tuning or the breaker prompt (walking away also cancels) |
 | M | Sound effects on / off (shows **SOUND ON** / **SOUND OFF** briefly; S is taken by walking) |
 
 ### Sound
@@ -170,12 +183,17 @@ play only where the game already pauses.
 | Hum + fanfare | the console coming into phase as she starts to talk | ~1.1 s, blocking |
 | Unlock stinger | ...AND THE LAB DOOR CLICKS OPEN (the whole room, guard included, holds for it) | ~0.4 s, blocking |
 | Cut-off reveal | IT RUNS AGAIN- : a slow climb cut off mid-note by a crackle | ~0.75 s, blocking |
+| Surge + zaps | **Y** at the breaker: a rising surge, then a zap on each negative flash, then the chord | ~2 s with the strobe, blocking |
+| Rewind | waking up in the workshop after a rerun (a sad slide down, in place of the motif) | during the door |
+| Unstick | TRICKLE LEAD IN. THE RING TICKS ONCE. | blocking |
+| Hook | TO BE CONTINUED | blocking |
 | Door chirp | every door with no room tune | ~22 ms, during the door |
 | Room motif | entering a room: see below | ~0.45 s, during the door |
 
-**Room tunes.** Entering a room may play one of four short motifs: the
+**Room tunes.** Entering a room may play one of five short motifs: the
 workshop's tinkering hop up the C chord, the power room's warming-up climb,
-security's tiptoe past the guard, and the lab's whole-tone wonder. The
+security's tiptoe past the guard, the lab's whole-tone wonder, and the
+substation's slow, wary G-G-C-B-G. The
 first-ever entry to a room always plays one (the workshop's plays at boot);
 after that it's a coin flip, and a played motif is the room's own half the
 time, otherwise any of the four. The coin is an 8-bit LFSR mixed with the frame
@@ -325,6 +343,67 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    **LAB CLOCK SAYS 6:02. NOBODY AGREES.** Afterwards the scientist goes back
    to flickering around the lab.
 
+### The substation and the big switch
+
+5. With the console in phase, go back to the **power room** (lit). Its new
+   **east door** is low on the right wall, under the generator skid. Before
+   the scientist has spoken it says **SUBSTATION SEALED - NEEDS LAB OK**.
+   Walk east through it: **ENTERING SUBSTATION...**, then
+   **SUBSTATION: THE BIG SWITCH**. The room clock says **11:59**.
+6. The **MAIN BREAKER** cabinet stands centre-back on a striped plinth, its
+   knife switch hanging at **OFF**. On the right, a coiled **trickle lead** hangs on a
+   hook beside a transformer with a sign: **DO NOT RERUN**. The west door leads
+   back to the power room.
+7. Walk up to the cabinet: **MAIN BREAKER: SPACE TO PROBE**. Press **Space**:
+   **RESTORE FULL POWER?  Y YES / N NO**. **Esc** or walking away cancels;
+   other keys don't answer.
+
+**Y, restore full power:**
+- **FULL POWER! HERE WE GO AGAIN-**, a surge, then the room strobes four
+  times in negative with a zap each time, a white flash and a chord, then black.
+- **G-BOT REBOOTING... 12:15 AGAIN**: he wakes facing you in the middle of
+  the workshop, with a sad rewind instead of a motif, and says
+  **G-BOT: ...THAT WAS A BAD IDEA. AGAIN.** (from the second rerun on:
+  **G-BOT: ...STILL A BAD IDEA. AGAIN.**).
+- **The machines remember G-Bot:** the workbench, the fuse, the lit power
+  room and the lab door stay fixed. The night itself starts over: the lab
+  console drifts again, the guard reboots, the trickle lead is back on its
+  hook, and the substation is sealed until she has been heard again.
+- Everyone counts. The console now says **CONSOLE: LOOP 4,818. PHASE DRIFT!**
+  (then **CONSOLE: LOOP 4,8??. YOU AGAIN?!**). Tune it again and she opens
+  with **SCIENTIST: G-BOT! WAIT. AGAIN?**, **YOU DID IT AGAIN, DIDN'T YOU?**,
+  **FULL POWER JUST RERUNS THE NIGHT.**, then her old warning, cut off again.
+  After two or more reruns she starts with **SCIENTIST: AGAIN?! STOP FLIPPING IT!**
+  The breaker can be flipped as often as you like.
+
+**N, leave it off:**
+- **G-BOT: NO. SHE SAID NO FULL POWER.**, then
+  **...BUT THIS TRICKLE LEAD MIGHT HELP.** and
+  **NEW TASK: TRICKLE LEAD TO THE CHAMBER**. The HUD icon shows he is carrying
+  it. The substation then reads **BREAKER STAYS OFF. SHE WAS RIGHT.**
+- Back in the lab, at the time chamber: **CHAMBER: SPACE TO PLUG IN THE LEAD**.
+  Press **Space**: **TRICKLE LEAD IN. THE RING TICKS ONCE.**, then
+  **LAB CLOCK: 6:02... 6:03! IT MOVED!**,
+  **SCIENTIST: YOU LISTENED! ONE MINUTE!**,
+  **ONLY YOU CAN CARRY TIME, G-BOT.** and
+  **TO BE CONTINUED: ONE MINUTE AT A TIME**.
+- Afterwards the console reads **CONSOLE: LOOP HOLDS. 6:03 AND TICKING** and
+  the chamber **CHAMBER: 6:03. NEXT MINUTE... SOON.** (Before the lead is
+  plugged in, the console reacts to the refusal with
+  **CONSOLE: BREAKER OFF. GOOD BOT.**)
+
+![The main breaker](screenshots/story_2_breaker_enhanced.png)
+
+![The choice](screenshots/story_3_choice_prompt_enhanced.png)
+
+![Restore: the negative flash](screenshots/story_7_restore_flash_enhanced.png)
+
+![Restore: waking up in the workshop again](screenshots/story_8_restore_wake_enhanced.png)
+
+![Refuse: a new task](screenshots/story_5_refuse_new_task_enhanced.png)
+
+![Refuse: TO BE CONTINUED](screenshots/story_6_to_be_continued_enhanced.png)
+
 ![The tuning meter: phase 1 of 3](screenshots/lab_tuning_enhanced.png)
 
 ![Cursor on target](screenshots/lab_phase_aligned_enhanced.png)
@@ -422,7 +501,7 @@ required native build inputs, not modern images loaded by the game.
   `$1140–$1167`: the status line being drawn (40 glyph numbers).
 - **Per-room aux track** at `$1000–$1FFF`. Every room has one 4 KB track, and a
   door reads only that track (workshop 7, read at boot; power room 8;
-  security 9; lab 10):
+  security 9; lab 10; substation 11):
   - `$1000`: the room's **stamp count, stamp address table and room script**,
     in the per-frame scratch area: the room is drawn right after the read,
     before that area is reused;
@@ -434,24 +513,29 @@ required native build inputs, not modern images loaded by the game.
     into the stamp pool.
 
   The engine finds a message by scanning the bank and centers it into the line
-  buffer. The banks: workshop 341 bytes (10 messages), power room 487 (16),
-  security 331 (11), lab 965 (30, including the dialogue and the tuning meter
-  template). The four **ENTERING ...** lines sit in the bank of each room that
+  buffer. The banks: workshop 364 bytes (12 messages), power room 510 (18),
+  security 354 (13), lab 988 (32, including the dialogue and the tuning meter
+  template), substation 71 (4). Every bank ends with a link (`$FE`) to the
+  shared **story bank** in the language card (`$F800`, 1,009 bytes, 29
+  messages: the breaker, both branches and the loop-aware lines), so those
+  lines show in any room. The first four **ENTERING ...** lines (the substation's is in the story bank) sit in the bank of each room that
   has a door to that room, so the bank being left always has the line it
   needs. A door reads the aux sectors that hold data: all of them for a stamp
-  room (workshop 0–9, power room 0–11, security 0–15, lab 0–14), only the bank
-  (4–6) for the lit power room.
+  room (workshop 0–9, power room 0–11, security 0–15, lab 0–14, substation
+  0–6), only the bank (4–6) for the lit power room.
 - **Stamp rooms** (script bytes / stamps / stamp bytes / total):
 
   | Room | Script | Stamps | Stamp bytes | Total | Where |
   | --- | --- | --- | --- | --- | --- |
   | workshop | 649 | 35 | 1,429 | 2,149 | aux 7 |
-  | power room, dark | 866 | 91 | 1,378 | 2,427 | aux 8 |
-  | power room, lit | 798 | 49 | 1,245 | 2,142 | pool |
+  | power room, dark | 878 | 97 | 1,470 | 2,543 | aux 8 |
+  | power room, lit | 802 | 50 | 1,306 | 2,209 | pool |
   | security | 734 | 31 | 1,253 | 2,050 | aux 9 |
   | lab | 573 | 31 | 2,088 | 2,724 | aux 10 + pool |
+  | substation | 539 | 31 | 1,096 | 1,698 | aux 11 |
 
-  All five pictures take 11,492 bytes, against 40,960 as full art. The
+  All six pictures take 13,373 bytes, against 49,152 as full art (the power
+  room grew its east door). The
   interpreter (`stamps`) draws a room in about 0.3 s; it maps language-card
   bank 1 while it draws, so it and everything it reads (fonts, row tables) sit
   at `$E000` or above. The workshop's online look and the security lab-door
@@ -460,7 +544,10 @@ required native build inputs, not modern images loaded by the game.
   `$8D` fuse, `$8F–$97` guard, `$9D` lab door, `$9E` which actor is loaded,
   `$9F–$A5` the current actor, `$A6–$A8` scientist, `$A9` console state,
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
-  `$AE` door scratch); `$26`, `$2B`, `$3C–$4E`: loader zero page.
+  `$AE` door scratch); `$B7–$CA` sound and tunes; `$CB` loops (reruns so
+  far), `$CC` breaker prompt, `$CD` refused, `$CE` trickle lead (0 on its
+  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun; `$26`, `$2B`,
+  `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
 - **Language card (16 KB at `$D000–$FFFF`).** The boot reads the 12 KB of
   engine code and tables (tracks 1–3) to `$6000`, switches the card to *read
@@ -473,13 +560,15 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DEBF`: engine code (free to `$DFFF`: **320 bytes**);
+  - bank 2 `$D000–$DF05`: engine code (free to `$DFFF`: **250 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$EFF3`: the stamp interpreter;
-  - `$EFF4–$F29A`: sound effects, tunes and their tables (679 bytes);
-  - `$F29B–$FFF9`: **free, 3,423 bytes**;
+  - `$EC80–$F58D`: the stamp interpreter, sound effects and tunes, and the
+    story code (`src/story.s`: the breaker, the rerun, the lead);
+  - `$F58E–$F7FF`: **free, 626 bytes**;
+  - `$F800–$FBF0`: the story bank (1,009 bytes);
+  - `$FBF1–$FFF9`: **free, 1,033 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
-    **428 bytes** free).
+    **361 bytes** free).
 
   Both the IIe and a II+ need 64 KB (a II+ with a 16K language card in slot
   0); Bobbin emulates the card on both.
@@ -487,13 +576,14 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **12,547
-  bytes** (8,192 at `$6000`, 320 + 3,423 in the language card, 428 in
-  the pool, 184 at `$BF48`). Before the language card the code area had 421
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,646
+  bytes** (8,192 at `$6000`, 250 + 626 + 1,033 in the language card, 361 in
+  the pool, 184 at `$BF48`). The substation story took 1,901 of them. Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
-  7 workshop aux, 8 power aux, 9 security aux, 10 lab aux** (`src/layout.inc`).
-  The complete disk is 143,360 bytes; **tracks 11–34 are free** (24 tracks).
+  7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
+  aux** (`src/layout.inc`). The complete disk is 143,360 bytes; **tracks
+  12–34 are free** (23 tracks).
   It needs a 64 KB machine (language card); no auxiliary RAM or expansion
   sound hardware.
 
@@ -511,6 +601,13 @@ and II+ give the same numbers):
 | security → power room (lit) | 1.93 s | 1.19 s | **0.72 s** | 1.09 s |
 | power room (lit) → workshop | 2.20 s | 1.26 s | **0.85 s** | 1.23 s |
 | fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |  |
+| power room (lit) → substation | | | **0.82 s** | 1.21 s |
+| substation → power room (lit) | | | **0.72 s** | 1.13 s |
+
+Adding the substation made no door slower: `MUTE=1 tests/door_timing.py`
+compares every door against main before it (`fedc2c8`) and allows one disk
+sector of rotation phase. The whole route differs by +2,448 cycles (2 ms)
+over nine doors.
 
 A room tune plays during the door in place of the chirp and the spin-up wait;
 `tests/tune_test.py` measures doors with and without one (a tune may add at
@@ -650,10 +747,25 @@ were adjusted to match: arrivals through the bottom doorways, the south walls,
 and the walks to the breaker panel and the locker. Frame-cost checks
 combine Bobbin's completed video-frame count and partial-frame cycle count.
 
+`tests/story_test.py` drives the main-breaker story with state pokes and real
+keys on both machines: the sealed east door and its message, the door
+opening once the console is in phase (its ENTERING line read from the story
+bank), the cabinet's solidity, the prompt, Esc, walking away and stray keys,
+then **N** (the lead, the new task, the chamber, every line to TO BE
+CONTINUED with its stingers, and the console and chamber afterwards), then
+**Y**: a breakpoint inside the strobe proves the shown page is the room's
+negative, then the wake in the workshop (door line, position, LOOPS=1, the
+first remark), repairs kept, the night reset, the substation sealed again,
+the guard rebooting, the loop-aware console and scientist lines, and a muted
+second rerun (no speaker clicks, LOOPS=2, the second-rerun lines). It saves
+`screenshots/story_*_<machine>.png`.
+
 ```sh
 # Build first, then (each run is bounded by the caller):
 timeout 2400 python3 Projects/GBotAdventure/tests/workshop_test.py enhanced
 timeout 2400 python3 Projects/GBotAdventure/tests/workshop_test.py plus
+timeout 1200 python3 Projects/GBotAdventure/tests/story_test.py enhanced
+MUTE=1 timeout 600 python3 Projects/GBotAdventure/tests/door_timing.py plus
 ```
 
 These tests run on Bobbin's IIe and II+ models. Native Windows PowerShell,
@@ -668,8 +780,8 @@ their launch/build instructions follow the workshop's existing native layout.
 [280 × 192 portrait](art/gbot-workshop-280.png)
 
 G-Bot is a curious repair robot, not a combat tank. The wider idea remains a
-room-to-room repair adventure: the workshop, power room, security room and lab
-now exist, with repairs that affect other rooms and gradually reveal the facility's
+room-to-room repair adventure: the workshop, power room, security room, lab
+and substation now exist, with repairs that affect other rooms and gradually reveal the facility's
 story. Room checkpoints rather than limited lives are the direction already used
 for the guard. Two disks remain an option **if the world earns them**, not a
 requirement to fill space.

@@ -41,11 +41,20 @@ with tempfile.TemporaryDirectory() as tmp:
         for _ in range(3):q({'cmd':'resume'});until_paused()
         poke=lambda a,d:q({'cmd':'poke','addr':a,'data':d})
         poke(0x83,[3]);poke(0x8D,[2]);poke(0x9D,[1])   # all doors open
-        names=['WORKSHOP','POWER ROOM','SECURITY','THE LAB']
+        if os.environ.get('MUTE'):poke(0xB7,[1])   # SOUNDOFF: no room motifs, pure door cost
+        names=['WORKSHOP','POWER ROOM','SECURITY','THE LAB','SUBSTATION']
         # First the dark power room (breaker off) both ways, then every door
         # with the power room lit.
         route=[(0,1,122,120,3),(0,0,122,48,0),
                (3,1,122,120,3),(3,2,224,104,1),(3,3,122,120,3),(3,2,122,48,0),(3,1,14,90,2),(3,0,122,48,0),(3,1,122,120,3)]
+        if 'SUB_TRACK' in (ROOT/'src/layout.inc').read_text():
+            poke(0xA9,[3])   # console in phase: the substation door opens
+            route+=[(3,4,14,90,2),(3,1,224,104,1)]
+        # Muted door costs of main at fedc2c8 (before the substation), same
+        # route; a door may differ by up to one disk sector of rotation phase.
+        BASE=[810799,840021,765307,966568,893664,980519,698840,838141,765353]
+        SLACK=16000
+        bad=[];times=[]
         room=0
         for panel,nxt,x,y,d in route:
             poke(0x8C,[panel])
@@ -64,6 +73,12 @@ with tempfile.TemporaryDirectory() as tmp:
             total=now(r)-t0
             if MARKS:print('   ',' '.join(marks),'(k cycles)')
             print('%-11s -> %-11s %8d cycles (%.2f s)'%(names[room],names[nxt],total,total/1020484)+(' first read at %d'%first if MARKS else ''),flush=True)
-            room=nxt
+            times.append(total);room=nxt
+        if os.environ.get('MUTE') and not MARKS:
+            for i,(t,base) in enumerate(zip(times,BASE)):
+                if t>base+SLACK:bad.append(i)
+            print('DOORS vs main: total %+d cycles over %d doors; worst %+d'%(sum(times[:9])-sum(BASE),len(BASE),max(t-b for t,b in zip(times,BASE))),flush=True)
+            print('RESULT: '+('FAIL doors slower: %s'%bad if bad else 'PASS no door slower than main'),flush=True)
+            if bad:raise SystemExit(1)
     finally:
         p.terminate();p.wait(timeout=5);os.close(m)

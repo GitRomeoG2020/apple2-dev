@@ -41,17 +41,18 @@ def main():
     from gen_power_room import room as power_art
     from gen_security import room as security_art
     from gen_lab import room as lab_art,frames as sci_art
-    arts={(0,False):room_art(False),(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art()}
+    from gen_substation import room as sub_art
+    arts={(0,False):room_art(False),(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art(),(4,False):sub_art()}
     guards=(ROOT/'art/guard-sprites.bin').read_bytes()
     scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
     from gen_banks import aux as aux_track
-    auxes={r:aux_track(r)[0] for r in range(4)}
+    auxes={r:aux_track(r)[0] for r in range(5)}
     # Doors read aux sectors first..end-1 per variant (rooms 0-3, 4 = the lit
     # power room): the bank, actor frames and any stamp script on the track.
     from gen_banks import build as build_banks
     auxsectors=build_banks()[6]
     from gen_workshop import ENTER_MSG
-    ROOMNAMES=('workshop','power','security','lab')
+    ROOMNAMES=('workshop','power','security','lab','substation')
     from gen_workshop import MESSAGES as TEXTS,MSG_ROOMS
     assert scis==sci_art()
     def background(repair=0,msg=0,where=0,fuse=0,lit=False,labopen=False):
@@ -99,7 +100,7 @@ def main():
             return background(repair,msg,where(),peek(0x8D,1)[0],lit(),peek(0x9D,1)[0]==1)
         def actor():return peek(0x9F,5)   # ACTX ACTY ACTH ACTSHOW ACTVIS
         def compose(bg,st):
-            if where()<2:return expected(bg,sprites,st[0],st[1],st[7])
+            if where() in (0,1,4):return expected(bg,sprites,st[0],st[1],st[7])
             ax,ay,ah,show,vis=actor()
             if not vis:return expected(bg,sprites,st[0],st[1],st[7])
             art,size=(guards,270) if show<6 else (scis,360)
@@ -209,7 +210,7 @@ def main():
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
                 door_times.setdefault((room_before[0],where()),[]).append(transitions[-1])
                 # ...and the room's aux track (message bank, actor frames) is in.
-                w=where();e=auxsectors[4 if lit() else w][1]*256
+                w=where();e=auxsectors[5 if lit() else w][1]*256
                 if peek(0x9E,1)[0]!=w or peek(0x1440,e-0x440)!=auxes[w][0x440:e]:
                     raise AssertionError('aux track for room %d not loaded'%w)
                 banks_seen.add(w)

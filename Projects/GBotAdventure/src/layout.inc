@@ -7,4 +7,5 @@ WORKAUX_TRACK=7               ; workshop aux (boot): messages, stamps
 POWERAUX_TRACK=8              ; power aux: messages, dark room stamps
 GUARD_TRACK=9                 ; security aux: messages, guard frames, stamps
 SCI_TRACK=10                  ; lab aux: messages, scientist frames, stamps
-FREE_TRACK=11                 ; 11-34 free
+SUB_TRACK=11                  ; substation aux: messages, stamps
+FREE_TRACK=12                 ; 12-34 free
