@@ -41,7 +41,7 @@ def main():
     from gen_power_room import room as power_art
     from gen_security import room as security_art
     from gen_lab import room as lab_art,frames as sci_art
-    arts={(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art()}
+    arts={(0,False):room_art(False),(1,False):power_art(False),(1,True):power_art(True),(2,False):security_art(False),(2,True):security_art(True),(3,False):lab_art()}
     guards=(ROOT/'art/guard-sprites.bin').read_bytes()
     scis=(ROOT/'art/scientist-sprites.bin').read_bytes()
     from gen_banks import aux as aux_track
@@ -230,7 +230,8 @@ def main():
             q({'cmd':'break_set','addr':mainpc})
             if not wait(lambda:q({'cmd':'cpu'})['paused'],40):raise RuntimeError('boot deadline exceeded')
             ok(peek(0x7F,1)==b'\xa5','self-boot to workshop on '+args.machine)
-            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 9) to $1440')
+            ok(peek(0x9E,1)==b'\0' and peek(0x1440,0xBC0)==auxes[0][0x440:],'boot read the workshop message bank (track 7) to $1440')
+            stamp_check('workshop',0,'workshop')
             ok(sum(len(v) for v in MSG_ROOMS.values())>=len(TEXTS),'every status message is in a room bank')
             verify();capture('idle')
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
@@ -313,7 +314,7 @@ def main():
             workshop_cycles=list(cycles)
             position(122,64);press('W',4);press('W',4);press('W',4)
             ok(where()==1 and tuple(state()[:3])==(122,120,3),'unlocked door: walking north into it streams in the power room')
-            ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (10) with its own status line')
+            ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (8) with its own status line')
             stamp_check('power',1,'power_dark')
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
@@ -397,7 +398,7 @@ def main():
             position(14,90,1);press('A',4)
             ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
             ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
-            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 11')
+            ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 9')
             # The security room has no room tracks: its aux track's stamp
             # library and script drew it, and it must be the original art.
             stamp_check('security',2,'security')
@@ -447,8 +448,8 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door: the lab is drawn from stamps (its aux track 12 and the pool)')
-            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 12')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door: the lab is drawn from stamps (its aux track 10 and the pool)')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 10')
             stamp_check('lab',3,'lab')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
@@ -560,7 +561,7 @@ def main():
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')
-            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 11')
+            ok(peek(0x9E,1)==b'\x02' and peek(0x1800,1620)==guards,'guard frames re-streamed from track 9')
             ok(peek(0x92,1)==b'\x02' and peek(0x9D,1)==b'\x01','guard still patrolling, lab door still open')
             frame();capture('from_lab','security')
             press('W',4);ok(where()==3,'security -> lab again')

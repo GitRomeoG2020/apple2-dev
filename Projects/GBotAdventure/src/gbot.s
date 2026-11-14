@@ -89,7 +89,6 @@ TUNEPOS=$AB
 TALK=$AC                      ; the scientist is talking: she holds still, G-Bot listens
 LOCKOUT=$AD                   ; frames after a door during which keys are dropped
 LOCK_FRAMES=4
-ROOMTRK=$AE                   ; transition: the new room's first track
 HDR=$B0                       ; stamps: the variant's header (count, lows, highs)
 LOP=$B2                       ;   -> its stamp address lows
 HIP=$B4                       ;   -> and highs
@@ -135,7 +134,14 @@ entry:  cld
         bpl @state
         lda #GXMIN
         sta GX
-        ; ACTLOADED=0: boot read the workshop's aux track (its message bank)
+        ; ACTLOADED=0: boot read the workshop's aux track (its message bank
+        ; and its stamps): draw the workshop into $8000 before the scratch
+        ; area that holds its script is used.
+        lda stamplo
+        sta HDR
+        lda stamphi
+        sta HDR+1
+        jsr stamps
         lda #126
         sta PX
         lda #104
@@ -672,44 +678,25 @@ transition:
         lda pagehigh,x
         sta RAWHI
         ldx ROOM               ; X = stamp variant: the room, or the lit
-        lda roomtrack,x        ; power room once its breaker is on
-        cpx #1
+        cpx #1                 ; power room once its breaker is on
         bne @load
         ldy PANEL
         cpy #3
         bne @load
-        ldx #LITVARIANT        ; (drawn from the pool: no room tracks)
-@load:  sta ROOMTRK
-        stx VARIANT
-        lda stamphi,x          ; a stamp-built variant: its script is on the
-        beq @full              ; room's aux track or in the bank-1 pool
-        sta HDR+1
+        ldx #LITVARIANT        ; (drawn from the pool)
+@load:  stx VARIANT
+        lda stamphi,x          ; every room is stamp-built: its script is on
+        sta HDR+1              ; its aux track or in the bank-1 pool
         lda stamplo,x
         sta HDR
         ldx ROOM
         cpx ACTLOADED          ; (same room: the fuse lit it; nothing to read,
         beq :+                 ;  the lit room's script is in the pool)
         stx ACTLOADED
-        jsr load_aux
+        jsr load_aux           ; the one disk read of a door
 :       jsr MOTOROFF
         jsr stamps
-        jmp @drawn
-@full:  ldx ROOM               ; this room's messages and actor frames too?
-        cpx ACTLOADED
-        beq @bgonly
-        stx ACTLOADED
-        lda CURPH              ; nearest first: every aux track lies above
-        lsr a                  ; its room, so coming down from higher
-        cmp ROOMTRK            ; tracks read the aux track first
-        bcc @bgfirst
-        jsr load_aux
-@bgonly:jsr load_bg
-        jmp @loaded
-@bgfirst:
-        jsr load_bg
-        jsr load_aux
-@loaded:jsr MOTOROFF
-@drawn: lda POWERUP
+        lda POWERUP
         beq :+
         lda #0
         sta POWERUP
@@ -743,9 +730,6 @@ transition:
         lda #LOCK_FRAMES       ; and a few frames more after arrival
         sta LOCKOUT
         rts
-load_bg:lda ROOMTRK
-        ldy #>room
-        jmp LOADROOM
 load_aux:
         ldx VARIANT            ; (the lit power room needs only the bank sectors)
         lda auxfirst,x         ; sectors 0-3 are scratch (or stamps); read to auxend-1
@@ -2374,7 +2358,6 @@ advance_buffers:
         .include "security.inc"
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
-roomtrack: .byte WORKSHOP_TRACK,0,0,0   ; full-art rooms
 auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
@@ -2446,22 +2429,21 @@ lchi_end:
         .segment "CODE"
 code_end2:
 .assert code_end2 <= $E000, lderror, "Bank-2 code overflows $DFFF"
-        .segment "BACKGROUND"
-room: .incbin "../art/workshop-room.hgr"
+room=$8000                     ; the current room's canonical background
         .segment "SPRITES"
 sprite_frames: .incbin "../art/gbot-sprites.bin"
 sprites_end:
 .assert sprites_end <= $C000, lderror, "Sprites overflow 48K RAM"
         .segment "POOL"        ; track 4: the stamp pool, read at boot into
         .incbin "../art/stamp-pool.bin"   ; language-card bank 1
-        .segment "SECAUX"      ; track 11: security messages, guard frames and
+        .segment "SECAUX"      ; track 9: security messages, guard frames and
                                ; the stamp library + script its room is drawn from
         .incbin "../art/aux-security.bin"
-        .segment "LABAUX"      ; track 12: lab messages, scientist frames and
+        .segment "LABAUX"      ; track 10: lab messages, scientist frames and
                                ; most of the lab's stamps (the rest: the pool)
         .incbin "../art/aux-lab.bin"
-        .segment "WORKAUX"     ; track 9: workshop messages (read at boot)
+        .segment "WORKAUX"     ; track 7: workshop messages and stamps (read at boot)
         .incbin "../art/aux-workshop.bin"
-        .segment "POWERAUX"    ; track 10: power room messages and the dark
+        .segment "POWERAUX"    ; track 8: power room messages and the dark
                                ; room's stamps
         .incbin "../art/aux-power.bin"

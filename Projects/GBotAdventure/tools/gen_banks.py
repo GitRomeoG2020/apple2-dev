@@ -28,6 +28,9 @@ VARIANTS=('workshop','power','security','lab','powerlit')
 def _security():
     from gen_stamps import security
     return security()
+def _workshop():
+    from gen_stamps import workshop
+    return workshop()
 def _lab():
     from gen_stamps import lab
     return lab()
@@ -36,8 +39,8 @@ def _power(on):
         from gen_stamps import power
         return power(on)
     return f
-# variant: (room, home, compiler). Rooms not listed are still full 8K art.
-STAMPED={'power':(1,'aux',_power(False)),'security':(2,'aux',_security),
+# variant: (room, home, compiler). Every room is stamp-built now.
+STAMPED={'workshop':(0,'aux',_workshop),'power':(1,'aux',_power(False)),'security':(2,'aux',_security),
          'lab':(3,'aux',_lab),'powerlit':(1,'pool',_power(True))}
 
 def entries(room):
