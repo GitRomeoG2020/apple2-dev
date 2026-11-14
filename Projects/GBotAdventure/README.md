@@ -12,16 +12,18 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 ## What's playable
 
-- **A stamp-built security room (trial).** The security room is no longer an
-  8 KB picture on disk. At the door, the engine draws it into `$8000` from a
-  **stamp library and a room script** stored on the room's own aux track
-  (2,050 bytes in all). The script's commands are text in the resident status
-  font, Pillow-exact lines (the floor perspective, the 22 hazard stripes as one
-  line plus a repeat, the door and desk edges), repeating byte rows, blocks
-  and stamps. The result is **byte-for-byte the same picture** as the old art,
-  so all gameplay is unchanged. Entering the security room now takes
-  **0.98–1.00 s** instead of 1.28–1.32 s, and the room's two disk tracks are free.
-  The other rooms are still full 8 KB art.
+- **Every room is stamp-built, and the game runs from the language card.**
+  No room is an 8 KB picture on disk any more. At each door the engine draws
+  the next room into `$8000` from a **room script and a stamp library**: text in
+  the resident status font, Pillow-exact lines (floor perspective, hazard
+  stripes), repeating byte rows, blocks and stamps. Each one rebuilds the old
+  art **byte for byte**, so gameplay is unchanged. Code and tables now live in
+  the 16 KB language card, and bank 1 holds a shared **stamp pool**. As a
+  result a door reads **one 4 KB track** (or less), every door takes
+  **0.72–0.98 s** (it was 0.98–1.32 s), fitting the fuse lights the power room
+  with no disk read at all, the disk uses tracks 0–10 (24 free), and about
+  **13 KB of RAM** is free (it was 421 bytes). The game needs 64 KB now: a IIe,
+  or a II+ with a language card.
 
 - **Doors answer at once.** The moment G-Bot steps into a doorway, the status
   line reads **ENTERING POWER ROOM...** (or **ENTERING WORKSHOP... / SECURITY... /
@@ -339,11 +341,13 @@ lookup tables, and every status-line message). `gen_power_room.py` authors the
 dark and lit power rooms (`art/power-room.hgr`, `art/power-room-lit.hgr`).
 `gen_security.py` authors the security room and the guard's six masked frames
 (`art/security-room.hgr`, `art/guard-sprites.bin`), plus `src/security.inc`
-(the lab-door lamp bytes). It is still the security room's source art:
-`gen_stamps.py` compiles it into the stamp library and room script (checking
-the result byte for byte), and `gen_banks.py` packs them onto the aux track.
-To go back to the full picture, restore the room tracks in `gbot.cfg` and the
-`SECURITY_TRACK` load. `gen_lab.py` authors the lab and the scientist's four
+(the lab-door lamp bytes). The room generators are still the source art for
+every room: `gen_stamps.py` compiles each room (the workshop as it boots, the
+dark and lit power room, security, the lab) into a stamp library and a room
+script, checking the result byte for byte, and `gen_banks.py` packs them onto
+the rooms' aux tracks and into the stamp pool (`art/stamp-pool.bin`), and writes
+`src/auxend.inc` (each variant's script address and aux sectors).
+`gen_lab.py` authors the lab and the scientist's four
 frames (`art/lab-room.hgr`, `art/scientist-sprites.bin`: solid and ghost, each
 for even and odd columns). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
@@ -361,153 +365,136 @@ required native build inputs, not modern images loaded by the game.
 
   The strip and the controls are baked into each room's background on disk, so
   they cost no RAM. No text-page switching or IIe-only video features.
-- `$0800–$0B0C`: read-only bootloader, **kept resident** as the room loader
+- `$0800–$0A8F`: read-only bootloader, **kept resident** as the room loader
   (`LOADROOM` at `$0805` reads two tracks, `LOADONE` at `$0808` sectors
-  `SFIRST..SEND-1` of one, `MOTOROFF` at `$080B`); `$0D60–$0D6F` sector flags,
-  `$0E00–$0EFF` decode tables built at boot. Raw sector data goes to the
-  **hidden** HGR page during a read (to HGR page 1 while booting).
-  No high-score sector, write routine or Rockfall runtime is carried over.
+  `SFIRST..SEND-1` of one, `MOTOROFF` at `$080B`), with a cycle-exact RAM copy
+  of the monitor's `WAIT` and the interrupt-vector stubs; `$0B96–$0BFF` the
+  nibble table; `$0C00–$0CFA` the one-time boot code (the boot ROM loads
+  sectors 0–4), afterwards the interpreter's text buffer (`$0C00–$0C27`);
+  `$0D60–$0D6F` sector flags, `$0E00–$0EFF` decode tables built at boot. Raw
+  sector data goes to the **hidden** HGR page during a read (to HGR page 1
+  while booting). No high-score sector, write routine or Rockfall runtime.
 - `$1000–$1133`: shifted sprite pixels; `$1200–$1333`: opacity;
   `$1400–$142B`: row palette phases (all three rebuilt every frame).
   `$1140–$1167`: the status line being drawn (40 glyph numbers).
-- **Per-room aux track** at `$1000–$1FFF`. Every room has one 4 KB track, read
-  with the room whenever G-Bot enters a different room:
-  - each aux track sits right beside its room on the disk, to keep the seek
-    short: **workshop** 7 (read at boot), **power room** 12, **security** 13
-    (its only track: it also carries the room's stamps and script),
-    **lab** 16;
+- **Per-room aux track** at `$1000–$1FFF`. Every room has one 4 KB track, and a
+  door reads only that track (workshop 7, read at boot; power room 8;
+  security 9; lab 10):
+  - `$1000`: the room's **stamp count, stamp address table and room script**,
+    in the per-frame scratch area: the room is drawn right after the read,
+    before that area is reused;
   - `$1440` holds that room's **message bank**: id, length, glyphs. Entries
     can continue after the actor frames; `$FF` ends the bank;
   - `$1800` holds the room's actor frames: the guard's 6 (1,620 bytes) or the
-    scientist's 4 (1,440 bytes).
+    scientist's 4 (1,440 bytes);
+  - the stamps fill every gap left (largest first), and any that do not fit go
+    into the stamp pool.
 
   The engine finds a message by scanning the bank and centers it into the line
-  buffer. The bank sizes are: workshop 317 bytes (9 messages), power room 443
-  (14), security 286 (9), lab 943 (29, including the dialogue and the tuning
-  meter template). The tuning meter itself is built in RAM from that template.
-  The four **ENTERING ...** lines sit in the bank of each room that has a door to
-  that room, so the bank being left always has the line it needs (workshop now
-  341 bytes, power room 487, security 331, lab 965). A door reads only the aux
-  sectors that hold data (4–5, 4–6, all of the security track, 4–13).
-- **Security's aux track** (`$1000–$1FFF`) also holds the stamp-built room:
-  at `$1000`, the stamp count, the stamp address table and the **734-byte room
-  script**. The 31 stamps (1,253 bytes) fill the gaps around the bank and the
-  guard frames. The script and table use the per-frame scratch area, so the
-  room is drawn once, right after the read, before that area is reused.
-  Free on the track afterwards: 95 bytes.
+  buffer. The banks: workshop 341 bytes (10 messages), power room 487 (16),
+  security 331 (11), lab 965 (30, including the dialogue and the tuning meter
+  template). The four **ENTERING ...** lines sit in the bank of each room that
+  has a door to that room, so the bank being left always has the line it
+  needs. A door reads the aux sectors that hold data: all of them for a stamp
+  room (workshop 0–9, power room 0–11, security 0–15, lab 0–14), only the bank
+  (4–6) for the lit power room.
+- **Stamp rooms** (script bytes / stamps / stamp bytes / total):
+
+  | Room | Script | Stamps | Stamp bytes | Total | Where |
+  | --- | --- | --- | --- | --- | --- |
+  | workshop | 649 | 35 | 1,429 | 2,149 | aux 7 |
+  | power room, dark | 866 | 91 | 1,378 | 2,427 | aux 8 |
+  | power room, lit | 798 | 49 | 1,245 | 2,142 | pool |
+  | security | 734 | 31 | 1,253 | 2,050 | aux 9 |
+  | lab | 573 | 31 | 2,088 | 2,724 | aux 10 + pool |
+
+  All five pictures take 11,492 bytes, against 40,960 as full art. The
+  interpreter (`stamps`) draws a room in about 0.3 s; it maps language-card
+  bank 1 while it draws, so it and everything it reads (fonts, row tables) sit
+  at `$E000` or above. The workshop's online look and the security lab-door
+  lamp are still patched on in RAM, as before.
 - `$50–$A8`: engine zero-page state/scratch (`$8A` room, `$8C` panel,
   `$8D` fuse, `$8F–$97` guard, `$9D` lab door, `$9E` which actor is loaded,
   `$9F–$A5` the current actor, `$A6–$A8` scientist, `$A9` console state,
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$26`, `$2B`, `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
-- **Language card (16 KB at `$D000–$FFFF`).** The boot reads the 8 KB of
-  engine code and tables (tracks 1–2) to `$6000`, switches the card to *read
+- **Language card (16 KB at `$D000–$FFFF`).** The boot reads the 12 KB of
+  engine code and tables (tracks 1–3) to `$6000`, switches the card to *read
   and write RAM, bank 2* (two reads of `$C083`) and copies them up to
-  `$D000–$EE7F`, where the game runs from then on: code `$D000–$E1DA`, lookup
-  tables and the 47-glyph status font `$E200–$EE7F`. The card stays mapped, so
-  the ROM is switched out for good and **nothing calls it**: the monitor's
-  `WAIT` has a cycle-exact RAM copy in the loader (`wait`), and the
-  NMI/RESET/IRQ vectors at `$FFFA–$FFFF` point into the loader, which maps the
-  ROM back in (`$C082`) and continues through the ROM's own vector (the game
-  runs with interrupts off). Free: `$EE80–$EFFF` (384 bytes) and `$E1DB–$E1FF`
-  (37) in bank 2's code area, all of `$F000–$FFF9` (4,090 bytes) and bank 1's
-  `$D000–$DFFF` (4,096). **`$6000–$7FFF` (8,192 bytes) is free main RAM.**
+  `$D000–$FFFF`, where the game runs from then on. It then reads the stamp pool
+  (track 4) to `$6000` and copies it into **bank 1** (`$C08B`). The card stays
+  mapped (bank 2) for the whole game, so the ROM is switched out for good and
+  **nothing calls it**: the monitor's `WAIT` has a cycle-exact RAM copy in the
+  loader (`wait`), and the NMI/RESET/IRQ vectors at `$FFFA–$FFFF` point into
+  the loader, which maps the ROM back in (`$C082`) and continues through the
+  ROM's own vector (the game runs with interrupts off). Only the stamp
+  interpreter switches to bank 1, and back, while it draws a room.
+  - bank 2 `$D000–$DE6E`: engine code (free to `$DFFF`: **401 bytes**);
+  - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
+  - `$EC80–$EFF3`: the stamp interpreter (free to `$EFFF`: 12 bytes);
+  - `$F000–$FFF9`: **free, 4,090 bytes**;
+  - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
+    **428 bytes** free).
+
   Both the IIe and a II+ need 64 KB (a II+ with a 16K language card in slot
-  0); Bobbin emulates the card on both. The stamp interpreter (`stamps`) cost
-  874 bytes, including a 96-byte unrolled clear of `$8000`. `$0C00–$0C27` is
-  the interpreter's text buffer.
+  0); Bobbin emulates the card on both.
 - `$8000–$9FFF`: the **current** room's canonical native background (8,192 bytes;
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
-  `$BF48–$BFFF`: 184 spare bytes. Free RAM in all: **about 17 KB** (8,192 at
-  `$6000`, 8,607 in the language card, 184 at `$BF48`); before, the code
-  area had 421 bytes free.
-- Disk: track 0 boot; tracks 1–6 the fixed 24 KB boot load (the workshop room is
-  tracks 3–4); **7 workshop aux, 8–9 dark power room, 10–11 lit power room,
-  12 power aux, 13 security (aux track with the stamp-built room), 14–15 lab,
-  16 lab aux**. The complete disk is 143,360 bytes; tracks 17–34 are free.
+  `$BF48–$BFFF`: 184 spare bytes.
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **13,307
+  bytes** (8,192 at `$6000`, 401 + 12 + 4,090 in the language card, 428 in
+  the pool, 184 at `$BF48`). Before the language card the code area had 421
+  bytes free.
+- Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
+  7 workshop aux, 8 power aux, 9 security aux, 10 lab aux** (`src/layout.inc`).
+  The complete disk is 143,360 bytes; **tracks 11–34 are free** (24 tracks).
   It needs a 64 KB machine (language card); no auxiliary RAM or expansion
   sound hardware.
 
 **Door timing.** Measured per door in Bobbin (`tests/door_timing.py`; the IIe
 and II+ give the same numbers):
 
-| Door | Before | After |
-| --- | --- | --- |
-| workshop → power room | 2.78 s | 1.17–1.32 s |
-| power room → security | 1.77 s | 1.28 s, stamp-built: **0.98 s** |
-| security → lab | 1.75 s | 1.26 s |
-| lab → security | 1.95 s | 1.32 s, stamp-built: **1.00 s** |
-| security → power room | 1.93 s | 1.20 s |
-| power room → workshop | 2.20 s | 1.26 s |
+| Door | First version | Full art (fast loader) | Stamp rooms |
+| --- | --- | --- | --- |
+| workshop → power room (dark) | 2.78 s | 1.17 s | **0.80 s** |
+| power room (dark) → workshop | 2.20 s | 1.27 s | **0.86 s** |
+| workshop → power room (lit) | 2.78 s | 1.31–1.32 s | **0.78 s** |
+| power room → security | 1.77 s | 0.98 s | **0.98 s** |
+| security → lab | 1.75 s | 1.26 s | **0.91 s** |
+| lab → security | 1.95 s | 1.00 s | **0.98 s** |
+| security → power room (lit) | 1.93 s | 1.19 s | **0.72 s** |
+| power room (lit) → workshop | 2.20 s | 1.26 s | **0.85 s** |
+| fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |
 
-(The two workshop → power room runs differ only in where the disk happened to be
-in its turn.) Where the time went:
+Where the time went:
 - the half-second pause in the workshop doorway is gone; the door slides open
   on one page only;
 - the drive motor starts as the door triggers, so it spins up while the
   status line and chirp go out, and it runs once per door instead of once per read;
 - seeks accelerate like DOS 3.3: 19, 11, 7.5, 6, then about 5.4 ms per
-  half-track. The nearer of a room's two tracks (room or aux) is read first;
+  half-track;
 - each track is read in about **one revolution instead of two**. Sectors are
   stored raw as they pass and decoded together afterwards with lookup tables.
   Decoding each one before the next used to miss the sector right behind it;
-- only the aux sectors that hold data are read;
+- a door reads one aux track (bank, actor frames, room script and stamps)
+  instead of two 8K room tracks plus the aux sectors; drawing the room from
+  stamps costs about 0.3 s of that time;
 - the room is copied to a page with an unrolled loop (about 9 cycles a byte,
   down from 16).
 
-The remaining ~1.2 s is mostly the disk itself: two 8K room tracks plus the
-aux sectors at 300 rpm, about 0.25 s of redrawing both pages, and the ~90 ms spin-up.
-
-**Why rooms load from disk.** Each HGR background is a full 8 KB and only one fits
-beside the two display pages, engine and sprites. Rather than compress rooms (and
-squeeze a decompressor plus a compressed workshop into the 1.4 KB left), a room
-change re-uses the boot loader, which is already resident: it spins up the drive,
-reads the next room's two tracks straight into `$8000`, and turns the motor off.
-Leaving the power room reloads the pristine workshop from tracks 3–4; the repair
-patches and status line are then re-applied from RAM state, so nothing is lost.
-Fitting the fuse simply reloads the power room from its lit tracks, and every
-later visit picks lit or dark from the panel state.
-This scales to more rooms (two tracks each) and keeps the art uncompressed and
-exact. The cost is a short pause at each door (measured below). The disk is
-only ever read.
-
-Each room has at most one moving "actor": the guard in the security room, the
-scientist in the lab. Both share one byte-aligned masked blitter (4 bytes wide;
-30 rows for the guard, 40 for the scientist). Her ghost frames have every other
-row fully transparent, so the flicker costs nothing extra and erases cleanly.
-
-Before drawing, only the **offscreen page's previous 7-byte × 44-line rectangle**
-(and the actor's previous 4-byte rectangle, at its own height and spot) is
-restored from the canonical room. The diagnostic strip and 52 changed visual
-bytes are then synchronized to that offscreen page before the sprites are drawn.
-With both old rectangles restored first, G-Bot and the actor are composited
-**back to front by where their feet are**, each masked over what the page already
-holds, so they can pass in front of each other without trails. The guard moves a
-whole byte (7 pixels) per step and needs no shifting. Each pose is stored for
-even and odd columns so its colors never flip. The next sprite is shifted in software and
-mask-composited, then the completed page is selected. Every horizontal position
-is even, preserving artifact color parity at all seven byte alignments. At an
-opaque edge, the sprite selects that byte's palette phase; the underlying room
-bytes are restored exactly when it moves away. The two display pages normally
-show successive animation states, not identical frames.
-
-Measured game ticks average approximately **74,190 cycles (~13.5 updates/second
-at 1 MHz)** over the whole test on both Bobbin models. The worst sampled tick was
-**91,876 cycles**, with G-Bot and an actor both on screen; the workshop and
-power room are unchanged at about 69,000–73,500. The reconnect and fuse fitting
-each last about 1.7 seconds. A room change (status line, chirp, disk spin-up,
-seek, room and aux reads, both pages rebuilt) takes **1.15–1.32 s**. It used to take up
-to 2.8 s; the door timing table above has the per-door numbers.
-The average tick is a little higher than before (72,540) mostly because the
-test now spends many more frames in the lab with both sprites on screen during
-the conversation. Fetching a status line from a bank costs a few hundred cycles,
-and only in the frame where the message changes.
-
-There is no IIe-only vertical-blank wait: the II+ uses the same bounded software
-loop. Page selection is not beam-synchronized, so a CRT can show a slight transition
-tear, but no partially erased sprite is deliberately displayed.
+**Why rooms are drawn from stamps.** Each HGR background is a full 8 KB and
+only one fits beside the two display pages and the sprites. The first versions
+streamed each room's two tracks into `$8000` at the door. With the engine in
+the language card, there is room for an interpreter, so each room is now a
+script of a few hundred bytes plus its stamps, read with the aux track the door
+needs anyway (or kept in the bank-1 pool). The room generators remain the
+source art, and the build and tests check every room byte for byte against
+it. Leaving the power room redraws the pristine workshop; the repair patches
+and status line are then re-applied from RAM state, so nothing is lost.
+Fitting the fuse redraws the power room lit from the pool, and every later
+visit picks lit or dark from the panel state. The disk is only ever read.
 
 ## Validation / screenshots
 
@@ -544,7 +531,7 @@ visuals on both pages, idempotent re-probing and movement afterward. It also che
 unchanged source sprites, resident loader preservation and an unchanged disk.
 
 The room tests check that the door is sealed before the repair; that walking
-into it afterwards streams in the power room byte-for-byte from tracks 8–9; all
+into it afterwards draws the power room byte-for-byte from its stamps; all
 four power-room walls (including the closed bottom edge beside the doorway), the
 generator front and side; the far probe, walking to the breaker panel with real
 controls, its prompt and **NO POWER - FIND FUSE**; that standing in the doorway
@@ -555,7 +542,7 @@ transition, so leftover robots or trails from the previous room would fail.
 This milestone's tests cover the sealed security door; the panel without a fuse
 (and R doing nothing); walking to the locker, the fuse pickup, the HUD icon and the
 empty locker afterwards; Escape, Space repeat and R at the panel; the fit and the
-lit room streamed from tracks 10–11; the lit room still lit after a trip to the
+lit room redrawn from the pool with no disk read; the lit room still lit after a trip to the
 workshop; the security door opening at its checkpoint; the guard rebooting,
 waking, and patrolling one byte at a time to both ends while the checkpoint stays
 safe; a touch sending G-Bot back; a timed crossing with real controls to the desk;
@@ -563,7 +550,7 @@ the desk probe and solidity; and round trips through all three rooms.
 
 The lab milestone adds: the lab door sealed before the desk (message and orange
 lamp bytes); the desk unlocking it (green lamp, run-on line); walking into the lab
-from tracks 14–15 with the scientist's frames streamed to `$1800` from its aux track (16);
+drawn from its stamps with the scientist's frames streamed to `$1800` from its aux track (10);
 250 frames of the flicker cycle (gone, flickering in, solid, flickering out) with
 both solid and ghost frames seen at more than one spot and G-Bot never moved; the
 consoles, chamber, bay and scientist prompts and probes, every run-on line, and
@@ -599,6 +586,14 @@ directions:
   after it ends;
 - it checks the aux sectors each door reads, and that no door takes more than
   1.7 million cycles.
+
+The stamp rooms add, for each of the five pictures (the workshop at boot, the
+dark power room, the lit one after the fuse, security, the lab): the script
+and stamps read back from the disk images rebuild the old art byte for byte,
+and the engine's own `$8000` equals the old art (status line aside). Each
+saves an old | new | red-difference sheet,
+`screenshots/<room>_stamps_vs_art_<machine>.png`. The whole run also keeps
+comparing both pages and `$8000` against the old art in every frame.
 
 The IIe run checked **3,072 frames** (166 checks), the II+ run **3,066** (165),
 with both full pages compared each time. The HUD-strip change moved every

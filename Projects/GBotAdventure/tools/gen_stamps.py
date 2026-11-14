@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Stamp-built SECURITY ROOM: compile the original art (gen_security.room) into
-a small stamp library plus a room script, which the engine runs at door time to
-draw the background into $8000 (see `stamps` in src/gbot.s).
+"""Stamp-built rooms: compile each room's original art (the gen_* generators)
+into a small stamp library plus a room script, which the engine runs at the
+door (and at boot, for the workshop) to draw the background into $8000 (see
+`stamps` in src/gbot.s). gen_banks.py places them on the aux tracks and in
+the bank-1 stamp pool.
 
 Script commands (all coordinates in HGR rows and byte columns):
   $00                          end
@@ -18,7 +20,7 @@ Library stamp: h, then per row one or more spans: column offset, length
 (bit 7 set: another span follows on this row), bytes. Length 0: empty row.
 Everything except text and lines writes final bytes, so the order of those is
 free; the compiler checks the result against the original art byte for byte.
-Run after gen_security.py. Standard library plus Pillow (for the source art).
+Run after the room generators. Standard library plus Pillow (for the source art).
 """
 from pathlib import Path
 import sys
