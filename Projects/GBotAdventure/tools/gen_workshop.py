@@ -237,10 +237,20 @@ MESSAGES=[
     'ENTERING POWER ROOM...',                 # 60  the disk read, from the
     'ENTERING SECURITY...',                   # 61  bank of the room being
     'ENTERING THE LAB...',                    # 62  left)
+    'SOUND ON',                               # 63 M toggles sound
+    'SOUND OFF',                              # 64
 ]
 # Which room's disk bank carries each message (status lines are per room).
-MSG_ROOMS={0:list(range(0,8))+[12,60],1:list(range(8,22))+[59,61],
-           2:list(range(22,31))+[60,62],3:[28]+list(range(31,59))+[61]}
+MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
+           2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64]}
+SOUND_MSG=63
+# Speaker effect a message plays when it first shows (src/sfx.s ids):
+# 1 buzz, 2 chime, 6 lock chord, 7 door-open jingle; +128 = blocking jingle
+# (only on messages that come with a pause: here the first dialogue line).
+SFX_BUZZ,SFX_CHIME,SFX_CHORD,SFX_OPEN,SFX_ONLINE=1,2,6,7,128+9
+MSG_SFX={5:SFX_BUZZ,7:SFX_BUZZ,10:SFX_BUZZ,11:SFX_BUZZ,12:SFX_BUZZ,15:SFX_BUZZ,
+         21:SFX_BUZZ,24:SFX_BUZZ,28:SFX_BUZZ,29:SFX_BUZZ,47:SFX_BUZZ,48:SFX_BUZZ,
+         14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE}
 # Door status line by destination room (workshop, power, security, lab).
 ENTER_MSG=(59,60,61,62)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
@@ -313,6 +323,7 @@ def interaction_art():
               'fonthi:','.byte '+','.join(f'>fontrow{r}' for r in range(5))]
     for r in range(5):
         lines += [f'fontrow{r}:','.byte '+','.join(str(message_pixels(ch)[r][19]) for ch in glyphs)]
+    lines += [f'SOUND_MSG={SOUND_MSG}',f'MSG_COUNT={len(messages)}','msgsfx:','.byte '+','.join(str(MSG_SFX.get(i,0)) for i in range(len(messages)))]
     lines += ['chain:','.byte '+','.join(str(CHAIN.get(i,0)) for i in range(len(messages)))]
     icon=fuse_icon()
     lines += ['iconl:','.byte '+','.join(str(r[0]) for r in icon),'iconr:','.byte '+','.join(str(r[1]) for r in icon)]

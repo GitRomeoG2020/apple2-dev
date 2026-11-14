@@ -179,8 +179,18 @@ def main():
             # at the arrival doorway and walk him straight back out.
             if first:q({'cmd':'keys','text':'S'})
         disk_reads=[0]   # loader entries seen so far
+        # Sound effects: SPKCNT ($BF) counts every speaker click the engine
+        # makes, JINGLES ($C1) the blocking jingles, SFXLAST ($C4) the last
+        # effect started (src/sfx.s ids).
+        FX=dict(buzz=1,chime=2,warble=3,click=4,guard=5,chord=6,open=7,crackle=8,online=9,rise=10,hum=11)
+        def spk():a,b=peek(0xBF,2);return a|b<<8
+        def jingles():return peek(0xC1,1)[0]
+        def fxlast():return peek(0xC4,1)[0]
+        def clicks(since):return (spk()-since)&0xFFFF
+        jingle_cycles=[]
         def frame(key=None,check=True):
             if key is not None:q({'cmd':'keys','text':key})
+            jingles_before=jingles()
             room_before=(where(),lit())
             for a in LOADERS:q({'cmd':'break_set','addr':a})
             before=q({'cmd':'cpu'});q({'cmd':'resume'})
@@ -214,7 +224,8 @@ def main():
             # Bobbin resets cycle_count at each video frame AND on resume.
             # Completed video frames plus the final partial frame approximate
             # this whole game tick (full-frame instruction overshoot <~18 cycles).
-            cycles.append((after['frames']-before['frames'])*17030+after['cycles'])
+            # A blocking jingle (only ever at a pause) is timed on its own.
+            (jingle_cycles if jingles()!=jingles_before else cycles).append((after['frames']-before['frames'])*17030+after['cycles'])
             return verify() if check else state()
         def press(key,n=6):
             st=frame(key)
@@ -242,11 +253,13 @@ def main():
             ok(sum(len(v) for v in MSG_ROOMS.values())>=len(TEXTS),'every status message is in a room bank')
             verify();capture('idle')
             ok(peek(0x83,1)==b'\0', 'terminal boots visibly faulted, not repaired')
-            st=state();start=st[:2]
+            st=state();start=st[:2];s0=spk()
+            ok(peek(0xB7,1)==b'\0','sound starts on')
             for key,dir,dx,dy in [('D',2,8,0),('S',0,0,8),('A',1,-8,0),('W',3,0,-8)]:
                 before=state();after=press(key)
                 ok((after[0],after[1],after[2])==(before[0]+dx,before[1]+dy,dir),'WASD '+key+' moves eight pixels, faces correctly and stops')
             ok(state()[:2]==start,'closed movement path returns precisely to spawn')
+            n=clicks(s0);ok(0<n<=24,'SFX footsteps: a soft tick every 8th walking frame (%d clicks over 24 frames)'%n)
             # Bobbin maps host LF to Return; inject raw Apple high-bit $8A for Down.
             for key,dir in [('\x15',2),('\x8A',0),('\x08',1),('\x0B',3)]:
                 before=state();after=press(key)
@@ -258,12 +271,29 @@ def main():
             ok(shifts==set(range(7)),'all seven shifted sprite alignments, exact native-byte compositing')
             # Front-view walking screenshot; return to a clean composition.
             position(126,104);frame('S');capture('walking');press('W');position(126,104)
-            after=frame(' ');ok(after[7]==13,'Space previews extended probe')
+            s0=spk();after=frame(' ');ok(after[7]==13,'Space previews extended probe')
+            ok(fxlast()==FX['warble'] and clicks(s0)>0,'SFX probe: scanning warble starts the frame Space is read (%d clicks)'%clicks(s0))
             ok(peek(0x83,1)==b'\0' and peek(0x85,1)==b'\x05','far probe gives NO CONTACT without repair')
             frame('R');ok(peek(0x83,1)==b'\0','R alone cannot repair a distant/uninspected terminal')
             capture('probe')
             for _ in range(10):frame()
             ok(state()[:2]==bytes([126,104]) and state()[7]==0,'probe retracts without movement or room changes')
+            n=clicks(s0);ok(fxlast()==FX['buzz'] and n>=40,'SFX probe warble then NO CONTACT buzz (%d clicks)'%n)
+            # M toggles sound; off silences every effect, footsteps included.
+            frame('M');ok(peek(0xB7,1)==b'\x01' and peek(0x85,1)==bytes([64]),'M: sound off, SOUND OFF on the status line')
+            capture('sound_off')
+            for _ in range(31):frame()
+            ok(peek(0x85,1)!=bytes([64]),'the SOUND OFF line times out')
+            s0=spk();frame(' ')
+            for _ in range(10):frame()
+            press('D',4);press('A',4)
+            ok(clicks(s0)==0 and peek(0xBA,1)==b'\0','sound off: probe, buzz and footsteps make no speaker clicks')
+            s0=spk();frame('M' if args.machine=='plus' else 'm')
+            ok(peek(0xB7,1)==b'\0' and peek(0x85,1)==bytes([63]),'M%s: sound back on, SOUND ON on the status line'%('' if args.machine=='plus' else ' (lower case)'))
+            for _ in range(3):frame()
+            ok(fxlast()==FX['click'] and clicks(s0)>0,'sound on confirms with a click')
+            for _ in range(31):frame()
+            position(126,104)
             # Collision fixtures test every wall and both solid benches.
             for x,y,key,want,desc in [(14,104,'A',(14,104),'west wall'),(224,104,'D',(224,104),'east wall'),(126,48,'W',(126,48),'north wall'),(126,120,'S',(126,120),'south wall'),(56,64,'W',(56,64),'bench front'),(86,52,'A',(86,52),'bench side'),(210,70,'W',(210,70),'terminal front'),(190,52,'D',(190,52),'terminal side')]:
                 position(x,y);after=press(key);ok(tuple(after[:2])==want,desc+' blocks fairly with no sprite corruption')
@@ -301,8 +331,10 @@ def main():
             before=state()[:2]
             for _ in range(8):frame('D')
             ok(state()[:2]==before and peek(0x83,1)==b'\x02','repair holds position briefly, cannot be interrupted by walk repeat')
+            s0=spk();j0=jingles()
             for _ in range(18):frame()
             ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\x04','repair completes: terminal waveform, conduit light and green door indicator')
+            n=clicks(s0);ok(jingles()==j0+1 and fxlast()==FX['rise'] and n>=150,'SFX repair done: rising jingle, played while G-Bot holds (%d clicks)'%n)
             frame();frame();capture('online')
             for _ in range(12):frame(' ')
             ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\x06','re-probing reports ONLINE and never toggles back')
@@ -319,10 +351,14 @@ def main():
             ok(peek(0x8000,8192)==background(3,4) and peek(0xA000,8008)==sprites,'canonical online background synchronized; source sprites unchanged')
             # ---- Through the unlocked door into the DARK POWER ROOM ----
             workshop_cycles=list(cycles)
-            position(122,64);press('W',4);press('W',4);press('W',4)
+            frame('M');ok(peek(0xB7,1)==b'\x01','sound off for a door')
+            s0=spk();position(122,64);press('W',4);press('W',4);press('W',4)
+            ok(clicks(s0)==0,'sound off: the door chirp is silent too')
             ok(where()==1 and tuple(state()[:3])==(122,120,3),'unlocked door: walking north into it streams in the power room')
             ok(peek(0x8000,8192)==background(3,8,1),'dark power room drawn from stamps on its aux track (8) with its own status line')
             stamp_check('power',1,'power_dark')
+            frame('M');ok(peek(0xB7,1)==b'\0' and peek(0x85,1)==bytes([63]),'sound on again (SOUND ON from the power room bank)')
+            for _ in range(31):frame()
             ok(peek(0x83,1)==b'\x03','repair state survives the room change')
             for _ in range(4):frame()
             capture('arrive','power')
@@ -371,11 +407,12 @@ def main():
             for _ in range(8):press('W',4)
             ok(tuple(state()[:2])==(122,56) and peek(0x84,1)==b'\x02' and peek(0x85,1)==bytes([13]),'locker prompt: OLD LOCKER: SPACE TO PROBE')
             capture('locker','power')
-            press(' ',4)
+            s0=spk();press(' ',4)
             ok(peek(0x8D,1)==b'\x01' and peek(0x85,1)==bytes([14]),'probing the locker finds the fuse')
             ok(peek(0x8000,8192)==background(3,14,1,1),'carried fuse shown in the status-line HUD')
             capture('fuse','power')
             for _ in range(10):frame()
+            n=clicks(s0);ok(fxlast()==FX['chime'] and n>=100,'SFX fuse pickup: warble then chime (%d clicks)'%n)
             press(' ',4);ok(peek(0x85,1)==bytes([15]) and peek(0x8D,1)==b'\x01','locker is empty afterwards')
             for _ in range(9):press('A',4)
             ok(tuple(state()[:2])==(50,56) and peek(0x84,1)==b'\x01','walk to the panel carrying the fuse')
@@ -385,12 +422,13 @@ def main():
             for _ in range(12):frame(' ')
             ok(peek(0x8C,1)==b'\x01','held/repeating Space never fits the fuse')
             frame('R');ok(peek(0x8C,1)==b'\x02' and peek(0x85,1)==bytes([17]),'R starts FITTING FUSE')
-            reads_before_fit=disk_reads[0]
+            reads_before_fit=disk_reads[0];j0=jingles()
             for _ in range(8):frame('A')
             ok(tuple(state()[:2])==(50,56),'fitting holds G-Bot in place')
             for _ in range(24):frame()
             ok(peek(0x8C,1)==b'\x03' and peek(0x8D,1)==b'\x02' and lit(),'fuse fitted: power restored')
             ok(disk_reads[0]==reads_before_fit,'the room lights up with no disk read')
+            ok(jingles()==j0+1 and fxlast()==FX['hum'],'SFX fuse fitted: power-on hum inside the reload pause')
             ok(peek(0x8000,8192)==background(3,18,1,2,True),'lit power room drawn in place from the bank-1 stamp pool (no disk read), POWER RESTORED message, HUD fuse gone')
             stamp_check('powerlit',1,'power_lit',True)
             for _ in range(4):frame()
@@ -402,7 +440,7 @@ def main():
             press('W',4);press('W',4)
             ok(where()==1 and lit() and peek(0x8000,8192)==background(3,peek(0x85,1)[0],1,2,True),'power room stays lit after leaving and returning')
             # Security room: the west door now opens.
-            position(14,90,1);press('A',4)
+            position(14,90,1);s0=spk();press('A',4)
             ok(where()==2 and tuple(state()[:3])==(224,104,1),'west door opens into the security room at its checkpoint')
             ok(peek(0x92,1)==b'\x01' and peek(0x85,1)==bytes([23]),'guard is dormant and rebooting on first entry')
             ok(peek(0x1800,1620)==guards,'guard frames resident at $1800 from track 9')
@@ -410,6 +448,8 @@ def main():
             # library and script drew it, and it must be the original art.
             stamp_check('security',2,'security')
             frame();capture('arrive','security')
+            for _ in range(8):frame()
+            ok(fxlast()==FX['guard'] and clicks(s0)>0,'SFX guard reboot: robotic beep (%d clicks)'%clicks(s0))
             gxs=[]
             for _ in range(45):frame();gxs.append(peek(0x8F,1)[0])
             ok(peek(0x92,1)==b'\x02','guard wakes and starts patrolling')
@@ -442,13 +482,17 @@ def main():
                 frame()
                 if peek(0x85,1)==bytes([30]):break
             ok(peek(0x85,1)==bytes([30]),'desk line runs on: ...AND THE LAB DOOR CLICKS OPEN')
+            s0=spk()
+            for _ in range(3):frame()
+            ok(fxlast()==FX['open'] and clicks(s0)>0,'SFX lab door opens: rising jingle in the frame slot (%d clicks)'%clicks(s0))
             capture('labdoor_open','security')
             position(60,54,3);press('W');ok(tuple(state()[:2])==(60,54),'security desk is solid')
             # Round trips through all three rooms.
             position(224,104,2);press('D',4)
             ok(where()==1 and tuple(state()[:3])==(14,90,2) and lit(),'east door returns to the lit power room')
             press('A',4);ok(where()==2 and peek(0x92,1)==b'\x02','re-entering: guard keeps patrolling (no second reboot)')
-            press('D',4);ok(where()==1,'security -> power')
+            s0=spk();press('D',4);ok(where()==1,'security -> power')
+            ok(clicks(s0)>=72,'door chirp sounds (and is counted): %d clicks'%clicks(s0))
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==0 and peek(0x83,1)==b'\x03' and peek(0x8000,8192)==background(3,4),'power -> workshop with every repair kept')
             press('W',4);ok(where()==1 and lit(),'workshop -> lit power room')
@@ -463,14 +507,20 @@ def main():
             capture('arrive','lab')
             # Flicker: hidden -> ghost -> solid -> ghost -> next spot; every frame exact.
             phases=set();shows=set();spots=set();hidden=False;shot=set()
+            flickins=0;crackles=0;last=(peek(0xA8,1)[0],peek(0xBE,1)[0])
             for _ in range(250):
                 frame()
                 spot,timer,phase=peek(0xA6,3);ax,ay,ah,show,vis=actor()
+                ct=peek(0xBE,1)[0]
+                flickins+=phase==1 and last[0]!=1
+                crackles+=ct>last[1]
+                last=(phase,ct)
                 phases.add(phase);hidden|=vis==0
                 if vis:shows.add(show);spots.add(spot)
                 if phase==2 and 'scientist' not in shot and timer<30:capture('scientist','lab');shot.add('scientist')
                 if phase in (1,3) and show in (8,9) and 'flicker' not in shot:capture('flicker','lab');shot.add('flicker')
             ok(phases=={0,1,2,3} and hidden,'scientist cycles gone / flickering in / here / flickering out')
+            ok(1<=crackles<=min(flickins,1+250//160),'SFX scientist flicker-in: crackle, rate-limited (%d crackles for %d flicker-ins in 250 frames)'%(crackles,flickins))
             ok({6,7}&shows and {8,9}&shows,'solid and ghost (alternate-row) scientist frames both drawn')
             ok(len(spots)>=2,'she reappears at a different spot (%d spots seen)'%len(spots))
             ok(tuple(state()[:2])==(122,120),'harmless: G-Bot is never moved by her')
@@ -524,19 +574,23 @@ def main():
             # ---- The console puzzle: tune three phases, then she can talk ----
             hide();position(30,56,3);press(' ',4);poke(0x88,[0]);frame('R')
             before=tuple(state()[:2])
-            frame('D');frame('D')
+            s0=spk();frame('D');ok(fxlast()==FX['click'] and clicks(s0)>0,'SFX tuning: a click per A/D step')
+            frame('D')
             ok(peek(0xAB,1)==b'\x09' and tuple(state()[:2])==before and peek(0x85,1)==bytes([0x89]),'A/D move the phase cursor, not G-Bot')
             capture('tuning','lab')
             frame('R');ok(peek(0x85,1)==bytes([47]) and peek(0xAA,1)==b'\0' and peek(0xA9,1)==b'\x02','R off target fails gracefully: OUT OF PHASE - KEEP TUNING')
+            frame();ok(fxlast()==FX['buzz'],'SFX failed lock: low buzz')
             for _ in range(5):frame('D')
             frame('D');ok(peek(0xAB,1)==b'\x0e','cursor stops at the right end')
             for _ in range(3):frame('A')
             ok(peek(0x85,1)==bytes([0x80|11]),'cursor on the target shows the lock-on star')
             capture('phase_aligned','lab')
             frame('R');ok(peek(0xAA,1)==b'\x01' and peek(0x85,1)==bytes([46]) and peek(0xAB,1)==b'\x07','phase 1 locked: LOCKED! NEXT PHASE...')
+            frame();ok(fxlast()==FX['chord'],'SFX phase lock: chord')
             for _ in range(5):frame('A')
             frame('R');ok(peek(0xAA,1)==b'\x02','phase 2 locked')
-            frame('D');frame('D');frame('R')
+            frame('D');frame('D');j0=jingles();frame('R');frame()
+            ok(jingles()==j0+1 and fxlast()==FX['online'],'SFX console online: hum and chord as she starts to talk')
             ok(peek(0xA9,1)==b'\x03' and peek(0xAC,1)==b'\x01' and peek(0x85,1)==bytes([49]),'phase 3 locked: console in phase, she speaks')
             ok(tuple(peek(0xA6,1)+peek(0xA8,1))==(2,2),'she stabilises solid at the console')
             frame();frame();capture('talk','lab')
@@ -589,6 +643,7 @@ def main():
             ok(peek(0xAD,1)==b'\0','keys typed during every load were discarded (lockout checked after each door)')
             cycles[:]=[c for c in cycles if c not in transitions]
             ok(peek(0x0800,4)==original[:4],'resident loader entry is preserved')
+            ok(len(jingle_cycles)>=2 and max(jingle_cycles)<250000,'%d blocking-jingle frames (at pauses only), slowest %d cycles'%(len(jingle_cycles),max(jingle_cycles)))
             ok(0<min(cycles) and max(cycles)<100000,'bounded 1 MHz frame budget: max %d cycles, mean %d (~%.1f fps)'%(max(cycles),sum(cycles)//len(cycles),1000000/(sum(cycles)/len(cycles))))
             print('EXACT PAGE CHECKS',checks,'BOTH PAGES, 8192 bytes each',flush=True)
         finally:
