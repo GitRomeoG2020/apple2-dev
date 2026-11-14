@@ -8,7 +8,6 @@
 ; aux (at boot), T8-9 dark / T10-11 lit power room, T12 aux; T13-14 security,
 ; T15 aux; T16-17 lab, T18 aux.
         .setcpu "6502"
-WAIT=$FCA8
 SLOT=$2B
 CURPH=$3C
 TRK=$3D
@@ -33,7 +32,9 @@ SH=$0E00                         ; decode tables built at boot: v<<2, and the
 T0=$0E40                         ; three bit-reversed 2-bit fields of v
 T1=$0E80
 T2=$0EC0
-GAME=$6000
+GAME=$6000                       ; tracks 1-2 land here, then move to the
+LCGAME=$D000                     ; language card (bank 2, $D000-$EFFF)
+        .export wait
         .segment "BOOT"
         .byte 4
         jmp start
@@ -106,8 +107,38 @@ start:  cld
         lda #$10
         sta PAGE0
         jsr readtracks
+        ; Language card: read and write RAM, bank 2 (two reads of $C083), for
+        ; good. The game's 8K of code and tables move from $6000 to $D000;
+        ; $6000-$7FFF is free from here on. Nothing calls the ROM after this:
+        ; WAIT has a RAM copy below, and the vectors bounce to the ROM's own.
+        bit $C083
+        bit $C083
+        ldy #0
+        ldx #$20
+@lc:    lda GAME,y
+@lcd:   sta LCGAME,y
+        iny
+        bne @lc
+        inc @lc+2
+        inc @lcd+2
+        dex
+        bne @lc
+        ldx #5
+@vec:   lda vectors,x
+        sta $FFFA,x
+        dex
+        bpl @vec
         ldx SLOT
-        jmp GAME
+        jmp LCGAME
+vectors:.word vnmi,vreset,virq
+; NMI, RESET and IRQ/BRK land here with LC RAM mapped: map the ROM back in
+; (read ROM, write RAM bank 2) and continue through the ROM's own vector.
+vnmi:   bit $C082
+        jmp ($FFFA)
+vreset: bit $C082
+        jmp ($FFFC)
+virq:   bit $C082
+        jmp ($FFFE)
 
 ; readtracks: read tracks TRK..LASTT-1 (sectors SFIRST..SEND-1) into pages
 ; PAGE0.. (16 per track). Each track is read in about one revolution: sectors
@@ -173,7 +204,7 @@ loadn:  stx NREAD
         bne @spun
         inc SPUN
         lda #$C0                 ; ~90 ms spin-up; bad reads simply retry
-        jsr WAIT
+        jsr wait
 @spun:  jmp readtracks
 motoroff:
         ldx SLOT
@@ -400,7 +431,7 @@ seek:   asl a
 @step:  jsr phon                 ; next phase on
         ldy STEP
         lda steptime,y
-        jsr WAIT
+        jsr wait
         cpy #4
         bcs :+
         inc STEP
@@ -409,7 +440,7 @@ seek:   asl a
         jsr phoff                ; previous phase off
         jmp @s0
 @done:  lda #$56                 ; settle
-        jsr WAIT
+        jsr wait
         lda CURPH
         jsr phoff
         ldx SLOT
@@ -427,6 +458,17 @@ phx:    and #3
         tax
         rts
 
+; wait: the monitor's WAIT ($FCA8) byte for byte, so delays are unchanged
+; while the ROM is switched out. Its branches must not cross a page.
+wait:   sec
+@w2:    pha
+@w3:    sbc #1
+        bne @w3
+        pla
+        sbc #1
+        bne @w2
+        rts
+.assert >wait = >(*-1), error, "wait crosses a page: its timing would change"
 steptime: .byte $56,$40,$34,$2E,$2C   ; WAIT values per half-track step
 msg: .byte "G-BOT: AFTER HOURS / LOADING",0
 

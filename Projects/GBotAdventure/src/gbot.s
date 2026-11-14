@@ -1,5 +1,6 @@
 ; G-Bot: After Hours -- four rooms: workshop, power room, security room, lab.
-; Plain NMOS 6502 / 48K. HGR pages $2000/$4000, canonical room $8000,
+; Plain NMOS 6502, 64K (language card). Code and tables run from LC RAM bank 2
+; at $D000 (loaded at $6000, moved at boot). HGR pages $2000/$4000, room $8000,
 ; G-Bot's masked frames $A000, actor frames $1800: the guard (track 13, read
 ; at boot) or the lab's flickering scientist (track 16), loaded per room.
 ; Only ONE 8K room fits at $8000: room changes stream the next background from
@@ -124,6 +125,7 @@ SPAWNX=224                    ; security-room entry checkpoint
 SPAWNY=104
 
         .export entry, main, code_end, transition, stamps, st_next
+        .import wait                  ; RAM copy of the monitor WAIT (boot.s)
         .segment "CODE"
 entry:  cld
         sei
@@ -216,7 +218,7 @@ main:   lda PAGE
         bne :+
         inc TICKS+1
 :       lda #32
-        jsr $FCA8              ; small fixed throttle; no IIe-only VBL dependency
+        jsr wait               ; small fixed throttle; no IIe-only VBL dependency
         jmp main
 
 keyboard:
@@ -657,7 +659,7 @@ transition:
         jsr show_one           ; one page; no pause in the doorway)
         jmp @spun
 @spin:  lda #$90               ; rest of the ~90 ms spin-up (~54 ms)
-        jsr $FCA8
+        jsr wait
 @spun:  lda #1
         sta SPUN               ; the loader need not wait again
 @nodoor:lda NEXTROOM
@@ -2417,7 +2419,7 @@ carry_table:
  .endrepeat
 .endrepeat
 code_end:
-.assert code_end <= $8000, lderror, "Code/table overflow into room"
+.assert code_end <= $F000, lderror, "Code/table overflow past $EFFF"
         .segment "BACKGROUND"
 room: .incbin "../art/workshop-room.hgr"
         .segment "SPRITES"
