@@ -18,9 +18,11 @@ try {
 } finally { Pop-Location }
 # Same physical-sector mapping as tools/build.py. This disk has no DOS filesystem.
 $bin = [IO.File]::ReadAllBytes("$proj\build\gbot.bin")
-# Boot track, 24K game load (1-6), then rooms beside their aux tracks (7-16).
-if ($bin.Length -ne 69632) { throw "Image is $($bin.Length) bytes; expected 69632" }
-if ($bin[4] -ne 6) { throw 'Boot must load exactly tracks 1-6' }
+# Boot track, code tracks, then rooms and aux tracks up to FREE_TRACK (src/layout.inc).
+$layout = Get-Content "$proj\src\layout.inc" -Raw
+$free = [int]([regex]::Match($layout, '(?m)^FREE_TRACK=(\d+)').Groups[1].Value)
+if ($bin.Length -ne 4096 * $free) { throw "Image is $($bin.Length) bytes; expected $(4096 * $free)" }
+if ($bin[0] -ne 5 -or $bin[4] -ne 3) { throw 'Boot must load sectors 0-4 and code tracks 1-3' }
 $img = New-Object byte[] 143360
 $p2l = 0,7,14,6,13,5,12,4,11,3,10,2,9,1,8,15
 for ($i = 0; $i -lt $bin.Length; $i += 256) {
