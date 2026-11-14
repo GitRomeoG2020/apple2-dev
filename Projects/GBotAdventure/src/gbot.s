@@ -2374,7 +2374,7 @@ advance_buffers:
         .include "security.inc"
 jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
 busymsg: .byte 3,17,3,3
-roomtrack: .byte WORKSHOP_TRACK,0,0,LAB_TRACK   ; full-art rooms
+roomtrack: .byte WORKSHOP_TRACK,0,0,0   ; full-art rooms
 auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
@@ -2457,9 +2457,8 @@ sprites_end:
         .segment "SECAUX"      ; track 11: security messages, guard frames and
                                ; the stamp library + script its room is drawn from
         .incbin "../art/aux-security.bin"
-        .segment "LABROOM"     ; tracks 12-13
-lab_room: .incbin "../art/lab-room.hgr"
-        .segment "LABAUX"      ; track 14: lab messages + scientist frames
+        .segment "LABAUX"      ; track 12: lab messages, scientist frames and
+                               ; most of the lab's stamps (the rest: the pool)
         .incbin "../art/aux-lab.bin"
         .segment "WORKAUX"     ; track 9: workshop messages (read at boot)
         .incbin "../art/aux-workshop.bin"

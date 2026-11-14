@@ -28,6 +28,9 @@ VARIANTS=('workshop','power','security','lab','powerlit')
 def _security():
     from gen_stamps import security
     return security()
+def _lab():
+    from gen_stamps import lab
+    return lab()
 def _power(on):
     def f():
         from gen_stamps import power
@@ -35,7 +38,7 @@ def _power(on):
     return f
 # variant: (room, home, compiler). Rooms not listed are still full 8K art.
 STAMPED={'power':(1,'aux',_power(False)),'security':(2,'aux',_security),
-         'powerlit':(1,'pool',_power(True))}
+         'lab':(3,'aux',_lab),'powerlit':(1,'pool',_power(True))}
 
 def entries(room):
     for i in MSG_ROOMS[room]:

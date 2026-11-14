@@ -259,6 +259,11 @@ def from_aux(aux,base=0x1000,pool=b'',poolbase=0xD000):
         return aux[a-base:] if base<=a<base+len(aux) else pool[a-poolbase:]
     return read_back(STAMPBASE,mem)
 
+# The lab: its floor rays are the same blue lines as the security room's.
+def lab():
+    from gen_lab import room
+    return compile_room(room(),'THE LAB',LINES[:6])
+
 # The dark and lit power rooms: no long lines (its floor rays are dotted).
 def power(on):
     from gen_power_room import room

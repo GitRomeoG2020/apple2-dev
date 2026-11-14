@@ -447,8 +447,9 @@ def main():
             position(14,90,1);press('A',4);ok(where()==2,'and on to security again')
             # ---- THE LAB ----
             poke(0x8F,[3,1,0]);position(122,50,3);press('W',4)
-            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door streams in the lab from tracks 12-13')
-            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 14')
+            ok(where()==3 and tuple(state()[:3])==(122,120,3),'open north door: the lab is drawn from stamps (its aux track 12 and the pool)')
+            ok(peek(0x9E,1)==b'\x03' and peek(0x1800,1440)==scis,'scientist frames streamed to $1800 from track 12')
+            stamp_check('lab',3,'lab')
             ok(peek(0x85,1)==bytes([31]),'arrival line: THE LAB: SOMETHING IS STILL RUNNING')
             for _ in range(3):frame()
             capture('arrive','lab')
