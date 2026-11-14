@@ -133,6 +133,13 @@ def main():
             imgs,pool,hdr,*_=build()
             def mem(a):return imgs[where_][a-0x1000:] if a<0x2000 else pool[a-0xD000:]
             sc,lb=read_back(hdr[key],mem)
+            def slen(st):              # one stamp's length: rows of spans
+                j,r=1,0
+                while r<st[0]:
+                    n=st[j+1];j+=2+(n&127)
+                    if not n&128:r+=1
+                return j
+            lb=[st[:slen(st)] for st in lb]
             old_art=arts[(where_,lit_)]
             ok(run_stamps(sc,lb)==old_art,'%s: stamp script %s reproduces the original art byte for byte (%d stamps, %d bytes)'%(name,'in the bank-1 pool' if hdr[key]>=0xD000 else 'on its aux track',len(lb),sum(map(len,lb))))
             drawn=peek(0x8000,8192)
