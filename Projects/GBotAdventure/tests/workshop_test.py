@@ -617,10 +617,12 @@ def main():
             for _ in range(60):frame()
             ok(peek(0xA9,1)==b'\x03','console stays in phase')
             press(' ',4);ok(peek(0x85,1)==bytes([58]),'re-probe: CONSOLE: IN PHASE. NO FULL POWER!')
-            for _ in range(100):
+            seen=[58]
+            for _ in range(250):
                 frame()
-                if peek(0x85,1)==bytes([42]):break
-            ok(peek(0x85,1)==bytes([42]),'reminder runs on: LAB CLOCK SAYS 6:02. NOBODY AGREES.')
+                if peek(0x85,1)[0]!=seen[-1]:seen.append(peek(0x85,1)[0])
+                if seen[-1]==42:break
+            ok(seen==[58,97,42],'reminder runs on: SUBSTATION OPEN: EAST OF POWER ROOM, then LAB CLOCK SAYS 6:02. NOBODY AGREES. (%s)'%seen)
             # Back out: guard frames reload, state persists.
             position(122,106,0);press('S',4);press('S',4)
             ok(where()==2 and tuple(state()[:3])==(122,48,0),'lab doorway returns to the security north door')

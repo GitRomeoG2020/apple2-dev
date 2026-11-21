@@ -271,13 +271,15 @@ MESSAGES=[
     'CONSOLE: LOOP HOLDS. 6:03 AND TICKING',  # 93 console after the lead
     'G-BOT: ...HAVE I DONE THIS BEFORE?',     # 94 deja vu at the breaker, first loop
     'G-BOT: ...I HAVE DONE THIS BEFORE.',     # 95 deja vu after a rerun
+    '...THE SUBSTATION: EAST OF POWER ROOM',  # 96 the nudge after her warning
+    'SUBSTATION OPEN: EAST OF POWER ROOM',    # 97 console reminder until the choice
 ]
 # Which room's disk bank carries each message (status lines are per room).
 # 'story': the shared story bank in language-card RAM (every room's bank
 # links on to it): the twist-two lines, shown from any room.
 MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
            2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64],
-           4:[28,60,63,64],'story':list(range(65,96))}
+           4:[28,60,63,64],'story':list(range(65,98))}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
 # 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door
@@ -293,7 +295,7 @@ ENTER_MSG=(59,60,61,62,65)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={57:67,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:42,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+CHAIN={57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
 
 def meter_text(step,pos):
     """The tuning meter the engine builds from template 45: phase number,
