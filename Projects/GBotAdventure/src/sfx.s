@@ -27,6 +27,8 @@ SFX_ZAP=19                     ; a strobe crackle
 SFX_REWIND=20                  ; waking in the workshop again: a sad trombone
 SFX_UNSTICK=21                 ; the trickle lead: tick... tock... chime
 SFX_HOOK=22                    ; TO BE CONTINUED
+SFX_TICK=23                    ; a carried minute: tick... tock
+SFX_MOTIFW=24                  ; wing B's motif (room_tune maps room 5 to it)
 ; Note half-periods: ~18,500 / f passes.
 NC4=71
 NE4=56
@@ -255,11 +257,11 @@ sfx_next:
 sfxlo:  .byte <fx_buzz,<fx_chime,<fx_warble,<fx_click,<fx_guard,<fx_chord
         .byte <fx_open,<fx_crackle,<fx_online,<fx_rise,<fx_hum,<fx_cutoff
         .byte <tune_workshop,<tune_power,<tune_security,<tune_lab,<tune_sub
-        .byte <fx_surge,<fx_zap,<fx_rewind,<fx_unstick,<fx_hook
+        .byte <fx_surge,<fx_zap,<fx_rewind,<fx_unstick,<fx_hook,<fx_tick,<tune_wingb
 sfxhi:  .byte >fx_buzz,>fx_chime,>fx_warble,>fx_click,>fx_guard,>fx_chord
         .byte >fx_open,>fx_crackle,>fx_online,>fx_rise,>fx_hum,>fx_cutoff
         .byte >tune_workshop,>tune_power,>tune_security,>tune_lab,>tune_sub
-        .byte >fx_surge,>fx_zap,>fx_rewind,>fx_unstick,>fx_hook
+        .byte >fx_surge,>fx_zap,>fx_rewind,>fx_unstick,>fx_hook,>fx_tick,>tune_wingb
 ; Notes: half-period, units (~3 ms each; in the slot one unit per frame).
 fx_buzz:    .byte 24,1, 30,1, 24,1, 30,1, 0,0
 fx_chime:   .byte 7,1, 5,1, 4,1, 4,1, 0,0
@@ -332,8 +334,8 @@ room_tune:
         lda TUNERND
         and #3                 ; ...or any of the four
         tax
-:       txa
-; Play motif A (0-3) now. Off: nothing.
+:       lda motifof,x          ; (wing B's own motif sits after the story sounds)
+; Play motif A (0-4, or 11 for wing B) now. Off: nothing.
 play_motif:
         ldx SOUNDOFF
         bne @rts
@@ -344,7 +346,8 @@ play_motif:
         adc #SFX_MOTIF0
         jmp sfx_jingle
 @rts:   rts
-roombit:    .byte 1,2,4,8,16
+roombit:    .byte 1,2,4,8,16,32
+motifof:    .byte 0,1,2,3,4,SFX_MOTIFW-SFX_MOTIF0
 tune_sub:   .byte NG4,20, 0,4, NG4,20, 0,4, NC5,20, 0,4, NB4,20, 0,4, NG4,46, 0,0  ; the big switch hums
 ; Full power: a whine climbing to a big chord (~0.45 s).
 fx_surge:   .byte 60,2, 54,2, 48,2, 42,2, 37,2, 32,2, 28,2, 24,2, 21,2, 18,2, 15,2, 13,2, 11,2, 9,2
@@ -356,3 +359,7 @@ fx_rewind:  .byte NA4,36, 0,6, 44,36, 0,6, NG4,36, 0,6, 50,24, 52,6, 50,6, 52,6,
 fx_unstick: .byte 3,2, 0,40, 4,2, 0,40, NC6,20, NE6,20, NG6,60, 0,0
 ; TO BE CONTINUED: a hopeful, unfinished phrase (~0.8 s).
 fx_hook:    .byte NC5,24, 0,4, NE5,24, 0,4, NG5,24, 0,4, NA5,40, 0,8, NG5,24, 0,4, ND5,90, 0,0
+; A carried minute: tick... tock (~0.25 s).
+fx_tick:    .byte 3,2, 0,30, 5,2, 0,30, 0,0
+; Wing B: the archive, stopped mid-sip (~0.5 s).
+tune_wingb: .byte NE5,26, 0,4, NE5,26, 0,4, ND5,26, 0,4, NC5,26, 0,10, NG4,40, 0,0

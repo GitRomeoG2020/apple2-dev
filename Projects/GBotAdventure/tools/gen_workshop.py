@@ -32,7 +32,7 @@ CLEAR=6
 # room's art: a one-row strip (room name and that room's clock, 169-173), the
 # engine's status line (177-181) and the controls (186-190).
 FLOOR=164
-CLOCKS={'WORKSHOP':'12:15','POWER ROOM':'9:41','SECURITY':'2:53','THE LAB':'6:02','SUBSTATION':'11:59'}
+CLOCKS={'WORKSHOP':'12:15','POWER ROOM':'9:41','SECURITY':'2:53','THE LAB':'6:02','SUBSTATION':'11:59','WING B':'3:07'}
 
 def clock_hands(p,cx,cy,name,rh,rm,c=T):
     """Short hour hand, long minute hand (2 px wide so they stay white),
@@ -264,38 +264,60 @@ MESSAGES=[
     'LAB CLOCK: 6:02... 6:03! IT MOVED!',     # 86
     'SCIENTIST: YOU LISTENED! ONE MINUTE!',   # 87
     'ONLY YOU CAN CARRY TIME, G-BOT.',        # 88
-    'TO BE CONTINUED: ONE MINUTE AT A TIME',  # 89 the hook
+    "G-BOT: I'M... TICKING?",                 # 89 he carries a minute now
     'CONSOLE: BREAKER OFF. GOOD BOT.',        # 90 console after refusing
-    'CHAMBER: 6:03. NEXT MINUTE... SOON.',    # 91 chamber after the lead
+    'CHAMBER: RECHARGING. NEXT MINUTE SOON',  # 91 chamber once the minute is spent
     'CHAMBER: SPACE TO PLUG IN THE LEAD',     # 92 carrying the lead
     'CONSOLE: LOOP HOLDS. 6:03 AND TICKING',  # 93 console after the lead
     'G-BOT: ...HAVE I DONE THIS BEFORE?',     # 94 deja vu at the breaker, first loop
     'G-BOT: ...I HAVE DONE THIS BEFORE.',     # 95 deja vu after a rerun
     '...THE SUBSTATION: EAST OF POWER ROOM',  # 96 the nudge after her warning
     'SUBSTATION OPEN: EAST OF POWER ROOM',    # 97 console reminder until the choice
+    'SCIENTIST: TAKE IT TO SOMETHING STUCK',  # 98 carrying time
+    'NEW TASK: UNSTICK SOMETHING FROZEN',     # 99
+    'CHAMBER: ONE MINUTE CARRIED. GO!',       # 100 chamber while he carries it
+    'CONSOLE: 6:04! SOMETHING WOKE UP.',      # 101 console once it is spent
+    'G-BOT: THE GUARD... IS STUCK TOO.',      # 102 security, carrying the minute
+    'GUARD: BEEP? WHERE DID THE NIGHT GO?',   # 103 the guard remembers
+    'GUARD: G-BOT! YOU KEEP PASSING ME!',     # 104
+    'GUARD: WING B CODE IS 6-0-4. GO ON.',    # 105
+    'THE MINUTE IS SPENT. WING B UNSEALED.',  # 106
+    'WING B SEALED - GUARD HAS THE CODE',     # 107 security west door
+    'GUARD: OFF DUTY. WING B IS OPEN.',       # 108 security once he is awake
+    'ENTERING WING B...',                     # 109
+    'GUARD: ...HAVE WE MET? REBOOTING.',      # 110 after a rerun, faintly
+    'WING B: THE ARCHIVE, STOPPED AT 3:07',   # 111 wing B
+    'COFFEE MACHINE: SPACE TO PROBE',         # 112
+    'LOOP LOG: SPACE TO PROBE',               # 113
+    'A DROP OF COFFEE, FROZEN IN MIDAIR.',    # 114
+    'G-BOT: THAT WILL TAKE ANOTHER MINUTE.',  # 115
+    'TO BE CONTINUED: THE ENDLESS COFFEE',    # 116 the hook
+    'LOOP LOG: 4,817 TALLY MARKS. NEAT.',     # 117
+    "LAST ENTRY: DON'T FLIP THE BREAKER.",    # 118
 ]
 # Which room's disk bank carries each message (status lines are per room).
 # 'story': the shared story bank in language-card RAM (every room's bank
 # links on to it): the twist-two lines, shown from any room.
 MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
            2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64],
-           4:[28,60,63,64],'story':list(range(65,98))}
+           4:[28,60,63,64],5:[28,61,63,64]+list(range(111,119)),'story':list(range(65,111))}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
 # 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door
 # unlocked, 9 console online fanfare, 12 the reveal cut off at IT RUNS AGAIN-.
 SFX_BUZZ,SFX_CHIME,SFX_CHORD,SFX_OPEN,SFX_ONLINE,SFX_CUTOFF=1,2,6,128+7,128+9,128+12
 SFX_UNSTICK,SFX_HOOK=128+21,128+22     # the trickle lead ticks the ring; to be continued
+SFX_TICK=128+23                        # a carried minute ticks
 MSG_SFX={5:SFX_BUZZ,7:SFX_BUZZ,10:SFX_BUZZ,11:SFX_BUZZ,12:SFX_BUZZ,15:SFX_BUZZ,
          21:SFX_BUZZ,24:SFX_BUZZ,28:SFX_BUZZ,29:SFX_BUZZ,47:SFX_BUZZ,48:SFX_BUZZ,
          14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE,56:SFX_CUTOFF,
-         66:SFX_BUZZ,81:SFX_ONLINE,84:SFX_ONLINE,85:SFX_UNSTICK,89:SFX_HOOK}
+         66:SFX_BUZZ,81:SFX_ONLINE,84:SFX_ONLINE,85:SFX_UNSTICK,89:SFX_TICK,103:SFX_TICK,106:SFX_OPEN,107:SFX_BUZZ,116:SFX_HOOK}
 # Door status line by destination room (workshop, power, security, lab).
-ENTER_MSG=(59,60,61,62,65)
+ENTER_MSG=(59,60,61,62,65,109)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+CHAIN={89:98,98:99,103:104,104:105,105:106,114:115,115:116,117:118,57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
 
 def meter_text(step,pos):
     """The tuning meter the engine builds from template 45: phase number,
@@ -320,11 +342,20 @@ def fuse_icon():
     data=encode(p.im)
     return [bytes(data[row_offset(177+r)+38:row_offset(177+r)+40]) for r in range(5)]
 
+def clock_icon():
+    """Two status-line bytes (columns 38-39, rows 177-181): a carried minute."""
+    from gen_concept import Paint as _P
+    p=_P()
+    p.line([(268,177),(277,177),(277,181),(268,181),(268,177)],T)
+    p.line([(272,178),(272,179),(275,179)],T)
+    data=encode(p.im)
+    return [bytes(data[row_offset(177+r)+38:row_offset(177+r)+40]) for r in range(5)]
+
 def status_rows(index,carrying=False):
     """Exact five status rows the engine draws: message plus optional fuse icon."""
     rows=[bytearray(r) for r in message_pixels(index if index>=128 else MESSAGES[index])]
     if carrying:
-        for r,icon in zip(rows,fuse_icon()): r[38:40]=icon
+        for r,icon in zip(rows,clock_icon() if carrying=='clock' else fuse_icon()): r[38:40]=icon
     return [bytes(r) for r in rows]
 
 def interaction_art():
@@ -349,7 +380,7 @@ def interaction_art():
         assert len(text)<=37 and text.center(40)[38:]=='  ', 'columns 38-39 hold the fuse icon'
     t=MESSAGES[METER].center(40)
     lines += [f'METER={METER}',f'METER_STEP={t.index("1")}',f'METER_CELL0={t.index(".")}',
-              f'GLYPH_1={glyphs.index("1")}',f'GLYPH_BAR={glyphs.index("|")}',
+              f'GLYPH_1={glyphs.index("1")}',f'GLYPH_0={glyphs.index("0")}',f'GLYPH_BAR={glyphs.index("|")}',
               f'GLYPH_O={glyphs.index("O")}',f'GLYPH_STAR={glyphs.index("*")}',
               'entermsg:','.byte '+','.join(str(v) for v in ENTER_MSG),
               f'FIRST_DIALOG={FIRST_DIALOG}',f'RELEASE_LINE={RELEASE_LINE}',f'DIALOG_TIME={DIALOG_TIME}',
@@ -364,7 +395,7 @@ def interaction_art():
         lines += [f'fontrow{r}:','.byte '+','.join(str(message_pixels(ch)[r][19]) for ch in glyphs)]
     lines += [f'SOUND_MSG={SOUND_MSG}',f'MSG_COUNT={len(messages)}','msgsfx:','.byte '+','.join(str(MSG_SFX.get(i,0)) for i in range(len(messages)))]
     lines += ['chain:','.byte '+','.join(str(CHAIN.get(i,0)) for i in range(len(messages)))]
-    icon=fuse_icon()
+    icon=fuse_icon()+clock_icon()
     lines += ['iconl:','.byte '+','.join(str(r[0]) for r in icon),'iconr:','.byte '+','.join(str(r[1]) for r in icon)]
     # Self-check: glyph lookup reproduces message_pixels exactly.
     for text in messages:

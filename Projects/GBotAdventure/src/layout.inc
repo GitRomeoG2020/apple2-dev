@@ -8,4 +8,5 @@ POWERAUX_TRACK=8              ; power aux: messages, dark room stamps
 GUARD_TRACK=9                 ; security aux: messages, guard frames, stamps
 SCI_TRACK=10                  ; lab aux: messages, scientist frames, stamps
 SUB_TRACK=11                  ; substation aux: messages, stamps
-FREE_TRACK=12                 ; 12-34 free
+WINGB_TRACK=12                ; wing B aux: messages, stamps
+FREE_TRACK=13                 ; 13-34 free

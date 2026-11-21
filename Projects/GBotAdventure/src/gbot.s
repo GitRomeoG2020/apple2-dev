@@ -118,6 +118,9 @@ LEAD=$CE                      ; trickle lead: 0 on its hook, 1 carried, 2 in the
 WAKE=$CF                      ; the loop is resetting: this door wakes him in the workshop
 HESIT=$D0                     ; deja vu at the breaker in progress
 DEJA=$D1                      ; LOOPS+1 when he last hesitated (once per loop)
+MINUTE=$D2                    ; carried time: 0 none, 1 carried, 2 spent on the guard
+GMET=$D3                      ; the guard has remembered G-Bot (ever: survives reruns)
+CLKG=$D4                      ; scratch: the lab clock's last digit glyph
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -134,7 +137,7 @@ LOADROOM=$0805                ; resident boot-loader entry: A=track, Y=page
 LOADONE=$0808                 ; same, sectors SFIRST..SEND-1 of one track
 MOTOROFF=$080B                ; the motor runs across one door's reads
         .include "layout.inc"   ; track numbers
-LITVARIANT=5                  ; stamp variant of the lit power room (4: the substation)
+LITVARIANT=6                  ; stamp variant of the lit power room (4: the substation)
 DOOR_X0=110                   ; workshop/power doorway column (PX), inclusive
 DOOR_X1=134
 GY=93                         ; guard top row; feet on y=122
@@ -157,7 +160,7 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
-        ldx #DEJA-SOUNDOFF
+        ldx #CLKG-SOUNDOFF
 @sfxz:  sta SOUNDOFF,x
         dex
         bpl @sfxz
@@ -486,7 +489,7 @@ update: lda #0
         cmp #1
         beq @power
         cmp #4
-        beq @sub
+        bcs @sub               ; (rooms 4-5: the substation and wing B)
         cmp #3
         bne @desk
         lda PY                 ; lab: time-chamber dais, front y=100
@@ -548,7 +551,7 @@ doors:  lda ROOM
         bne :+
         jmp @power
 :       cmp #4
-        bne :+
+        bcc :+
         jmp sub_doors
 :       cmp #3
         bne @security
@@ -599,7 +602,7 @@ doors:  lda ROOM
         ldx #14
         ldy #90
         bne door_go
-@no0:   rts
+@no0:   jmp sec_west           ; west: wing B, once the guard remembers
 @power: lda DIR
         cmp #1
         beq @west
@@ -1367,12 +1370,12 @@ guard:  lda ROOM
         cmp #2
         beq @patrol
         cmp #1
-        bne guard_show
+        bne @show              ; (dormant, or awake for good)
         dec GTIMER
-        bne guard_show
+        bne @show
         lda #2
         sta GSTATE
-        bne guard_show
+@show:  jmp guard_show
 @patrol:
         inc GTICK
         lda GTICK
@@ -1421,7 +1424,9 @@ guard:  lda ROOM
         bcc @hit
         cmp #34
         bcs guard_show
-@hit:   lda #SPAWNX            ; zapped back to the room's entry checkpoint
+@hit:   jsr guard_meets        ; carrying a minute: he wakes up instead
+        bcs guard_show
+        lda #SPAWNX            ; zapped back to the room's entry checkpoint
         sta PX
         lda #SPAWNY
         sta PY
@@ -1439,8 +1444,8 @@ guard_show:
         and #1
         sta GSHOW
         lda GSTATE
-        cmp #2
-        bne :+
+        cmp #2                 ; (awake for good, 3: stands still in patrol pose)
+        bcc :+
         lda GANIM
         asl a
         adc #2
@@ -1467,7 +1472,7 @@ probe_contact:
         cmp #3
         beq @lab
         cmp #4
-        bne :+
+        bcc :+
         jmp sub_probe
 :       ldx #28                ; NOTHING TO PROBE HERE
         lda NEAR
@@ -1558,7 +1563,7 @@ interaction:
         cmp #1
         beq @prange
         cmp #4
-        bne :+
+        bcc :+
         jsr sub_near
         jmp @range_done
 :       cmp #3
@@ -1669,20 +1674,13 @@ interaction:
 :       cmp #1
         beq @powerroom
         cmp #4
-        bne :+
+        bcc :+
         jsr sub_context
         jmp @message
 :       cmp #3
         bne :+
         jmp @labroom
-:       lda #23                ; SECURITY UNIT REBOOTING...
-        ldx GSTATE
-        cpx #1
-        beq @msg_far
-        lda #26                ; SECURITY DESK: SPACE TO PROBE
-        ldx NEAR
-        bne @msg_far
-        lda #22                ; SECURITY ROOM - MIND THE GUARD BOT
+:       jsr sec_context        ; security: rebooting, desk, guard, wing B
 @msg_far:
         jmp @message
 @powerroom:
@@ -1916,16 +1914,8 @@ draw_status:
         sta (BG),y
         dey
         bpl @letter
-        jsr carrying           ; HUD: a carried fuse (or lead) in columns 38-39
-        bne @noicon
-        ldx UIROW
-        ldy #38
-        lda iconl,x
-        sta (BG),y
-        iny
-        lda iconr,x
-        sta (BG),y
-@noicon:inc UIROW
+        jsr hud_icon           ; HUD: a carried fuse, lead or minute in columns 38-39
+        inc UIROW
         lda UIROW
         cmp #5
         bne @textrow
@@ -2453,9 +2443,9 @@ advance_buffers:
         .include "interaction.inc"
         .include "auxend.inc"
         .include "security.inc"
-jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
-busymsg: .byte 3,17,3,3,3
-auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,SUB_TRACK,POWERAUX_TRACK
+jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
+busymsg: .byte 3,17,3,3,3,3
+auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,SUB_TRACK,WINGB_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
 phasetime: .byte 28,6,40,6
@@ -2552,3 +2542,5 @@ sprites_end:
         .incbin "../art/aux-power.bin"
         .segment "SUBAUX"      ; track 11: substation messages and stamps
         .incbin "../art/aux-substation.bin"
+        .segment "WINGAUX"     ; track 12: wing B messages and stamps
+        .incbin "../art/aux-wingb.bin"

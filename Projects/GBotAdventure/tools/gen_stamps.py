@@ -281,6 +281,11 @@ def substation():
     from gen_substation import room
     return compile_room(room(),'SUBSTATION',LINES[:6])
 
+# Wing B: the lab's floor rays.
+def wingb():
+    from gen_wingb import room
+    return compile_room(room(),'WING B',LINES[:6])
+
 if __name__=='__main__':
     s,lib=security()
     print('security: script %d bytes, %d stamps %d bytes (+%d table)'%(len(s),len(lib),sum(map(len,lib)),1+2*len(lib)))
