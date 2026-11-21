@@ -338,10 +338,17 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    - **DON'T RESTORE FULL POWER -**
    - **IT RUNS AGAIN-**. Mid-word, she flickers out.
    - **...FLICKERED OUT. CONSOLE STAYS ON.**
+   - **CONSOLE: SUBSTATION UNSEALED. HMM.**
+   - **...THE SUBSTATION: EAST OF POWER ROOM**, the nudge toward what's next.
 4. The console stays in phase from then on, even after leaving the lab. Probing
-   it again gives **CONSOLE: IN PHASE. NO FULL POWER!** then
-   **LAB CLOCK SAYS 6:02. NOBODY AGREES.** Afterwards the scientist goes back
-   to flickering around the lab.
+   it again gives **CONSOLE: IN PHASE. NO FULL POWER!**, then
+   **SUBSTATION OPEN: EAST OF POWER ROOM**, then
+   **LAB CLOCK SAYS 6:02. NOBODY AGREES.** The substation reminder stays
+   until G-Bot answers the breaker with N; after a rerun it comes back once
+   she has been heard again. Afterwards the scientist goes back to flickering
+   around the lab.
+
+![The console points the way](screenshots/story_0_substation_hint_enhanced.png)
 
 ### The substation and the big switch
 
@@ -522,7 +529,7 @@ required native build inputs, not modern images loaded by the game.
   buffer. The banks: workshop 364 bytes (12 messages), power room 510 (18),
   security 354 (13), lab 988 (32, including the dialogue and the tuning meter
   template), substation 71 (4). Every bank ends with a link (`$FE`) to the
-  shared **story bank** in the language card (`$F800`, 1,081 bytes, 31
+  shared **story bank** in the language card (`$F800`, 1,157 bytes, 33
   messages: the breaker, both branches and the loop-aware lines), so those
   lines show in any room. The first four **ENTERING ...** lines (the substation's is in the story bank) sit in the bank of each room that
   has a door to that room, so the bank being left always has the line it
@@ -569,11 +576,11 @@ required native build inputs, not modern images loaded by the game.
   interpreter switches to bank 1, and back, while it draws a room.
   - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$F5D4`: the stamp interpreter, sound effects and tunes, and the
+  - `$EC80–$F5CE`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
-  - `$F5D5–$F7FF`: **free, 555 bytes**;
-  - `$F800–$FC38`: the story bank (1,081 bytes);
-  - `$FC39–$FFF9`: **free, 961 bytes**;
+  - `$F5CF–$F7FF`: **free, 561 bytes**;
+  - `$F800–$FC84`: the story bank (1,157 bytes);
+  - `$FC85–$FFF9`: **free, 885 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **361 bytes** free).
 
@@ -583,9 +590,9 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,486
-  bytes** (8,192 at `$6000`, 233 + 555 + 961 in the language card, 361 in
-  the pool, 184 at `$BF48`). The substation story took 2,061 of them. Before the language card the code area had 421
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,416
+  bytes** (8,192 at `$6000`, 233 + 561 + 885 in the language card, 361 in
+  the pool, 184 at `$BF48`). The substation story took 2,131 of them. Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
@@ -764,7 +771,8 @@ CONTINUED with its stingers, and the console and chamber afterwards), then
 **Y**: a breakpoint inside the strobe proves the shown page is the room's
 negative, then the wake in the workshop (door line, position, LOOPS=1, the
 first remark), repairs kept, the night reset, the substation sealed again,
-the guard rebooting, the loop-aware console and scientist lines, and a muted
+the guard rebooting, the loop-aware console and scientist lines, the
+substation nudge after her warning and on the console (and none after N), and a muted
 second rerun (no speaker clicks, LOOPS=2, the second-rerun lines). It saves
 `screenshots/story_*_<machine>.png`.
 
