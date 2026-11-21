@@ -210,7 +210,7 @@ def main():
                 transitions.append((after['frames']-before['frames'])*17030+after['cycles'])
                 door_times.setdefault((room_before[0],where()),[]).append(transitions[-1])
                 # ...and the room's aux track (message bank, actor frames) is in.
-                w=where();e=auxsectors[5 if lit() else w][1]*256
+                w=where();e=auxsectors[6 if lit() else w][1]*256
                 if peek(0x9E,1)[0]!=w or peek(0x1440,e-0x440)!=auxes[w][0x440:e]:
                     raise AssertionError('aux track for room %d not loaded'%w)
                 banks_seen.add(w)
