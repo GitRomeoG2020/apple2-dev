@@ -96,6 +96,11 @@ def room(open_=False):
     for x in range(12,268,12):
         p.line([(x,124),(x+4,118)],T)
     p.rect((10,128,44,131),B); p.line([(12,129),(42,129)],T)
+    # WEST DOOR to WING B, front left: sealed (the guard has the code).
+    wdoor=[(9,134),(28,138),(28,158),(9,162)]
+    p.poly(wdoor,K); p.line(wdoor+[wdoor[0]],T)
+    p.text(15,145,'B',T)
+    p.rect((31,146,32,149),O)
     # EAST DOOR back to the power room, open, lamp green.
     door=[(271,96),(252,102),(252,150),(271,156)]
     p.poly(door,K); p.line(door+[door[0]],T)

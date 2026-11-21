@@ -33,6 +33,20 @@ MSG_PLUGHINT=92
 MSG_TICKING=93
 MSG_DEJA1=94
 MSG_DEJAN=95
+MSG_TICKING2=89
+MSG_CHARGED=100
+MSG_WOKE=101
+MSG_STUCKTOO=102
+MSG_GUARDWAKE=103
+MSG_WINGSEALED=107
+MSG_OFFDUTY=108
+MSG_HAVEWEMET=110
+MSG_WING=111
+MSG_COFFEEHINT=112
+MSG_LOGHINT=113
+MSG_COFFEE=114
+MSG_LOG=117
+WINGROOM=5
 HESITATE=14                    ; deja-vu ticks before the prompt (~0.8 s)
 
 ; ---- rooms 3 and 4 have their own keys. In: A = key. Out: C=1 used, else A, X kept.
@@ -40,7 +54,11 @@ roomkeys:
         ldy ROOM
         cpy #SUBROOM
         beq subkeys
+        cpy #3
+        bne :+
         jmp labkeys
+:       clc                    ; (wing B: no keys of its own)
+        rts
 subkeys:
         ldy CHOICE
         bne :+
@@ -85,19 +103,27 @@ sub_solid:                     ; C=1: PX/PY blocked
         rts
 @free:  clc
         rts
-sub_near:                      ; the breaker apron: NEAR=1
-        lda PY
+sub_near:                      ; the breaker apron (wing B: the coffee): NEAR=1
+        lda PY                 ; wing B's loop log, right: NEAR=2
         cmp #64
-        bcs :+
+        bcs @rts
         lda PX
         cmp #64
-        bcc :+
+        bcc @rts
         cmp #182
-        bcs :+
+        bcc @one
+        ldx ROOM
+        cpx #WINGROOM
+        bne @rts
         inc NEAR
-:       rts
+@one:   inc NEAR
+@rts:   rts
 sub_doors:                     ; west: back to the power room's east door
-        lda DIR
+        lda ROOM
+        cmp #WINGROOM
+        bne :+
+        jmp wing_doors
+:       lda DIR
         cmp #1
         bne @no
         lda PX
@@ -136,7 +162,17 @@ power_east:                    ; the power room's east door (front half)
 
 ; ---- substation status line (A = message)
 sub_context:
-        lda HESIT              ; the deja vu has passed: now the question
+        lda ROOM
+        cmp #WINGROOM
+        bne :+
+        lda #MSG_WING          ; WING B: THE ARCHIVE, STOPPED AT 3:07
+        ldx NEAR
+        beq @rts0
+        lda #MSG_COFFEEHINT-1
+        clc
+        adc NEAR               ; COFFEE MACHINE / LOOP LOG: SPACE TO PROBE
+@rts0:  rts
+:       lda HESIT              ; the deja vu has passed: now the question
         beq @ask
         lda #0
         sta HESIT
@@ -163,7 +199,21 @@ sub_context:
         lda #MSG_OFF_RIGHT     ; BREAKER STAYS OFF. SHE WAS RIGHT.
 :       rts
 sub_probe:
+        lda ROOM
+        cmp #WINGROOM
+        bne :++
+        ldx #28                ; NOTHING TO PROBE HERE
         lda NEAR
+        beq :+
+        ldx #MSG_COFFEE        ; A DROP OF COFFEE, FROZEN IN MIDAIR. (runs on)
+        cmp #1
+        beq :+
+        ldx #MSG_LOG           ; LOOP LOG: 4,817 TALLY MARKS. NEAT. (runs on)
+:       stx MESSAGE
+        lda #96
+        sta FEEDBACK
+        rts
+:       lda NEAR
         beq :+
         ldx LOOPS              ; first probe in this loop: deja vu
         inx
@@ -272,6 +322,7 @@ flash_shot:                    ; (tests photograph the flash here)
         sta TALK
         sta GSTATE             ; the guard will reboot
         sta LEAD               ; the lead is back on its hook
+        sta MINUTE             ; and the carried minute is lost
         sta REFUSED
         sta SCPHASE
         sta FEEDBACK
@@ -327,7 +378,23 @@ door_msg:                      ; X = next room: A = the door's status line
 :       lda entermsg,x
         rts
 story_arrive:
-        lda WAKE
+        jsr lab_clock          ; the lab's HUD clock: 6:02, 6:03, 6:04
+        lda ROOM               ; after a rerun the guard, rebooting, faintly
+        cmp #2                 ; remembers G-Bot
+        bne :+
+        lda GMET
+        beq :+
+        lda GSTATE
+        cmp #1
+        bne :+
+        lda GTIMER
+        cmp #40
+        bne :+
+        lda #MSG_HAVEWEMET     ; GUARD: ...HAVE WE MET? REBOOTING.
+        sta MESSAGE
+        lda #96
+        sta FEEDBACK
+:       lda WAKE
         beq @rts
         lda #0
         sta WAKE
@@ -361,7 +428,12 @@ drift_line:                    ; X = the console's diagnosis
         ldx #MSG_DRIFTN
 :       rts
 console_line:                  ; X = the console once in phase
-        ldx #58
+        ldx #MSG_WOKE          ; CONSOLE: 6:04! SOMETHING WOKE UP.
+        lda MINUTE
+        cmp #2
+        bne :+
+        rts
+:       ldx #58
         lda LEAD
         cmp #2
         bne :+
@@ -377,16 +449,23 @@ lab_probe:                     ; X = NEAR (not the consoles): A = message
         lda LEAD
         cmp #1
         bne :+
-        lda #2                 ; the trickle lead goes into the chamber
-        sta LEAD
+        lda #2                 ; the trickle lead goes into the chamber, and
+        sta LEAD               ; the chamber charges G-Bot with one minute
+        lda #1
+        sta MINUTE
         lda #$FF
         sta LASTMSG
+        jsr lab_clock          ; (the lab clock moves: 6:03)
         lda #MSG_PLUGGED       ; TRICKLE LEAD IN. THE RING TICKS ONCE. (runs on)
         rts
 :       cmp #2
         bne @table
-        lda #MSG_SOON
-        rts
+        lda #MSG_CHARGED       ; CHAMBER: ONE MINUTE CARRIED. GO!
+        ldx MINUTE
+        cpx #1
+        beq :+
+        lda #MSG_SOON          ; CHAMBER: RECHARGING. NEXT MINUTE SOON
+:       rts
 @table: lda labprobe,x
         rts
 lab_context:                   ; X = NEAR: A = message
@@ -399,13 +478,157 @@ lab_context:                   ; X = NEAR: A = message
         rts
 :       lda labctx,x
         rts
-carrying:                      ; Z=1: the HUD shows a carried fuse or lead
+; HUD icon in columns 38-39 of status row UIROW (BG = that row): a carried
+; fuse or lead (icon rows 0-4), or the carried minute's clock (rows 5-9).
+hud_icon:
+        ldx UIROW
         lda FUSE
         cmp #1
-        beq :+
+        beq @draw
         lda LEAD
         cmp #1
-:       rts
+        beq @draw
+        lda MINUTE
+        cmp #1
+        bne @rts
+        txa
+        clc
+        adc #5
+        tax
+@draw:  ldy #38
+        lda iconl,x
+        sta (BG),y
+        iny
+        lda iconr,x
+        sta (BG),y
+@rts:   rts
+
+; The lab's HUD clock (strip rows 169-173, column 38): 6:02, then 6:03 once
+; the lead is in, 6:04 once the minute is spent. In the canonical room and
+; on both pages.
+lab_clock:
+        lda ROOM
+        cmp #3
+        bne @rts
+        lda #GLYPH_0+2
+        ldx LEAD
+        cpx #2
+        bne @set
+        lda #GLYPH_0+3
+        ldx MINUTE
+        cpx #2
+        bne @set
+        lda #GLYPH_0+4
+@set:   sta CLKG
+        ldx #169
+@row:   lda fontlo-169,x
+        sta FP
+        lda fonthi-169,x
+        sta FP+1
+        ldy CLKG
+        lda (FP),y
+        pha
+        lda rowlo,x
+        sta BG
+        sta DST
+        sta SRC
+        lda rowhi,x
+        ora #$80
+        sta BG+1
+        and #$1F
+        ora #$20
+        sta DST+1
+        eor #$60
+        sta SRC+1
+        pla
+        ldy #38
+        sta (BG),y
+        sta (DST),y
+        sta (SRC),y
+        inx
+        cpx #174
+        bne @row
+@rts:   rts
+
+; ---- wing B, behind the security room's west door
+sec_west:                      ; security, walking west at the front-left door
+        lda DIR
+        cmp #1
+        bne @no
+        lda PX
+        cmp #14
+        bne @no
+        lda PY
+        cmp #100
+        bcc @no
+        lda GSTATE
+        cmp #3
+        beq :+
+        lda #MSG_WINGSEALED    ; WING B SEALED - GUARD HAS THE CODE
+        jmp door_sealed
+:       lda #1
+        sta NDIR
+        lda #WINGROOM
+        ldx #224
+        ldy #110
+        jmp door_go
+@no:    rts
+wing_doors:                    ; east: back to security's west door
+        lda DIR
+        cmp #2
+        bne @no
+        lda PX
+        cmp #224
+        bne @no
+        lda PY
+        cmp #94
+        bcc @no
+        lda #2
+        sta NDIR
+        ldx #14
+        ldy #110
+        jmp door_go
+@no:    rts
+sec_context:                   ; A = the security room's status line
+        lda #23                ; SECURITY UNIT REBOOTING...
+        ldx GSTATE
+        cpx #1
+        beq @rts
+        lda #26                ; SECURITY DESK: SPACE TO PROBE
+        ldx NEAR
+        bne @rts
+        lda #MSG_OFFDUTY       ; GUARD: OFF DUTY. WING B IS OPEN.
+        ldx GSTATE
+        cpx #3
+        beq @rts
+        lda #MSG_STUCKTOO      ; G-BOT: THE GUARD... IS STUCK TOO.
+        ldx MINUTE
+        cpx #1
+        beq @rts
+        lda #22                ; SECURITY ROOM - MIND THE GUARD BOT
+@rts:   rts
+guard_meets:                   ; the guard touches G-Bot. C=1: the carried
+        lda MINUTE             ; minute wakes him (for good) instead of a zap
+        cmp #1
+        beq :+
+        clc
+        rts
+:       lda #2
+        sta MINUTE             ; spent
+        lda #3
+        sta GSTATE             ; awake: no more patrol, no more catches
+        lda #1
+        sta GMET
+        lda #0
+        sta BURST
+        lda #$FF
+        sta LASTMSG            ; (the HUD clock icon clears)
+        lda #MSG_GUARDWAKE     ; GUARD: BEEP? WHERE DID THE NIGHT GO? (runs on)
+        sta MESSAGE
+        lda #96
+        sta FEEDBACK
+        sec
+        rts
 
 ; G-Bot's pose by PROBE ticks left while he hesitates (index 0..HESITATE):
 ; the probe goes up (13), stalls and stutters with the eyes flickering

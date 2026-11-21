@@ -2,13 +2,15 @@
 
 ![The console is back in phase and the scientist can finally hold still long enough to talk to G-Bot, captured from the Apple IIe emulator's actual HGR page](screenshots/lab_talk_enhanced.png)
 
-**Seventh playable milestone: the big switch.** Fix the workshop, find the
+**Eighth playable milestone: carrying time.** Fix the workshop, find the
 fuse, light the power room, slip past the security room's guard bot, unlock the
 lab, and tune the time chamber's drifting console back into phase, so the
 flickering scientist can finally hold still long enough to talk to G-Bot.
 She tells him not to restore full power. Then the **substation** opens, with
 the main breaker in it, and G-Bot gets to choose: **RESTORE FULL POWER? Y/N**.
-Five connected rooms.
+Say no, and the time chamber charges him with **one carried minute**: enough
+to wake the security guard from his loop, who remembers the code to the
+sealed **WING B**. Six connected rooms.
 The official title is **G-Bot: After Hours**; the stable project folder remains
 `Projects/GBotAdventure`.
 
@@ -44,7 +46,12 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   his repairs stay done, but the console drifts, the guard reboots, and
   everyone notices the loop count going up. **N** listens to her: G-Bot takes
   the **trickle lead** instead, plugs it into the time chamber, and the lab
-  clock moves for the first time: **TO BE CONTINUED**. See the walkthrough.
+  clock moves for the first time. See the walkthrough.
+- **Carrying time.** The chamber charges G-Bot with one minute (a little clock
+  on the HUD). Touch the patrolling guard with it and he wakes up from his
+  loop for good, remembers G-Bot, and gives up the code to **WING B**, a new
+  sealed door in the security room. Behind it: the archive, stopped at 3:07,
+  a loop log, and a drop of coffee frozen in midair: **TO BE CONTINUED**.
 - **A slim HUD.** The big in-game title band is gone. A one-row strip under each
   room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
   (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
@@ -116,12 +123,13 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   give a short clue, and some lines run on into a second one. The bay recognizes
   G-Bot. See the walkthrough below.
 - Every door works both ways, and the repair, fuse, power and lab-door states are
-  kept as G-Bot moves between all five rooms.
+  kept as G-Bot moves between all six rooms.
 - The original robot size, readable face, walking, blink and probe pose remain intact.
 
-This is a **five-room prototype**, not the finished adventure. There is no
-combat, lives or saves. There is one story choice, and its good branch stops
-at a **TO BE CONTINUED** hook.
+This is a **six-room prototype**, not the finished adventure. There is no
+combat, lives or saves. There is one story choice; its good branch now runs
+through the guard into wing B and stops at a **TO BE CONTINUED** hook. Y is
+never required.
 
 ## Play the included disk
 
@@ -187,13 +195,14 @@ play only where the game already pauses.
 | Rewind | waking up in the workshop after a rerun (a sad slide down, in place of the motif) | during the door |
 | Unstick | TRICKLE LEAD IN. THE RING TICKS ONCE. | blocking |
 | Hook | TO BE CONTINUED | blocking |
+| Tick, tock | G-BOT: I'M... TICKING? and the guard waking up | ~0.25 s, blocking |
 | Door chirp | every door with no room tune | ~22 ms, during the door |
 | Room motif | entering a room: see below | ~0.45 s, during the door |
 
 **Room tunes.** Entering a room may play one of five short motifs: the
 workshop's tinkering hop up the C chord, the power room's warming-up climb,
 security's tiptoe past the guard, the lab's whole-tone wonder, and the
-substation's slow, wary G-G-C-B-G. The
+substation's slow, wary G-G-C-B-G, and wing B's sleepy, stopped E-E-D-C...G. The
 first-ever entry to a room always plays one (the workshop's plays at boot);
 after that it's a coin flip, and a played motif is the room's own half the
 time, otherwise any of the four. The coin is an 8-bit LFSR mixed with the frame
@@ -396,12 +405,64 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
   Press **Space**: **TRICKLE LEAD IN. THE RING TICKS ONCE.**, then
   **LAB CLOCK: 6:02... 6:03! IT MOVED!**,
   **SCIENTIST: YOU LISTENED! ONE MINUTE!**,
-  **ONLY YOU CAN CARRY TIME, G-BOT.** and
-  **TO BE CONTINUED: ONE MINUTE AT A TIME**.
-- Afterwards the console reads **CONSOLE: LOOP HOLDS. 6:03 AND TICKING** and
-  the chamber **CHAMBER: 6:03. NEXT MINUTE... SOON.** (Before the lead is
-  plugged in, the console reacts to the refusal with
-  **CONSOLE: BREAKER OFF. GOOD BOT.**)
+  **ONLY YOU CAN CARRY TIME, G-BOT.** The lab's HUD clock now says **6:03**.
+- **Carrying time.** The chamber charges G-Bot with one minute, with a tick,
+  tock: **G-BOT: I'M... TICKING?**, then
+  **SCIENTIST: TAKE IT TO SOMETHING STUCK** and
+  **NEW TASK: UNSTICK SOMETHING FROZEN**. The HUD shows a little clock instead
+  of the lead. Meanwhile the console says
+  **CONSOLE: LOOP HOLDS. 6:03 AND TICKING** and the chamber
+  **CHAMBER: ONE MINUTE CARRIED. GO!** (Before the lead is plugged in, the
+  console reacts to the refusal with **CONSOLE: BREAKER OFF. GOOD BOT.**)
+
+### The guard remembers
+
+1. Go to the **security room**. While G-Bot carries the minute it says
+   **G-BOT: THE GUARD... IS STUCK TOO.** There is a new door at the front of
+   the left wall, marked **B**: walking into it says
+   **WING B SEALED - GUARD HAS THE CODE**.
+2. Walk into the patrolling guard. Instead of zapping you back, he stops,
+   ticks, and wakes up:
+   **GUARD: BEEP? WHERE DID THE NIGHT GO?**,
+   **GUARD: G-BOT! YOU KEEP PASSING ME!**,
+   **GUARD: WING B CODE IS 6-0-4. GO ON.** and
+   **THE MINUTE IS SPENT. WING B UNSEALED.** (with the unlock stinger).
+   The HUD clock clears. The guard stands still for good and catches nobody;
+   the room now reads **GUARD: OFF DUTY. WING B IS OPEN.**
+3. Back in the lab the HUD clock says **6:04**, the console
+   **CONSOLE: 6:04! SOMETHING WOKE UP.** and the chamber
+   **CHAMBER: RECHARGING. NEXT MINUTE SOON**.
+
+### Wing B
+
+Walk west through the **B** door: **ENTERING WING B...**, then
+**WING B: THE ARCHIVE, STOPPED AT 3:07** (its clock says 3:07). Filing
+cabinets on the left, the **coffee machine** on its counter at the back, and
+a **loop log** whiteboard on the right. The east door leads back to security.
+- At the coffee machine (**COFFEE MACHINE: SPACE TO PROBE**), Space:
+  **A DROP OF COFFEE, FROZEN IN MIDAIR.**,
+  **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and
+  **TO BE CONTINUED: THE ENDLESS COFFEE**.
+- At the whiteboard (**LOOP LOG: SPACE TO PROBE**), Space:
+  **LOOP LOG: 4,817 TALLY MARKS. NEAT.** and
+  **LAST ENTRY: DON'T FLIP THE BREAKER.**
+
+**A rerun (Y) at any point** loses the minute and puts the guard back to
+sleep: he reboots and patrols again, wing B is sealed again, and the lab
+clock is back at 6:02. He does remember, faintly:
+**GUARD: ...HAVE WE MET? REBOOTING.**
+
+![Carrying time: the minute on the HUD, the lab clock at 6:03](screenshots/story_6_carrying_time_enhanced.png)
+
+![WING B SEALED - GUARD HAS THE CODE](screenshots/story_10_wing_b_sealed_enhanced.png)
+
+![The guard remembers](screenshots/story_11_guard_remembers_enhanced.png)
+
+![Wing B](screenshots/story_12_wing_b_enhanced.png)
+
+![TO BE CONTINUED: THE ENDLESS COFFEE](screenshots/story_13_to_be_continued_enhanced.png)
+
+![After a rerun: HAVE WE MET?](screenshots/story_14_have_we_met_enhanced.png)
 
 ![The main breaker](screenshots/story_2_breaker_enhanced.png)
 
@@ -414,8 +475,6 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 ![Restore: waking up in the workshop again](screenshots/story_8_restore_wake_enhanced.png)
 
 ![Refuse: a new task](screenshots/story_5_refuse_new_task_enhanced.png)
-
-![Refuse: TO BE CONTINUED](screenshots/story_6_to_be_continued_enhanced.png)
 
 ![The tuning meter: phase 1 of 3](screenshots/lab_tuning_enhanced.png)
 
@@ -514,7 +573,7 @@ required native build inputs, not modern images loaded by the game.
   `$1140–$1167`: the status line being drawn (40 glyph numbers).
 - **Per-room aux track** at `$1000–$1FFF`. Every room has one 4 KB track, and a
   door reads only that track (workshop 7, read at boot; power room 8;
-  security 9; lab 10; substation 11):
+  security 9; lab 10; substation 11; wing B 12):
   - `$1000`: the room's **stamp count, stamp address table and room script**,
     in the per-frame scratch area: the room is drawn right after the read,
     before that area is reused;
@@ -528,14 +587,15 @@ required native build inputs, not modern images loaded by the game.
   The engine finds a message by scanning the bank and centers it into the line
   buffer. The banks: workshop 364 bytes (12 messages), power room 510 (18),
   security 354 (13), lab 988 (32, including the dialogue and the tuning meter
-  template), substation 71 (4). Every bank ends with a link (`$FE`) to the
-  shared **story bank** in the language card (`$F800`, 1,157 bytes, 33
-  messages: the breaker, both branches and the loop-aware lines), so those
-  lines show in any room. The first four **ENTERING ...** lines (the substation's is in the story bank) sit in the bank of each room that
+  template), substation 71 (4), wing B 351 (12). Every bank ends with a link
+  (`$FE`) to the shared **story bank** in the language card (`$F800`, 1,598
+  bytes, 46 messages: the breaker, both branches, the loop-aware lines,
+  carrying time and the guard), so those lines show in any room. The first
+  four **ENTERING ...** lines (the substation's and wing B's are in the story bank) sit in the bank of each room that
   has a door to that room, so the bank being left always has the line it
   needs. A door reads the aux sectors that hold data: all of them for a stamp
   room (workshop 0–9, power room 0–11, security 0–15, lab 0–14, substation
-  0–6), only the bank (4–6) for the lit power room.
+  0–6, wing B 0–8), only the bank (4–6) for the lit power room.
 - **Stamp rooms** (script bytes / stamps / stamp bytes / total):
 
   | Room | Script | Stamps | Stamp bytes | Total | Where |
@@ -543,12 +603,13 @@ required native build inputs, not modern images loaded by the game.
   | workshop | 649 | 35 | 1,429 | 2,149 | aux 7 |
   | power room, dark | 878 | 97 | 1,470 | 2,543 | aux 8 |
   | power room, lit | 802 | 50 | 1,306 | 2,209 | pool |
-  | security | 734 | 31 | 1,253 | 2,050 | aux 9 |
+  | security | 754 | 33 | 1,296 | 2,117 | aux 9 + pool |
   | lab | 573 | 31 | 2,088 | 2,724 | aux 10 + pool |
   | substation | 541 | 30 | 1,086 | 1,688 | aux 11 |
+  | wing B | 567 | 29 | 1,083 | 1,709 | aux 12 |
 
-  All six pictures take 13,363 bytes, against 49,152 as full art (the power
-  room grew its east door). The
+  All seven pictures take 15,139 bytes, against 57,344 as full art (the power
+  room grew its east door, security its wing B door). The
   interpreter (`stamps`) draws a room in about 0.3 s; it maps language-card
   bank 1 while it draws, so it and everything it reads (fonts, row tables) sit
   at `$E000` or above. The workshop's online look and the security lab-door
@@ -559,7 +620,8 @@ required native build inputs, not modern images loaded by the game.
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$B7–$CA` sound and tunes; `$CB` loops (reruns so
   far), `$CC` breaker prompt, `$CD` refused, `$CE` trickle lead (0 on its
-  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun, `$D0` the deja vu in progress, `$D1` the
+  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun, `$D2` the carried minute (0 none, 1 carried, 2 spent), `$D3` the guard
+  has met G-Bot (survives reruns), `$D4` scratch; `$D0` the deja vu in progress, `$D1` the
   loop it last happened in; `$26`, `$2B`,
   `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
@@ -574,13 +636,13 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
+  - bank 2 `$D000–$DF00`: engine code (free to `$DFFF`: **255 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$F5CE`: the stamp interpreter, sound effects and tunes, and the
+  - `$EC80–$F778`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
-  - `$F5CF–$F7FF`: **free, 561 bytes**;
-  - `$F800–$FC84`: the story bank (1,157 bytes);
-  - `$FC85–$FFF9`: **free, 885 bytes**;
+  - `$F779–$F7FF`: **free, 135 bytes**;
+  - `$F800–$FE3D`: the story bank (1,598 bytes);
+  - `$FE3E–$FFF9`: **free, 444 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **361 bytes** free).
 
@@ -590,14 +652,15 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **10,416
-  bytes** (8,192 at `$6000`, 233 + 561 + 885 in the language card, 361 in
-  the pool, 184 at `$BF48`). The substation story took 2,131 of them. Before the language card the code area had 421
+- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **9,571
+  bytes** (8,192 at `$6000`, 255 + 135 + 444 in the language card, 361 in
+  the pool, 184 at `$BF48`). The substation story took 2,131 of them, and
+  carrying time 845 more. Before the language card the code area had 421
   bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
-  aux** (`src/layout.inc`). The complete disk is 143,360 bytes; **tracks
-  12–34 are free** (23 tracks).
+  aux, 12 wing B aux** (`src/layout.inc`). The complete disk is 143,360
+  bytes; **tracks 13–34 are free** (22 tracks).
   It needs a 64 KB machine (language card); no auxiliary RAM or expansion
   sound hardware.
 
@@ -617,6 +680,8 @@ and II+ give the same numbers):
 | fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |  |
 | power room (lit) → substation | | | **0.82 s** | 1.21 s |
 | substation → power room (lit) | | | **0.72 s** | 1.13 s |
+| security → wing B | | | **0.82 s** | 1.30 s |
+| wing B → security | | | **0.99 s** | ~1.4 s |
 
 Adding the substation made no door slower: `MUTE=1 tests/door_timing.py`
 compares every door against main before it (`fedc2c8`) and allows one disk
@@ -772,7 +837,14 @@ CONTINUED with its stingers, and the console and chamber afterwards), then
 negative, then the wake in the workshop (door line, position, LOOPS=1, the
 first remark), repairs kept, the night reset, the substation sealed again,
 the guard rebooting, the loop-aware console and scientist lines, the
-substation nudge after her warning and on the console (and none after N), and a muted
+substation nudge after her warning and on the console (and none after N),
+carrying time (the run-on lines and tick, the HUD clock icon on both pages,
+the lab's HUD clock digit at 6:03 and 6:04 in `$8000` and both pages), the
+security hint, wing B sealed, the guard waking on touch (no zap, the minute
+spent, the icon cleared, every line, the stinger, the guard standing still and
+catching nobody), wing B itself (door line, arrival, the solid counter, both
+probes and the hook), the console and chamber after, and after a rerun the
+minute lost, the guard rebooting with HAVE WE MET? and wing B sealed again, and a muted
 second rerun (no speaker clicks, LOOPS=2, the second-rerun lines). It saves
 `screenshots/story_*_<machine>.png`.
 

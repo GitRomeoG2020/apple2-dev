@@ -14,7 +14,11 @@ def sym(n):return int(re.search(r'al ([0-9A-F]+) \.'+n+r'\b',lbl).group(1),16)
 MAIN,FLASH=sym('main'),sym('flash_shot')
 PX,REPAIR,MESSAGE,FEEDBACK,ROOM,PANEL,FUSE,GSTATE,LABOPEN,CONSOLE,TUNESTEP,TUNEPOS,TALK=0x70,0x83,0x85,0x88,0x8A,0x8C,0x8D,0x92,0x9D,0xA9,0xAA,0xAB,0xAC
 SOUNDOFF,SPKCNT,JINGLES,LOOPS,CHOICE,REFUSED,LEAD,WAKE,HESIT,DEJA=0xB7,0xBF,0xC1,0xCB,0xCC,0xCD,0xCE,0xCF,0xD0,0xD1
-NAMES=('workshop','power','security','lab','substation')
+NAMES=('workshop','power','security','lab','substation','wingb')
+MINUTE,GMET,GX=0xD2,0xD3,0x8F
+sys.path.insert(0,str(ROOT/'tools'))
+from gen_workshop import clock_icon,fuse_icon,message_pixels
+from gen_concept import row_offset
 failures=[]
 def ok(c,d):
     print(('PASS ' if c else 'FAIL ')+d,flush=True)
@@ -63,6 +67,20 @@ with tempfile.TemporaryDirectory() as tmp:
         image=decode(mem);image.save(path.with_name(path.stem+'-280.png'))
         image.resize((1120,768),Image.Resampling.NEAREST).save(path);shots.append(path)
         print('SCREENSHOT '+str(path),flush=True)
+    def hud():
+        """Which carried icon both pages show in status columns 38-39."""
+        got=set()
+        for pg in (0x2000,0x4000):
+            rows=[peek(pg+row_offset(177+r)+38,2) for r in range(5)]
+            got.add('clock' if rows==clock_icon() else 'fuse' if rows==fuse_icon() else None)
+        return got.pop() if len(got)==1 else 'mixed'
+    def labclock():
+        """The lab clock's last digit, if $8000 and both pages agree."""
+        cols=[bytes(b(base+row_offset(169+r)+38) for r in range(5)) for base in (0x8000,0x2000,0x4000)]
+        for d in '0123456789':
+            want=bytes(message_pixels(d)[r][19] for r in range(5))
+            if all(c==want for c in cols):return d
+        return None
     def frames(n):
         for _ in range(n):step()
     def door(nxt,x,y,d):
@@ -135,10 +153,43 @@ with tempfile.TemporaryDirectory() as tmp:
         at(122,60,3);ok(b(0x84)==1 and b(MESSAGE)==92,'chamber with the lead: CHAMBER: SPACE TO PLUG IN THE LEAD')
         j0=b(JINGLES);step(' ');frames(1)
         ok(b(LEAD)==2 and b(MESSAGE)==85 and b(JINGLES)==j0+1,'Space: TRICKLE LEAD IN. THE RING TICKS ONCE. (stinger)')
-        seq=runs_to(89,600);ok(seq==[85,86,87,88,89],'the lead runs on to the hook: %s'%seq)
-        ok(b(JINGLES)==j0+2,'TO BE CONTINUED plays its stinger');shot('6_to_be_continued')
-        frames(60);hide();at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==93,'console after the lead: CONSOLE: LOOP HOLDS. 6:03 AND TICKING')
-        frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==91,'chamber again: CHAMBER: 6:03. NEXT MINUTE... SOON.')
+        seq=runs_to(99,700);ok(seq==[85,86,87,88,89,98,99],"the lead runs on: ...ONE MINUTE! ...CARRY TIME, G-BOT. G-BOT: I'M... TICKING? SCIENTIST: TAKE IT TO SOMETHING STUCK, NEW TASK: UNSTICK SOMETHING FROZEN (%s)"%seq)
+        ok(b(JINGLES)==j0+2 and b(0xC4)==23,'I\'M... TICKING? plays a tick, tock')
+        ok(b(MINUTE)==1,'the chamber charged him with one carried minute')
+        frames(2);ok(hud()=='clock','the HUD shows a little clock (not the lead) on both pages')
+        ok(labclock()=='3','the lab HUD clock now says 6:03');shot('6_carrying_time')
+        frames(60);hide();at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==93,'console while carrying: CONSOLE: LOOP HOLDS. 6:03 AND TICKING')
+        frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==100,'chamber: CHAMBER: ONE MINUTE CARRIED. GO!')
+        # 3b) CARRYING TIME: the guard remembers
+        frames(60);at(122,106,0);door(2,122,48,0);poke(GSTATE,[2]);frames(2);hide();at(150,104,1);frames(2)
+        ok(b(MESSAGE)==102,'security, carrying the minute: G-BOT: THE GUARD... IS STUCK TOO.')
+        at(14,110,1);step('A');frames(1);ok(b(ROOM)==2 and b(MESSAGE)==107,'the new west door: WING B SEALED - GUARD HAS THE CODE');shot('10_wing_b_sealed')
+        frames(70);j0=b(JINGLES);gx=b(GX);at(gx*7,80,0)
+        ok(b(GSTATE)==3 and b(MINUTE)==2 and b(GMET)==1 and b(ROOM)==2 and b(PX+1)==80,'touching the guard with the minute: no zap, he stops for good')
+        ok(b(MESSAGE)==103 and b(JINGLES)==j0+1,'GUARD: BEEP? WHERE DID THE NIGHT GO? (tick)');gx=b(GX);at(gx*7-34 if gx*7-34>=14 else gx*7+30,84,2 if gx*7-34>=14 else 1);shot('11_guard_remembers')
+        ok(hud() is None,'the minute is spent: the HUD clock clears')
+        seq=runs_to(106,600);ok(seq==[103,104,105,106],'GUARD: G-BOT! YOU KEEP PASSING ME! / WING B CODE IS 6-0-4. GO ON. / THE MINUTE IS SPENT. WING B UNSEALED. (%s)'%seq)
+        ok(b(JINGLES)==j0+2,'the unseal plays the unlock stinger')
+        gx=b(GX);frames(40);ok(b(GX)==gx,'the guard stays put')
+        at(b(GX)*7,80,1);frames(6);ok(b(PX)==b(GX)*7 and b(PX+1)==80,'and catches nobody any more')
+        frames(70);hide();at(150,104,1);frames(2);ok(b(MESSAGE)==108,'security now: GUARD: OFF DUTY. WING B IS OPEN.')
+        # 3c) WING B
+        n=len(door_msgs);at(14,110,1);t0=step('A');t_wing=t0;frames(4)
+        ok(b(ROOM)==5 and tuple(peek(PX,3))==(224,110,1),'west door: into WING B (224,110 facing west)')
+        ok(door_msgs[n:]==[109],'door line: ENTERING WING B...')
+        ok(b(MESSAGE)==111,'WING B: THE ARCHIVE, STOPPED AT 3:07');shot('12_wing_b')
+        at(120,60,3);step('W');frames(4);ok(b(PX+1)==56,'the coffee counter is solid (G-Bot stops at y=56)')
+        at(120,56,3);ok(b(0x84)==1 and b(MESSAGE)==112,'COFFEE MACHINE: SPACE TO PROBE')
+        j0=b(JINGLES);step(' ');frames(1);ok(b(MESSAGE)==114,'Space: A DROP OF COFFEE, FROZEN IN MIDAIR.')
+        seq=runs_to(116,600);ok(seq==[114,115,116],'G-BOT: THAT WILL TAKE ANOTHER MINUTE. / TO BE CONTINUED: THE ENDLESS COFFEE (%s)'%seq)
+        ok(b(JINGLES)==j0+1,'the hook plays its stinger');at(56,60,2);shot('13_to_be_continued')
+        frames(70);hide();at(200,56,3);ok(b(0x84)==2 and b(MESSAGE)==113,'LOOP LOG: SPACE TO PROBE')
+        step(' ');frames(1);seq=runs_to(118,300);ok(seq==[117,118],"LOOP LOG: 4,817 TALLY MARKS. NEAT. / LAST ENTRY: DON'T FLIP THE BREAKER. (%s)"%seq)
+        frames(70);n=len(door_msgs);at(224,110,2);t_wback=step('D');frames(4)
+        ok(b(ROOM)==2 and tuple(peek(PX,3))==(14,110,2) and door_msgs[n:]==[61],'east door: back to security (14,110 facing east)')
+        door(3,122,120,3);hide();frames(2);ok(labclock()=='4','the lab HUD clock now says 6:04')
+        at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==101,'console: CONSOLE: 6:04! SOMETHING WOKE UP.')
+        frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==91,'chamber: CHAMBER: RECHARGING. NEXT MINUTE SOON')
         # 4) RESTORE: back to the breaker, Y
         frames(60);at(122,106,0);door(2,122,48,0);door(1,14,90,2);door(4,14,90,2)
         at(120,56,3);step(' ');frames(2)
@@ -153,10 +204,12 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(door_msgs[n:]==[72],'its door line: G-BOT REBOOTING... 12:15 AGAIN')
         ok(b(LOOPS)==1 and b(MESSAGE)==73,'LOOPS=1; G-BOT: ...THAT WAS A BAD IDEA. AGAIN.');shot('8_restore_wake')
         ok((b(REPAIR),b(PANEL),b(FUSE),b(LABOPEN))==(3,3,2,1),'the machines remember him: workbench, fuse and lab door stay fixed')
-        ok((b(CONSOLE),b(GSTATE),b(LEAD),b(REFUSED),b(WAKE))==(0,0,0,0,0),'the console drifts again, the guard will reboot, the lead is back on its hook')
+        ok((b(CONSOLE),b(GSTATE),b(LEAD),b(REFUSED),b(WAKE),b(MINUTE))==(0,0,0,0,0,0),'the console drifts again, the guard will reboot, the lead is back on its hook, the minute is lost')
+        ok(b(GMET)==1,'(but the guard met him once)')
         frames(4)
         door(1,122,120,3);at(224,104,2);step('D');frames(2);ok(b(ROOM)==1 and b(MESSAGE)==66,'the substation is sealed again until she is heard')
-        door(2,224,104,1);frames(2);ok(b(GSTATE)==1 and b(MESSAGE)==23,'the guard reboots')
+        door(2,224,104,1);frames(2);ok(b(GSTATE)==1 and b(MESSAGE)==110,'the guard reboots, faintly: GUARD: ...HAVE WE MET? REBOOTING.');shot('14_have_we_met')
+        at(14,110,1);step('A');frames(1);ok(b(ROOM)==2 and b(MESSAGE)==107,'wing B is sealed again')
         poke(0x8F,[3,1,0]);door(3,122,120,3);hide()
         at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==79 and b(CONSOLE)==1,'CONSOLE: LOOP 4,818. PHASE DRIFT!')
         poke(CONSOLE,[2]);poke(TUNESTEP,[2]);poke(TUNEPOS,[9]);poke(FEEDBACK,[0]);step('R')
@@ -181,6 +234,8 @@ with tempfile.TemporaryDirectory() as tmp:
         # 6) door timing
         print('DOOR power -> substation %d cycles (%.2f s); substation -> power %d (%.2f s); wake after the flash %d (%.2f s), whole muted rerun %d (%.2f s)'%(t_in,t_in/1020484,t_out,t_out/1020484,t_wake,t_wake/1020484,t_wake2,t_wake2/1020484),flush=True)
         ok(t_in<1500000 and t_out<1500000,'substation doors under 1.5 s with a motif')
+        print('DOOR security -> wing B %d cycles (%.2f s); wing B -> security %d (%.2f s)'%(t_wing,t_wing/1020484,t_wback,t_wback/1020484),flush=True)
+        ok(t_wing<1500000 and t_wback<1500000,'wing B doors under 1.5 s with a motif')
     finally:
         p.terminate();p.wait(timeout=5);os.close(m)
 print('RESULT: '+('FAIL' if failures else 'PASS'),flush=True)
