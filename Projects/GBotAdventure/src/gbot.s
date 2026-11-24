@@ -2528,7 +2528,6 @@ carry_table:
   .byte (V<<S)>>7
  .endrepeat
 .endrepeat
-        .include "icons.inc"   ; HUD icons: fuse/lead, minute, notebook page
 code_end:
         .segment "LCHI"
         .include "sfx.s"

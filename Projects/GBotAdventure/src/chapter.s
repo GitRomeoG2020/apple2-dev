@@ -89,12 +89,18 @@ patch:  sty PALL
         eor #$60
         sta MP+1
         ldy #0
+        lda PALL
+        bne @b
+@fast:  lda (SRC),y            ; (arriving: the room only, before it is shown)
+        sta (BG),y
+        iny
+        cpy PW
+        bne @fast
+        beq @rowend
 @b:     lda (BG),y
         sta PCOLD
         lda (SRC),y
         sta (BG),y
-        ldx PALL
-        beq @next
         tax
         lda (DST),y
         cmp PCOLD
@@ -109,7 +115,7 @@ patch:  sty PALL
 @next:  iny
         cpy PW
         bne @b
-        tya
+@rowend:tya
         clc
         adc SRC
         sta SRC
@@ -311,6 +317,7 @@ coffee_wakes:
 fx_plip:    .byte NG6,4, NE6,4, 0,4, NC6,10, 0,0
 
         .include "chapter_msgs.inc"
+        .include "icons.inc"   ; HUD icons: fuse/lead, minute, notebook page (hud_icon)
         .include "chapter_art.inc"
 chapter_end:
 .assert chapter_end <= $7000, lderror, "the chapter track holds 4K"
