@@ -19,7 +19,9 @@ GW,GH=28,30
 GY=93                 # guard sprite top row; its feet stand on y=122
 CLEAR=6
 
-def room(open_=False):
+def room(open_=False,static=False):
+    """static: the monitor wall once the guard wakes (time jolts the feeds
+    into snow until G-Bot reconnects the cable; tools/gen_chapter.py)."""
     p=Paint()
     # Shell, same depth and HUD as the other rooms.
     p.line([(6,3),(273,3),(273,FLOOR-5)],B,2)
@@ -35,7 +37,13 @@ def room(open_=False):
     for i,(x,y) in enumerate(feeds):
         p.line([(x,y),(x+24,y),(x+24,y+20),(x,y+20),(x,y)],B)
         p.rect((x+2,y+2,x+22,y+18),K)
-        if i==0:   # workshop: its rear door
+        if static: # snow: a fixed scatter of white and coloured specks
+            import random
+            r=random.Random(4817+i)
+            for yy in range(y+3,y+18):
+                for xx in range(x+3,x+22):
+                    if r.random()<0.3: p.dot(xx,yy,r.choice((T,T,T,B,O,V)))
+        elif i==0:   # workshop: its rear door
             p.line([(x+8,y+16),(x+8,y+6),(x+16,y+6),(x+16,y+16)],B); p.dot(lit(x+14,G),y+11,G)
         elif i==1: # power room: the generator, gauge up
             p.line([(x+5,y+16),(x+5,y+7),(x+19,y+7),(x+19,y+16)],B); p.dot(lit(x+12,G),y+10,G)

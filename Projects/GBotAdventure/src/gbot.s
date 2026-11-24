@@ -121,6 +121,14 @@ DEJA=$D1                      ; LOOPS+1 when he last hesitated (once per loop)
 MINUTE=$D2                    ; carried time: 0 none, 1 carried, 2 spent on the guard
 GMET=$D3                      ; the guard has remembered G-Bot (ever: survives reruns)
 CLKG=$D4                      ; scratch: the lab clock's last digit glyph
+CAMJOB=$D5                    ; security monitors (after the guard wakes), states as REPAIR
+PAGES=$D6                     ; notebook pages G-Bot has (survives reruns)
+PROW=$D7                      ; scratch for chapter.s's room patches: row,
+PLEFT=$D8                     ;   rows left, width, first byte column,
+PW=$D9                        ;   on the pages too, old background byte
+PCOL=$DA
+PALL=$DB
+PCOLD=$DC
 SLOT=$2B                      ; boot loader: drive slot * 16
 CURPH=$3C                     ; boot loader: head position (half-tracks)
 SFIRST=$4A                    ; boot loader: sector range for LOADONE
@@ -160,7 +168,7 @@ entry:  cld
 @state: sta $50,x
         dex
         bpl @state
-        ldx #CLKG-SOUNDOFF
+        ldx #PCOLD-SOUNDOFF
 @sfxz:  sta SOUNDOFF,x
         dex
         bpl @sfxz
@@ -1477,7 +1485,10 @@ probe_contact:
 :       ldx #28                ; NOTHING TO PROBE HERE
         lda NEAR
         beq @say
-        lda #1
+        jsr desk_probe         ; (snowed-in monitors after the guard wakes)
+        bcc :+
+        rts
+:       lda #1
         sta LABOPEN            ; the desk's door release: lab unlocked
         ldx #27                ; MONITORS: EVERY CAMERA SHOWS NOBODY
         bne @say
@@ -1620,9 +1631,14 @@ interaction:
         lda #0
         sta PROBE
         sta FEEDBACK
-        lda ROOM
+        ldx ROOM
+        cpx #2
         bne :+
-        lda #SFX_RISE          ; workbench fixed (G-Bot is still holding)
+        jsr cams_fixed         ; security's cameras: the feeds come back
+        ldx #0
+:       txa
+        bne :+
+        lda #SFX_RISE          ; workbench (or cameras) fixed, G-Bot still holding
         jsr sfx_jingle
         lda ROOM
 :       cmp #1
@@ -1649,7 +1665,7 @@ interaction:
         dec FEEDBACK
         bne :+
         ldx MESSAGE            ; a probe line that runs on into the next one
-        lda chain,x
+        jsr chain_of
         beq :+
         sta MESSAGE
         ldx #96
@@ -1795,8 +1811,11 @@ fetch:  sta COL
         dey
         bpl @clr
         lda COL
-        bmi meter
-        lda #<BANK
+        cmp #CH_FIRST          ; (the chapter's lines are $B0 up)
+        bcs :+
+        cmp #$80
+        bcs meter
+:       lda #<BANK
         sta SRC
         lda #>BANK
         sta SRC+1
@@ -2443,8 +2462,8 @@ advance_buffers:
         .include "interaction.inc"
         .include "auxend.inc"
         .include "security.inc"
-jobx: .byte 0,PANEL-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
-busymsg: .byte 3,17,3,3,3,3
+jobx: .byte 0,PANEL-REPAIR,CAMJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR,NOJOB-REPAIR
+busymsg: .byte 3,17,$BA,3,3,3
 auxtrack: .byte WORKAUX_TRACK,POWERAUX_TRACK,GUARD_TRACK,SCI_TRACK,SUB_TRACK,WINGB_TRACK,POWERAUX_TRACK
 labprobe: .byte 28,33,35,38,41    ; by NEAR: nothing, chamber, bay, scientist, consoles
 labctx: .byte 31,32,34,37,40
@@ -2544,3 +2563,4 @@ sprites_end:
         .incbin "../art/aux-substation.bin"
         .segment "WINGAUX"     ; track 12: wing B messages and stamps
         .incbin "../art/aux-wingb.bin"
+        .include "chapter.s"   ; track 13 (-> $6000 at boot): the second minute

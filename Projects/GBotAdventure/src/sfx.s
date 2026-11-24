@@ -29,6 +29,7 @@ SFX_UNSTICK=21                 ; the trickle lead: tick... tock... chime
 SFX_HOOK=22                    ; TO BE CONTINUED
 SFX_TICK=23                    ; a carried minute: tick... tock
 SFX_MOTIFW=24                  ; wing B's motif (room_tune maps room 5 to it)
+SFX_PLIP=25                    ; the coffee drop lands (chapter.s)
 ; Note half-periods: ~18,500 / f passes.
 NC4=71
 NE4=56
@@ -147,8 +148,10 @@ msg_sfx:
         cmp SFXMSG
         beq @rts
         sta SFXMSG
-        cmp #MSG_COUNT         ; (the tuning meter lines are $80+)
-        bcs @rts
+        cmp #MSG_COUNT         ; (the tuning meter lines are $80+; the
+        bcc :+                 ;  chapter's $B0 up have their own table)
+        jmp ch_sfx
+:
         tax
         lda msgsfx,x
         beq @rts
@@ -257,11 +260,11 @@ sfx_next:
 sfxlo:  .byte <fx_buzz,<fx_chime,<fx_warble,<fx_click,<fx_guard,<fx_chord
         .byte <fx_open,<fx_crackle,<fx_online,<fx_rise,<fx_hum,<fx_cutoff
         .byte <tune_workshop,<tune_power,<tune_security,<tune_lab,<tune_sub
-        .byte <fx_surge,<fx_zap,<fx_rewind,<fx_unstick,<fx_hook,<fx_tick,<tune_wingb
+        .byte <fx_surge,<fx_zap,<fx_rewind,<fx_unstick,<fx_hook,<fx_tick,<tune_wingb,<fx_plip
 sfxhi:  .byte >fx_buzz,>fx_chime,>fx_warble,>fx_click,>fx_guard,>fx_chord
         .byte >fx_open,>fx_crackle,>fx_online,>fx_rise,>fx_hum,>fx_cutoff
         .byte >tune_workshop,>tune_power,>tune_security,>tune_lab,>tune_sub
-        .byte >fx_surge,>fx_zap,>fx_rewind,>fx_unstick,>fx_hook,>fx_tick,>tune_wingb
+        .byte >fx_surge,>fx_zap,>fx_rewind,>fx_unstick,>fx_hook,>fx_tick,>tune_wingb,>fx_plip
 ; Notes: half-period, units (~3 ms each; in the slot one unit per frame).
 fx_buzz:    .byte 24,1, 30,1, 24,1, 30,1, 0,0
 fx_chime:   .byte 7,1, 5,1, 4,1, 4,1, 0,0

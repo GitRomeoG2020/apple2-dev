@@ -51,7 +51,14 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   on the HUD). Touch the patrolling guard with it and he wakes up from his
   loop for good, remembers G-Bot, and gives up the code to **WING B**, a new
   sealed door in the security room. Behind it: the archive, stopped at 3:07,
-  a loop log, and a drop of coffee frozen in midair: **TO BE CONTINUED**.
+  a loop log, and a drop of coffee frozen in midair.
+- **The second minute, and the scientist's notes.** Waking the guard turns his
+  monitor wall to snow; reconnect its cable (Space, then R) and the chamber
+  recharges. A second carried minute wakes wing B's **coffee machine**: the
+  drop finally falls, and the grumpy machine (4,817 nights of drip) hands
+  G-Bot the first **page of the scientist's notebook**: what happened at
+  11:59:59, and that a trickle, not full power, ends the loop. **NEW TASK:
+  FIND THE OTHER PAGES**, then **TO BE CONTINUED**.
 - **A slim HUD.** The big in-game title band is gone. A one-row strip under each
   room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
   (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
@@ -128,8 +135,9 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 This is a **six-room prototype**, not the finished adventure. There is no
 combat, lives or saves. There is one story choice; its good branch now runs
-through the guard into wing B and stops at a **TO BE CONTINUED** hook. Y is
-never required.
+through the guard, the security cameras and wing B's coffee machine to the
+first notebook page, and stops at a **TO BE CONTINUED** hook. Y is never
+required.
 
 ## Play the included disk
 
@@ -194,8 +202,10 @@ play only where the game already pauses.
 | Surge + zaps | **Y** at the breaker: a rising surge, then a zap on each negative flash, then the chord | ~2 s with the strobe, blocking |
 | Rewind | waking up in the workshop after a rerun (a sad slide down, in place of the motif) | during the door |
 | Unstick | TRICKLE LEAD IN. THE RING TICKS ONCE. | blocking |
-| Hook | TO BE CONTINUED | blocking |
-| Tick, tock | G-BOT: I'M... TICKING? and the guard waking up | ~0.25 s, blocking |
+| Hook | NEW TASK: FIND THE OTHER PAGES | blocking |
+| Tick, tock | G-BOT: I'M... TICKING?, the guard waking up, the second minute | ~0.25 s, blocking |
+| "Fixed it!" tune, again | the security cameras reconnected | ~0.7 s, blocking |
+| Plip | the coffee drop landing (after its ~0.2 s fall) | ~0.1 s, blocking |
 | Door chirp | every door with no room tune | ~22 ms, during the door |
 | Room motif | entering a room: see below | ~0.45 s, during the door |
 
@@ -430,8 +440,9 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    The HUD clock clears. The guard stands still for good and catches nobody;
    the room now reads **GUARD: OFF DUTY. WING B IS OPEN.**
 3. Back in the lab the HUD clock says **6:04**, the console
-   **CONSOLE: 6:04! SOMETHING WOKE UP.** and the chamber
-   **CHAMBER: RECHARGING. NEXT MINUTE SOON**.
+   **CONSOLE: 6:04! SOMETHING WOKE UP.** and then
+   **CONSOLE: SECURITY MONITORS: NO SIGNAL**; the chamber says
+   **CHAMBER: EMPTY. FIX SOMETHING NEARBY.** (and the same console line).
 
 ### Wing B
 
@@ -441,16 +452,60 @@ cabinets on the left, the **coffee machine** on its counter at the back, and
 a **loop log** whiteboard on the right. The east door leads back to security.
 - At the coffee machine (**COFFEE MACHINE: SPACE TO PROBE**), Space:
   **A DROP OF COFFEE, FROZEN IN MIDAIR.**,
-  **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and
-  **TO BE CONTINUED: THE ENDLESS COFFEE**.
+  **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and the hint
+  **...MAYBE THE CHAMBER HAS ONE MORE?** (a chime).
 - At the whiteboard (**LOOP LOG: SPACE TO PROBE**), Space:
   **LOOP LOG: 4,817 TALLY MARKS. NEAT.** and
   **LAST ENTRY: DON'T FLIP THE BREAKER.**
 
-**A rerun (Y) at any point** loses the minute and puts the guard back to
-sleep: he reboots and patrols again, wing B is sealed again, and the lab
-clock is back at 6:02. He does remember, faintly:
-**GUARD: ...HAVE WE MET? REBOOTING.**
+### The second minute
+
+1. Waking the guard jolted his **monitor wall into snow** (all six feeds). In
+   security he complains: **GUARD: MY MONITORS! ALL STATIC!**
+2. At the desk, Space: **MONITORS: STATIC! R RECONNECT / ESC** (Esc, or walking
+   away, cancels). **R**: **RECONNECTING CAMERAS... HOLD STILL**, a short
+   bounded pause and the workshop's "fixed it!" tune. The feeds come back:
+   **GUARD: I CAN SEE! THANKS, G-BOT.**, **GUARD: CAMERA 4... A FLOATING DROP?**
+   and **...FAR AWAY, THE CHAMBER RECHARGES.** (chime).
+3. In the lab the console now says **CONSOLE: CAMERAS UP. CHAMBER CHARGED.**
+   Space at the chamber: **CHAMBER: CHARGED! A SECOND MINUTE.** (tick, tock;
+   the HUD clock is back), **G-BOT: TICKING AGAIN. COFFEE TIME?** and
+   **NEW TASK: WAKE THE COFFEE MACHINE**. While he carries it the console says
+   **CONSOLE: 6:04 AND TICKING. AGAIN!**
+
+### The scientist's notes
+
+1. In wing B, Space at the coffee machine with the second minute: the drop
+   falls into the cup (a two-frame fall, ~0.2 s), **...PLIP! THE DROP FINALLY
+   LANDS.** The machine wakes: its screen scowls in orange, the cup is full and
+   steaming, and the HUD clock clears (the minute is spent).
+2. It talks: **COFFEE: FINALLY! 4,817 NIGHTS OF DRIP**,
+   **COFFEE: SHE ALWAYS SAID ONE MORE CUP.**,
+   **COFFEE: THEN 11:59:59. THEN NOTHING.**,
+   **COFFEE: SHE LEFT THIS IN MY FILTER.**
+3. **GOT A NOTEBOOK PAGE!** (chime; a little page icon appears on the HUD).
+   The page reads **PAGE: 11:59:59. FULL POWER. A LOOP.**,
+   **PAGE: NOT A FLOOD. A TRICKLE ENDS IT.** and
+   **PAGE: I HID THE REST. ROOM BY ROOM.**
+4. **COFFEE: NOW SHOO. MY CUP IS COOLING.**,
+   **NEW TASK: FIND THE OTHER PAGES** (the hook) and
+   **TO BE CONTINUED: HER MISSING NOTES**.
+5. Probe it again: **COFFEE: BREWING. GO FIND HER PAGES.** (If G-Bot walked off
+   before the page changed hands, it hands it over now.) The lab clock says
+   **6:05**, the console **CONSOLE: 6:05! SOMEONE IS GRUMPY.** and the chamber
+   **CHAMBER: RECHARGING. NEXT MINUTE SOON**.
+
+**A rerun (Y) at any point** resets the night: the minutes are lost, the guard
+goes back to sleep (he reboots and patrols again, wing B is sealed again), the
+coffee drop hangs frozen again and the lab clock is back at 6:02. He does
+remember, faintly: **GUARD: ...HAVE WE MET? REBOOTING.** Repairs stay done,
+the security cameras included, and **the page stays with G-Bot** (the HUD
+keeps its icon): he wakes with **G-BOT: BAD IDEA. BUT I KEPT THE PAGE.** In the
+next night the frozen coffee gets **G-BOT: FROZEN AGAIN. I KEPT THE PAGE.**,
+and once the guard is awake again the chamber charges at once (the cameras are
+still fixed). Waking the coffee a second time:
+**...PLIP! THE DROP LANDS. AGAIN.**, **COFFEE: YOU AGAIN?! YOU GOT THE PAGE.**
+and **COFFEE: ANOTHER NIGHT. SHOO.**
 
 ![Carrying time: the minute on the HUD, the lab clock at 6:03](screenshots/story_6_carrying_time_enhanced.png)
 
@@ -460,7 +515,21 @@ clock is back at 6:02. He does remember, faintly:
 
 ![Wing B](screenshots/story_12_wing_b_enhanced.png)
 
-![TO BE CONTINUED: THE ENDLESS COFFEE](screenshots/story_13_to_be_continued_enhanced.png)
+![The coffee hint](screenshots/story_13_coffee_hint_enhanced.png)
+
+![The monitor wall in snow](screenshots/story_15_monitors_static_enhanced.png)
+
+![Reconnecting the cameras](screenshots/story_16_reconnecting_enhanced.png)
+
+![I CAN SEE!](screenshots/story_17_i_can_see_enhanced.png)
+
+![The second minute](screenshots/story_18_second_minute_enhanced.png)
+
+![The coffee machine awake: GOT A NOTEBOOK PAGE!](screenshots/story_19_notebook_page_enhanced.png)
+
+![TO BE CONTINUED: HER MISSING NOTES](screenshots/story_20_to_be_continued_enhanced.png)
+
+![Next night: YOU AGAIN?!](screenshots/story_21_you_again_enhanced.png)
 
 ![After a rerun: HAVE WE MET?](screenshots/story_14_have_we_met_enhanced.png)
 
@@ -526,6 +595,9 @@ python Projects/GBotAdventure/tools/gen_workshop.py
 python Projects/GBotAdventure/tools/gen_power_room.py
 python Projects/GBotAdventure/tools/gen_security.py
 python Projects/GBotAdventure/tools/gen_lab.py
+python Projects/GBotAdventure/tools/gen_wingb.py
+python Projects/GBotAdventure/tools/gen_chapter.py
+python Projects/GBotAdventure/tools/gen_banks.py
 python Projects/GBotAdventure/tools/gen_concept.py
 ```
 
@@ -541,7 +613,10 @@ dark and lit power room, security, the lab) into a stamp library and a room
 script, checking the result byte for byte, and `gen_banks.py` packs them onto
 the rooms' aux tracks and into the stamp pool (`art/stamp-pool.bin`), and writes
 `src/auxend.inc` (each variant's script address and aux sectors).
-`gen_lab.py` authors the lab and the scientist's four
+`gen_wingb.py` authors wing B (and the coffee machine's falling-drop and awake
+stages); `gen_chapter.py` turns the security monitor wall's snow and those
+coffee stages into the room patches on the chapter track
+(`src/chapter_art.inc`). `gen_lab.py` authors the lab and the scientist's four
 frames (`art/lab-room.hgr`, `art/scientist-sprites.bin`: solid and ghost, each
 for even and odd columns). `gen_concept.py` regenerates the original portrait without
 changing it. Neither imports Rockfall or uses external artwork/fonts. Build again
@@ -587,10 +662,15 @@ required native build inputs, not modern images loaded by the game.
   The engine finds a message by scanning the bank and centers it into the line
   buffer. The banks: workshop 364 bytes (12 messages), power room 510 (18),
   security 354 (13), lab 988 (32, including the dialogue and the tuning meter
-  template), substation 71 (4), wing B 351 (12). Every bank ends with a link
-  (`$FE`) to the shared **story bank** in the language card (`$F800`, 1,598
+  template), substation 71 (4), wing B 350 (12). Every bank ends with a link
+  (`$FE`) to the shared **story bank** in the language card (`$F800`, 1,600
   bytes, 46 messages: the breaker, both branches, the loop-aware lines,
-  carrying time and the guard), so those lines show in any room. The first
+  carrying time and the guard), so those lines show in any room. The story
+  bank in turn links on to the **chapter bank** at `$6000` (1,154 bytes, 32
+  messages: the second minute, the cameras, the coffee and the notebook
+  page). Message ids are bytes and `$80–$AF` are the tuning meter, so the
+  chapter's lines are ids **`$B0` up**; their run-on chains and sounds are in
+  `src/chapter_msgs.inc`, beside the code that reads them. The first
   four **ENTERING ...** lines (the substation's and wing B's are in the story bank) sit in the bank of each room that
   has a door to that room, so the bank being left always has the line it
   needs. A door reads the aux sectors that hold data: all of them for a stamp
@@ -620,8 +700,12 @@ required native build inputs, not modern images loaded by the game.
   `$AA–$AB` tuning phase/cursor, `$AC` talking, `$AD` door input lockout,
   `$AE` door scratch); `$B7–$CA` sound and tunes; `$CB` loops (reruns so
   far), `$CC` breaker prompt, `$CD` refused, `$CE` trickle lead (0 on its
-  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun, `$D2` the carried minute (0 none, 1 carried, 2 spent), `$D3` the guard
-  has met G-Bot (survives reruns), `$D4` scratch; `$D0` the deja vu in progress, `$D1` the
+  hook, 1 carried, 2 plugged in), `$CF` waking after a rerun, `$D2` the carried minute (0 none, 1 carried, 2 spent on the guard, 3 the second
+  carried, 4 spent on the coffee), `$D3` the guard
+  has met G-Bot (survives reruns), `$D4` scratch, `$D5` the security cameras
+  (a repair job like the workbench: 0 snow, 1 inspected, 2 reconnecting,
+  3 fixed; survives reruns), `$D6` notebook pages (survive reruns),
+  `$D7–$DC` room-patch scratch; `$D0` the deja vu in progress, `$D1` the
   loop it last happened in; `$26`, `$2B`,
   `$3C–$4E`: loader zero page.
 - `$2000–$3FFF` and `$4000–$5FFF`: alternating HGR display pages.
@@ -636,13 +720,13 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DF00`: engine code (free to `$DFFF`: **255 bytes**);
+  - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
-  - `$EC80–$F778`: the stamp interpreter, sound effects and tunes, and the
+  - `$EC80–$F75C`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
-  - `$F779–$F7FF`: **free, 135 bytes**;
-  - `$F800–$FE3D`: the story bank (1,598 bytes);
-  - `$FE3E–$FFF9`: **free, 444 bytes**;
+  - `$F75D–$F7FF`: **free, 163 bytes**;
+  - `$F800–$FE3F`: the story bank (1,600 bytes);
+  - `$FE40–$FFF9`: **free, 442 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
     **361 bytes** free).
 
@@ -652,15 +736,26 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$7FFF` (8,192 bytes) is free main RAM.** Free RAM in all: **9,571
-  bytes** (8,192 at `$6000`, 255 + 135 + 444 in the language card, 361 in
-  the pool, 184 at `$BF48`). The substation story took 2,131 of them, and
-  carrying time 845 more. Before the language card the code area had 421
-  bytes free.
+- **`$6000–$6CF8`: the chapter** (track 13, read at boot after the language
+  card is loaded, and resident from then on; `src/chapter.s`): the chapter
+  bank (`$6000–$6481`), its code (`$6482–$667E`: the cameras, the chamber's
+  second minute, the coffee, the page; 509 bytes), message chains and sounds,
+  the HUD icons (fuse or lead, minute, page), and five **room patches**
+  (`$66E1–$6CF8`, `tools/gen_chapter.py`): byte
+  rectangles copied over the room in `$8000` (and both pages, except where a
+  sprite covers the old background): the monitor wall in snow and with its
+  feeds (12 × 39 bytes each), and the coffee machine's falling drop (two
+  frames) and its awake look (6 × 33 bytes each).
+- **`$6CF9–$7FFF` (4,871 bytes) is free main RAM.** Free RAM in all: **6,254
+  bytes** (4,871 at `$6CF9`, 233 + 163 + 442 in the language card, 361 in
+  the pool, 184 at `$BF48`). The substation story took 2,131 of them,
+  carrying time 845, and the second minute 3,317 (3,321 on the chapter
+  track, a few bytes of hooks in the language card, the HUD icons moved
+  out of it). Before the language card the code area had 421 bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
-  aux, 12 wing B aux** (`src/layout.inc`). The complete disk is 143,360
-  bytes; **tracks 13–34 are free** (22 tracks).
+  aux, 12 wing B aux, 13 the chapter** (`src/layout.inc`). The complete disk
+  is 143,360 bytes; **tracks 14–34 are free** (21 tracks).
   It needs a 64 KB machine (language card); no auxiliary RAM or expansion
   sound hardware.
 
@@ -680,8 +775,17 @@ and II+ give the same numbers):
 | fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |  |
 | power room (lit) → substation | | | **0.82 s** | 1.21 s |
 | substation → power room (lit) | | | **0.72 s** | 1.13 s |
-| security → wing B | | | **0.82 s** | 1.30 s |
-| wing B → security | | | **0.99 s** | ~1.4 s |
+| security → wing B | | | **0.83 s** | 1.30 s |
+| wing B → security | | | **1.00 s** | ~1.4 s |
+
+**The second minute** reads one more track at boot (the chapter, track 13,
+before the workshop's aux track, so the head ends where it did). A door into
+security while the monitor wall is in snow (guard awake, cable not yet
+reconnected) copies the snow patch into `$8000` on arrival, about 0.02 s
+(power room → security 0.97 s with snow, 0.95 s without). `door_timing.py`
+now wakes the guard only for its last three doors, so the first nine are
+measured in main's state: **−15,799 cycles** in all against `fedc2c8`, worst
+door **+2,634**.
 
 Adding the substation made no door slower: `MUTE=1 tests/door_timing.py`
 compares every door against main before it (`fedc2c8`) and allows one disk
@@ -843,9 +947,18 @@ the lab's HUD clock digit at 6:03 and 6:04 in `$8000` and both pages), the
 security hint, wing B sealed, the guard waking on touch (no zap, the minute
 spent, the icon cleared, every line, the stinger, the guard standing still and
 catching nobody), wing B itself (door line, arrival, the solid counter, both
-probes and the hook), the console and chamber after, and after a rerun the
-minute lost, the guard rebooting with HAVE WE MET? and wing B sealed again, and a muted
-second rerun (no speaker clicks, LOOPS=2, the second-rerun lines). It saves
+probes and the coffee hint), the second minute (the monitor wall's snow patch
+in `$8000` and on both pages, the guard's complaint, the desk's R prompt, Esc
+and walking away, the reconnect with its busy line and jingle, the feeds
+restored, the run-on lines, the console and chamber before and after, the
+second minute's tick and HUD clock), the scientist's notes (the drop's fall
+timed, the awake machine patch, every coffee and page line, the page handed
+over with its HUD icon, the hook stinger, the re-probe, the awake machine and
+the feeds kept across doors, the lab clock at 6:05), and after a rerun the
+minutes lost, the page and the cameras kept (the wake line about the page),
+the guard rebooting with HAVE WE MET? and wing B sealed again, the next night's
+frozen-again and YOU AGAIN?! lines, and a muted second rerun (no speaker
+clicks, LOOPS=2). It saves
 `screenshots/story_*_<machine>.png`.
 
 ```sh

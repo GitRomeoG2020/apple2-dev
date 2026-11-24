@@ -291,16 +291,64 @@ MESSAGES=[
     'LOOP LOG: SPACE TO PROBE',               # 113
     'A DROP OF COFFEE, FROZEN IN MIDAIR.',    # 114
     'G-BOT: THAT WILL TAKE ANOTHER MINUTE.',  # 115
-    'TO BE CONTINUED: THE ENDLESS COFFEE',    # 116 the hook
+    '...MAYBE THE CHAMBER HAS ONE MORE?',     # 116 the hint (was the hook)
     'LOOP LOG: 4,817 TALLY MARKS. NEAT.',     # 117
     "LAST ENTRY: DON'T FLIP THE BREAKER.",    # 118
 ]
+# The second minute (and the scientist's notes): ids $B0 up, past the tuning
+# meter's $80-$AF. Their texts live in the chapter bank ($6000, track 13: the
+# story bank links on to it), their chains and sounds in src/chapter_msgs.inc.
+CH_FIRST=0xB0
+CHAPTER={
+ 0xB0:'CHAMBER: EMPTY. FIX SOMETHING NEARBY.',  # chamber, first minute spent
+ 0xB1:'CONSOLE: SECURITY MONITORS: NO SIGNAL',  # ...the console knows what
+ 0xB2:'CHAMBER: CHARGED! A SECOND MINUTE.',     # cameras fixed: minute two
+ 0xB3:'G-BOT: TICKING AGAIN. COFFEE TIME?',
+ 0xB4:'NEW TASK: WAKE THE COFFEE MACHINE',
+ 0xB5:'CONSOLE: CAMERAS UP. CHAMBER CHARGED.',  # console, cameras fixed
+ 0xB6:'CONSOLE: 6:04 AND TICKING. AGAIN!',      # console, carrying minute two
+ 0xB7:'CONSOLE: 6:05! SOMEONE IS GRUMPY.',      # console, minute two spent
+ 0xB8:'GUARD: MY MONITORS! ALL STATIC!',        # security once he is awake
+ 0xB9:'MONITORS: STATIC! R RECONNECT / ESC',    # the desk, inspected
+ 0xBA:'RECONNECTING CAMERAS... HOLD STILL',     # the repair
+ 0xBB:'GUARD: I CAN SEE! THANKS, G-BOT.',       # fixed
+ 0xBC:'GUARD: CAMERA 4... A FLOATING DROP?',
+ 0xBD:'...FAR AWAY, THE CHAMBER RECHARGES.',
+ 0xC0:'...PLIP! THE DROP FINALLY LANDS.',       # wing B: minute two wakes the coffee
+ 0xC1:'COFFEE: FINALLY! 4,817 NIGHTS OF DRIP',
+ 0xC2:'COFFEE: SHE ALWAYS SAID ONE MORE CUP.',
+ 0xC3:'COFFEE: THEN 11:59:59. THEN NOTHING.',
+ 0xC4:'COFFEE: SHE LEFT THIS IN MY FILTER.',
+ 0xC5:'GOT A NOTEBOOK PAGE!',                   # (the HUD shows a page)
+ 0xC6:'PAGE: 11:59:59. FULL POWER. A LOOP.',
+ 0xC7:'PAGE: NOT A FLOOD. A TRICKLE ENDS IT.',
+ 0xC8:'PAGE: I HID THE REST. ROOM BY ROOM.',
+ 0xC9:'COFFEE: NOW SHOO. MY CUP IS COOLING.',
+ 0xCA:'NEW TASK: FIND THE OTHER PAGES',
+ 0xCB:'TO BE CONTINUED: HER MISSING NOTES',     # the hook
+ 0xCC:'COFFEE: BREWING. GO FIND HER PAGES.',    # the coffee, awake, again
+ 0xCD:'G-BOT: FROZEN AGAIN. I KEPT THE PAGE.',  # after a rerun (the page stays)
+ 0xCE:'...PLIP! THE DROP LANDS. AGAIN.',        # waking it again, a loop later
+ 0xCF:'COFFEE: YOU AGAIN?! YOU GOT THE PAGE.',
+ 0xD0:'COFFEE: ANOTHER NIGHT. SHOO.',
+ 0xD1:'G-BOT: BAD IDEA. BUT I KEPT THE PAGE.',  # waking from a rerun, page kept
+}
+CH_CHAIN={0xB0:0xB1,0xB2:0xB3,0xB3:0xB4,0xBB:0xBC,0xBC:0xBD,0xC0:0xC1,0xC1:0xC2,0xC2:0xC3,
+          0xC3:0xC4,0xC4:0xC5,0xC5:0xC6,0xC6:0xC7,0xC7:0xC8,0xC8:0xC9,0xC9:0xCA,0xCA:0xCB,
+          0xCD:115,0xCE:0xCF,0xCF:0xD0}
+class _Messages(list):
+    """MESSAGES[i]: ids 0-118 as listed, the chapter's from $B0."""
+    def __getitem__(self,i):
+        if isinstance(i,int) and i>=CH_FIRST:return CHAPTER[i]
+        return list.__getitem__(self,i)
+MESSAGES=_Messages(MESSAGES)
 # Which room's disk bank carries each message (status lines are per room).
 # 'story': the shared story bank in language-card RAM (every room's bank
 # links on to it): the twist-two lines, shown from any room.
 MSG_ROOMS={0:list(range(0,8))+[12,60,63,64],1:list(range(8,22))+[59,61,63,64],
            2:list(range(22,31))+[60,62,63,64],3:[28]+list(range(31,59))+[61,63,64],
-           4:[28,60,63,64],5:[28,61,63,64]+list(range(111,119)),'story':list(range(65,111))}
+           4:[28,60,63,64],5:[28,61,63,64]+list(range(111,119)),'story':list(range(65,111)),
+           'chapter':sorted(CHAPTER)}
 SOUND_MSG=63
 # Speaker effect a message plays when it first shows (src/sfx.s ids):
 # 1 buzz, 2 chime, 6 lock chord; +128 = a blocking stinger: 7 lab door
@@ -311,13 +359,14 @@ SFX_TICK=128+23                        # a carried minute ticks
 MSG_SFX={5:SFX_BUZZ,7:SFX_BUZZ,10:SFX_BUZZ,11:SFX_BUZZ,12:SFX_BUZZ,15:SFX_BUZZ,
          21:SFX_BUZZ,24:SFX_BUZZ,28:SFX_BUZZ,29:SFX_BUZZ,47:SFX_BUZZ,48:SFX_BUZZ,
          14:SFX_CHIME,46:SFX_CHORD,30:SFX_OPEN,49:SFX_ONLINE,56:SFX_CUTOFF,
-         66:SFX_BUZZ,81:SFX_ONLINE,84:SFX_ONLINE,85:SFX_UNSTICK,89:SFX_TICK,103:SFX_TICK,106:SFX_OPEN,107:SFX_BUZZ,116:SFX_HOOK}
+         66:SFX_BUZZ,81:SFX_ONLINE,84:SFX_ONLINE,85:SFX_UNSTICK,89:SFX_TICK,103:SFX_TICK,106:SFX_OPEN,107:SFX_BUZZ,116:SFX_CHIME}
+CH_SFX={0xB0:SFX_BUZZ,0xB2:SFX_TICK,0xB8:SFX_BUZZ,0xBD:SFX_CHIME,0xC5:SFX_CHIME,0xCA:SFX_HOOK}
 # Door status line by destination room (workshop, power, security, lab).
 ENTER_MSG=(59,60,61,62,65,109)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={89:98,98:99,103:104,104:105,105:106,114:115,115:116,117:118,57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+CHAIN={101:0xB1,89:98,98:99,103:104,104:105,105:106,114:115,115:116,117:118,57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
 
 def meter_text(step,pos):
     """The tuning meter the engine builds from template 45: phase number,
@@ -351,11 +400,20 @@ def clock_icon():
     data=encode(p.im)
     return [bytes(data[row_offset(177+r)+38:row_offset(177+r)+40]) for r in range(5)]
 
+def page_icon():
+    """Two status-line bytes (columns 38-39, rows 177-181): a notebook page."""
+    from gen_concept import Paint as _P
+    p=_P()
+    p.line([(268,177),(274,177),(276,179),(276,181),(268,181),(268,177)],T)
+    p.line([(270,179),(273,179)],T)
+    data=encode(p.im)
+    return [bytes(data[row_offset(177+r)+38:row_offset(177+r)+40]) for r in range(5)]
+
 def status_rows(index,carrying=False):
     """Exact five status rows the engine draws: message plus optional fuse icon."""
-    rows=[bytearray(r) for r in message_pixels(index if index>=128 else MESSAGES[index])]
+    rows=[bytearray(r) for r in message_pixels(index if 128<=index<CH_FIRST else MESSAGES[index])]
     if carrying:
-        for r,icon in zip(rows,clock_icon() if carrying=='clock' else fuse_icon()): r[38:40]=icon
+        for r,icon in zip(rows,{'clock':clock_icon,'page':page_icon}.get(carrying,fuse_icon)()): r[38:40]=icon
     return [bytes(r) for r in rows]
 
 def interaction_art():
@@ -395,8 +453,19 @@ def interaction_art():
         lines += [f'fontrow{r}:','.byte '+','.join(str(message_pixels(ch)[r][19]) for ch in glyphs)]
     lines += [f'SOUND_MSG={SOUND_MSG}',f'MSG_COUNT={len(messages)}','msgsfx:','.byte '+','.join(str(MSG_SFX.get(i,0)) for i in range(len(messages)))]
     lines += ['chain:','.byte '+','.join(str(CHAIN.get(i,0)) for i in range(len(messages)))]
-    icon=fuse_icon()+clock_icon()
-    lines += ['iconl:','.byte '+','.join(str(r[0]) for r in icon),'iconr:','.byte '+','.join(str(r[1]) for r in icon)]
+    # HUD icons (fuse or lead, minute, page): after the page-aligned tables.
+    icon=fuse_icon()+clock_icon()+page_icon()
+    (ROOT/'src/icons.inc').write_text('\n'.join(['; Generated by tools/gen_workshop.py; do not hand edit.',
+        'iconl:','.byte '+','.join(str(r[0]) for r in icon),'iconr:','.byte '+','.join(str(r[1]) for r in icon)])+'\n')
+    # The chapter's messages: chains and sounds for ids $B0 up (chapter code).
+    assert CH_FIRST>=0x80+0x30 and max(CHAPTER)<0xFE, 'chapter ids clear of the meter and the bank markers'
+    for i,text in CHAPTER.items():
+        assert len(text)<=37 and all(ch in GLYPHS for ch in text), (hex(i),text)
+    n=max(CHAPTER)+1-CH_FIRST
+    ch=['; Generated by tools/gen_workshop.py; do not hand edit.',f'CH_FIRST={CH_FIRST}',f'CH_LAST={max(CHAPTER)}',
+        'chsfx:','.byte '+','.join(str(CH_SFX.get(CH_FIRST+i,0)) for i in range(n)),
+        'chchain:','.byte '+','.join(str(CH_CHAIN.get(CH_FIRST+i,0)) for i in range(n))]
+    (ROOT/'src/chapter_msgs.inc').write_text('\n'.join(ch)+'\n')
     # Self-check: glyph lookup reproduces message_pixels exactly.
     for text in messages:
         rows=message_pixels(text)

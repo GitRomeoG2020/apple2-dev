@@ -51,15 +51,19 @@ with tempfile.TemporaryDirectory() as tmp:
             poke(0xA9,[3])   # console in phase: the substation door opens
             route+=[(3,4,14,90,2),(3,1,224,104,1)]
         if 'WINGB_TRACK' in (ROOT/'src/layout.inc').read_text():
-            poke(0x92,[3])   # the guard remembers: the wing B door opens
-            route+=[(3,2,224,104,1),(3,5,224,110,1),(3,2,14,110,2)]
+            # the guard remembers (the wing B door opens), from this leg on: the
+            # first nine doors keep main's state. Awake, his monitor wall is in
+            # snow until reconnected (the second minute): a patch on arrival.
+            route+=[(3,2,224,104,1,{0x92:3}),(3,5,224,110,1),(3,2,14,110,2)]
         # Muted door costs of main at fedc2c8 (before the substation), same
         # route; a door may differ by up to one disk sector of rotation phase.
         BASE=[810799,840021,765307,966568,893664,980519,698840,838141,765353]
         SLACK=16000
         bad=[];times=[]
         room=0
-        for panel,nxt,x,y,d in route:
+        for leg in route:
+            panel,nxt,x,y,d=leg[:5]
+            for a,v in (leg[5] if len(leg)>5 else {}).items():poke(a,[v])
             poke(0x8C,[panel])
             names[1]='POWER ROOM' if panel==3 else 'POWER DARK'
             poke(0x98,[nxt,x,y,d]);poke(0x8B,[1])
