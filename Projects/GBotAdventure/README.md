@@ -51,7 +51,14 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
   on the HUD). Touch the patrolling guard with it and he wakes up from his
   loop for good, remembers G-Bot, and gives up the code to **WING B**, a new
   sealed door in the security room. Behind it: the archive, stopped at 3:07,
-  a loop log, and a drop of coffee frozen in midair: **TO BE CONTINUED**.
+  a loop log, and a drop of coffee frozen in midair.
+- **The second minute, and the scientist's notes.** Waking the guard turns his
+  monitor wall to snow; reconnect its cable (Space, then R) and the chamber
+  recharges. A second carried minute wakes wing B's **coffee machine**: the
+  drop finally falls, and the grumpy machine (4,817 nights of drip) hands
+  G-Bot the first **page of the scientist's notebook**: what happened at
+  11:59:59, and that a trickle, not full power, ends the loop. **NEW TASK:
+  FIND THE OTHER PAGES**, then **TO BE CONTINUED**.
 - **A slim HUD.** The big in-game title band is gone. A one-row strip under each
   room names it and shows its clock: **WORKSHOP 12:15**, **POWER ROOM 9:41**
   (stopped when the power went), **SECURITY 2:53**, **THE LAB 6:02**. No two
@@ -128,8 +135,9 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 This is a **six-room prototype**, not the finished adventure. There is no
 combat, lives or saves. There is one story choice; its good branch now runs
-through the guard into wing B and stops at a **TO BE CONTINUED** hook. Y is
-never required.
+through the guard, the security cameras and wing B's coffee machine to the
+first notebook page, and stops at a **TO BE CONTINUED** hook. Y is never
+required.
 
 ## Play the included disk
 
@@ -194,8 +202,10 @@ play only where the game already pauses.
 | Surge + zaps | **Y** at the breaker: a rising surge, then a zap on each negative flash, then the chord | ~2 s with the strobe, blocking |
 | Rewind | waking up in the workshop after a rerun (a sad slide down, in place of the motif) | during the door |
 | Unstick | TRICKLE LEAD IN. THE RING TICKS ONCE. | blocking |
-| Hook | TO BE CONTINUED | blocking |
-| Tick, tock | G-BOT: I'M... TICKING? and the guard waking up | ~0.25 s, blocking |
+| Hook | NEW TASK: FIND THE OTHER PAGES | blocking |
+| Tick, tock | G-BOT: I'M... TICKING?, the guard waking up, the second minute | ~0.25 s, blocking |
+| "Fixed it!" tune, again | the security cameras reconnected | ~0.7 s, blocking |
+| Plip | the coffee drop landing (after its ~0.2 s fall) | ~0.1 s, blocking |
 | Door chirp | every door with no room tune | ~22 ms, during the door |
 | Room motif | entering a room: see below | ~0.45 s, during the door |
 
@@ -430,8 +440,9 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    The HUD clock clears. The guard stands still for good and catches nobody;
    the room now reads **GUARD: OFF DUTY. WING B IS OPEN.**
 3. Back in the lab the HUD clock says **6:04**, the console
-   **CONSOLE: 6:04! SOMETHING WOKE UP.** and the chamber
-   **CHAMBER: RECHARGING. NEXT MINUTE SOON**.
+   **CONSOLE: 6:04! SOMETHING WOKE UP.** and then
+   **CONSOLE: SECURITY MONITORS: NO SIGNAL**; the chamber says
+   **CHAMBER: EMPTY. FIX SOMETHING NEARBY.** (and the same console line).
 
 ### Wing B
 
@@ -441,16 +452,60 @@ cabinets on the left, the **coffee machine** on its counter at the back, and
 a **loop log** whiteboard on the right. The east door leads back to security.
 - At the coffee machine (**COFFEE MACHINE: SPACE TO PROBE**), Space:
   **A DROP OF COFFEE, FROZEN IN MIDAIR.**,
-  **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and
-  **TO BE CONTINUED: THE ENDLESS COFFEE**.
+  **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and the hint
+  **...MAYBE THE CHAMBER HAS ONE MORE?** (a chime).
 - At the whiteboard (**LOOP LOG: SPACE TO PROBE**), Space:
   **LOOP LOG: 4,817 TALLY MARKS. NEAT.** and
   **LAST ENTRY: DON'T FLIP THE BREAKER.**
 
-**A rerun (Y) at any point** loses the minute and puts the guard back to
-sleep: he reboots and patrols again, wing B is sealed again, and the lab
-clock is back at 6:02. He does remember, faintly:
-**GUARD: ...HAVE WE MET? REBOOTING.**
+### The second minute
+
+1. Waking the guard jolted his **monitor wall into snow** (all six feeds). In
+   security he complains: **GUARD: MY MONITORS! ALL STATIC!**
+2. At the desk, Space: **MONITORS: STATIC! R RECONNECT / ESC** (Esc, or walking
+   away, cancels). **R**: **RECONNECTING CAMERAS... HOLD STILL**, a short
+   bounded pause and the workshop's "fixed it!" tune. The feeds come back:
+   **GUARD: I CAN SEE! THANKS, G-BOT.**, **GUARD: CAMERA 4... A FLOATING DROP?**
+   and **...FAR AWAY, THE CHAMBER RECHARGES.** (chime).
+3. In the lab the console now says **CONSOLE: CAMERAS UP. CHAMBER CHARGED.**
+   Space at the chamber: **CHAMBER: CHARGED! A SECOND MINUTE.** (tick, tock;
+   the HUD clock is back), **G-BOT: TICKING AGAIN. COFFEE TIME?** and
+   **NEW TASK: WAKE THE COFFEE MACHINE**. While he carries it the console says
+   **CONSOLE: 6:04 AND TICKING. AGAIN!**
+
+### The scientist's notes
+
+1. In wing B, Space at the coffee machine with the second minute: the drop
+   falls into the cup (a two-frame fall, ~0.2 s), **...PLIP! THE DROP FINALLY
+   LANDS.** The machine wakes: its screen scowls in orange, the cup is full and
+   steaming, and the HUD clock clears (the minute is spent).
+2. It talks: **COFFEE: FINALLY! 4,817 NIGHTS OF DRIP**,
+   **COFFEE: SHE ALWAYS SAID ONE MORE CUP.**,
+   **COFFEE: THEN 11:59:59. THEN NOTHING.**,
+   **COFFEE: SHE LEFT THIS IN MY FILTER.**
+3. **GOT A NOTEBOOK PAGE!** (chime; a little page icon appears on the HUD).
+   The page reads **PAGE: 11:59:59. FULL POWER. A LOOP.**,
+   **PAGE: NOT A FLOOD. A TRICKLE ENDS IT.** and
+   **PAGE: I HID THE REST. ROOM BY ROOM.**
+4. **COFFEE: NOW SHOO. MY CUP IS COOLING.**,
+   **NEW TASK: FIND THE OTHER PAGES** (the hook) and
+   **TO BE CONTINUED: HER MISSING NOTES**.
+5. Probe it again: **COFFEE: BREWING. GO FIND HER PAGES.** (If G-Bot walked off
+   before the page changed hands, it hands it over now.) The lab clock says
+   **6:05**, the console **CONSOLE: 6:05! SOMEONE IS GRUMPY.** and the chamber
+   **CHAMBER: RECHARGING. NEXT MINUTE SOON**.
+
+**A rerun (Y) at any point** resets the night: the minutes are lost, the guard
+goes back to sleep (he reboots and patrols again, wing B is sealed again), the
+coffee drop hangs frozen again and the lab clock is back at 6:02. He does
+remember, faintly: **GUARD: ...HAVE WE MET? REBOOTING.** Repairs stay done,
+the security cameras included, and **the page stays with G-Bot** (the HUD
+keeps its icon): he wakes with **G-BOT: BAD IDEA. BUT I KEPT THE PAGE.** In the
+next night the frozen coffee gets **G-BOT: FROZEN AGAIN. I KEPT THE PAGE.**,
+and once the guard is awake again the chamber charges at once (the cameras are
+still fixed). Waking the coffee a second time:
+**...PLIP! THE DROP LANDS. AGAIN.**, **COFFEE: YOU AGAIN?! YOU GOT THE PAGE.**
+and **COFFEE: ANOTHER NIGHT. SHOO.**
 
 ![Carrying time: the minute on the HUD, the lab clock at 6:03](screenshots/story_6_carrying_time_enhanced.png)
 
@@ -460,7 +515,21 @@ clock is back at 6:02. He does remember, faintly:
 
 ![Wing B](screenshots/story_12_wing_b_enhanced.png)
 
-![TO BE CONTINUED: THE ENDLESS COFFEE](screenshots/story_13_to_be_continued_enhanced.png)
+![The coffee hint](screenshots/story_13_coffee_hint_enhanced.png)
+
+![The monitor wall in snow](screenshots/story_15_monitors_static_enhanced.png)
+
+![Reconnecting the cameras](screenshots/story_16_reconnecting_enhanced.png)
+
+![I CAN SEE!](screenshots/story_17_i_can_see_enhanced.png)
+
+![The second minute](screenshots/story_18_second_minute_enhanced.png)
+
+![The coffee machine awake: GOT A NOTEBOOK PAGE!](screenshots/story_19_notebook_page_enhanced.png)
+
+![TO BE CONTINUED: HER MISSING NOTES](screenshots/story_20_to_be_continued_enhanced.png)
+
+![Next night: YOU AGAIN?!](screenshots/story_21_you_again_enhanced.png)
 
 ![After a rerun: HAVE WE MET?](screenshots/story_14_have_we_met_enhanced.png)
 
