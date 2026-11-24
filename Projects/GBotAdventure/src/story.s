@@ -201,18 +201,8 @@ sub_context:
 sub_probe:
         lda ROOM
         cmp #WINGROOM
-        bne :++
-        ldx #28                ; NOTHING TO PROBE HERE
-        lda NEAR
-        beq :+
-        ldx #MSG_COFFEE        ; A DROP OF COFFEE, FROZEN IN MIDAIR. (runs on)
-        cmp #1
-        beq :+
-        ldx #MSG_LOG           ; LOOP LOG: 4,817 TALLY MARKS. NEAT. (runs on)
-:       stx MESSAGE
-        lda #96
-        sta FEEDBACK
-        rts
+        bne :+
+        jmp wing_probe         ; (chapter.s: the coffee machine, the loop log)
 :       lda NEAR
         beq :+
         ldx LOOPS              ; first probe in this loop: deja vu
@@ -378,7 +368,8 @@ door_msg:                      ; X = next room: A = the door's status line
 :       lda entermsg,x
         rts
 story_arrive:
-        jsr lab_clock          ; the lab's HUD clock: 6:02, 6:03, 6:04
+        jsr lab_clock          ; the lab's HUD clock: 6:02 ... 6:05
+        jsr chapter_arrive     ; security's snow, wing B's awake coffee
         lda ROOM               ; after a rerun the guard, rebooting, faintly
         cmp #2                 ; remembers G-Bot
         bne :+
@@ -403,6 +394,9 @@ story_arrive:
         cpx #2
         bcc :+
         lda #MSG_STILLBAD
+:       ldx PAGES
+        beq :+
+        lda #MSG_KEPTPAGE      ; G-BOT: BAD IDEA. BUT I KEPT THE PAGE.
 :       sta MESSAGE
         lda #128
         sta FEEDBACK
@@ -428,11 +422,10 @@ drift_line:                    ; X = the console's diagnosis
         ldx #MSG_DRIFTN
 :       rts
 console_line:                  ; X = the console once in phase
-        ldx #MSG_WOKE          ; CONSOLE: 6:04! SOMETHING WOKE UP.
         lda MINUTE
         cmp #2
-        bne :+
-        rts
+        bcc :+
+        jmp ch_console         ; (a minute spent: chapter.s)
 :       ldx #58
         lda LEAD
         cmp #2
@@ -460,12 +453,7 @@ lab_probe:                     ; X = NEAR (not the consoles): A = message
         rts
 :       cmp #2
         bne @table
-        lda #MSG_CHARGED       ; CHAMBER: ONE MINUTE CARRIED. GO!
-        ldx MINUTE
-        cpx #1
-        beq :+
-        lda #MSG_SOON          ; CHAMBER: RECHARGING. NEXT MINUTE SOON
-:       rts
+        jmp chamber_line       ; (chapter.s: carried, empty, the second minute)
 @table: lda labprobe,x
         rts
 lab_context:                   ; X = NEAR: A = message
@@ -488,12 +476,17 @@ hud_icon:
         lda LEAD
         cmp #1
         beq @draw
-        lda MINUTE
-        cmp #1
-        bne @rts
+        lda MINUTE             ; 1 or 3: a carried minute
+        lsr a
+        bcc @page
         txa
-        clc
-        adc #5
+        adc #4                 ; (C=1: +5)
+        tax
+        bne @draw
+@page:  lda PAGES              ; the scientist's notebook page
+        beq @rts
+        txa
+        adc #10                ; (C=0)
         tax
 @draw:  ldy #38
         lda iconl,x
@@ -517,8 +510,11 @@ lab_clock:
         lda #GLYPH_0+3
         ldx MINUTE
         cpx #2
-        bne @set
+        bcc @set
         lda #GLYPH_0+4
+        cpx #4
+        bcc @set
+        lda #GLYPH_0+5
 @set:   sta CLKG
         ldx #169
 @row:   lda fontlo-169,x
@@ -589,24 +585,6 @@ wing_doors:                    ; east: back to security's west door
         ldy #110
         jmp door_go
 @no:    rts
-sec_context:                   ; A = the security room's status line
-        lda #23                ; SECURITY UNIT REBOOTING...
-        ldx GSTATE
-        cpx #1
-        beq @rts
-        lda #26                ; SECURITY DESK: SPACE TO PROBE
-        ldx NEAR
-        bne @rts
-        lda #MSG_OFFDUTY       ; GUARD: OFF DUTY. WING B IS OPEN.
-        ldx GSTATE
-        cpx #3
-        beq @rts
-        lda #MSG_STUCKTOO      ; G-BOT: THE GUARD... IS STUCK TOO.
-        ldx MINUTE
-        cpx #1
-        beq @rts
-        lda #22                ; SECURITY ROOM - MIND THE GUARD BOT
-@rts:   rts
 guard_meets:                   ; the guard touches G-Bot. C=1: the carried
         lda MINUTE             ; minute wakes him (for good) instead of a zap
         cmp #1
@@ -627,6 +605,7 @@ guard_meets:                   ; the guard touches G-Bot. C=1: the carried
         sta MESSAGE
         lda #96
         sta FEEDBACK
+        jsr cams_static        ; (and his monitor wall goes to snow)
         sec
         rts
 

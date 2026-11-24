@@ -25,6 +25,7 @@ NAMES={0:'workshop',1:'power',2:'security',3:'lab',4:'substation',5:'wingb'}
 ROOMS=len(NAMES)
 POOLBASE=0xD000; POOLEND=0xE000
 STORY=0xF800      # the shared story bank (LC RAM, src/gbot.s): every room bank links on to it
+CHAPBANK=0x6000   # the chapter bank (track 13, read at boot to $6000): the story bank links on to it
 # Stamp variants in engine order: rooms 0-5 as first entered, 6 = lit power room.
 VARIANTS=('workshop','power','security','lab','substation','wingb','powerlit')
 def _security():
@@ -76,7 +77,9 @@ def bank_image(room):
     return out,taken,used
 
 def story_bank():
-    return b''.join(entries('story'))+b'\xff'
+    return b''.join(entries('story'))+bytes([0xFE,CHAPBANK&255,CHAPBANK>>8])
+def chapter_bank():
+    return b''.join(entries('chapter'))+b'\xff'
 
 _BUILT=None
 def build():
@@ -130,6 +133,8 @@ def main():
     (ROOT/'art/stamp-pool.bin').write_bytes(pool)
     sb=story_bank(); (ROOT/'art/story-bank.bin').write_bytes(sb)
     print('story-bank.bin: %d messages, %d bytes at $%04X'%(len(MSG_ROOMS['story']),len(sb),STORY))
+    cb=chapter_bank(); (ROOT/'art/chapter-bank.bin').write_bytes(cb)
+    print('chapter-bank.bin: %d messages, %d bytes at $%04X'%(len(MSG_ROOMS['chapter']),len(cb),CHAPBANK))
     print('stamp-pool.bin: %d bytes used, %d free'%(len(pool)-pleft,pleft))
     for k,a in hdr.items():print('  %s: header $%04X'%(k,a))
     # Doors read only the aux sectors that hold data (4..end-1): sectors 0-3

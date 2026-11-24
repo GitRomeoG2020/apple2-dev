@@ -17,7 +17,10 @@ from gen_power_room import lit, dots
 ROOT=Path(__file__).resolve().parents[1]
 NAME='WING B'
 
-def room():
+def room(stage=0):
+    """stage 0: the drop frozen in midair (the room as drawn from stamps);
+    1-2: it falls (a second carried minute); 3: the machine awake and grumpy,
+    the cup full and steaming (patched in RAM, tools/gen_chapter.py)."""
     p=Paint()
     # Shell, same depth and HUD as the other rooms.
     p.line([(6,3),(273,3),(273,FLOOR-5)],B,2)
@@ -42,12 +45,21 @@ def room():
     p.text(122,22,'COFFEE',T)
     p.line([(118,32),(162,32)],B)
     p.rect((122,36,132,44),G)                  # its little screen: ON
-    for i in range(3): p.rect((140+i*7,38,143+i*7,41),T)   # buttons
+    if stage==3:                               # ...awake: an orange scowl
+        p.rect((122,36,132,44),O)
+        p.line([(123,37),(126,39)],K,2); p.line([(131,37),(128,39)],K,2)
+        p.rect((124,42,130,43),K)
+    for i in range(3): p.rect((140+i*7,38,143+i*7,41),T if stage<3 else O)   # buttons
     p.rect((134,48,146,52),T)                  # spout
     p.rect((139,53,141,55),B)
-    p.rect((139,58,141,60),T)                  # THE DROP
+    dy=(0,3,6,None)[stage]
+    if dy is not None: p.rect((139,58+dy,141,60+dy),T)   # THE DROP (frozen, then falling)
     p.line([(132,62),(148,62),(146,70),(134,70),(132,62)],T)   # the cup, waiting
     p.line([(148,64),(151,64),(151,67),(147,67)],T)
+    if stage==3:                               # full, and steaming
+        p.rect((135,64,145,68),O)
+        for x in (134,144):                    # (clear of the spout's drip)
+            p.rect((x,59,x+1,60),T); p.rect((x+2,57,x+3,58),T); p.rect((x,55,x+1,56),T)
     # The counter.
     p.poly([(96,72),(184,72),(190,100),(90,100)],K)
     p.line([(96,72),(184,72),(190,100),(90,100),(96,72)],T)
