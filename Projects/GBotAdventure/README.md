@@ -721,10 +721,10 @@ required native build inputs, not modern images loaded by the game.
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
   - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
-  - `$E000–$EC9D`: lookup tables, the 47-glyph status font and the HUD icons;
-  - `$EC9E–$F77A`: the stamp interpreter, sound effects and tunes, and the
+  - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
+  - `$EC80–$F75C`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
-  - `$F77B–$F7FF`: **free, 133 bytes**;
+  - `$F75D–$F7FF`: **free, 163 bytes**;
   - `$F800–$FE3F`: the story bank (1,600 bytes);
   - `$FE40–$FFF9`: **free, 442 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
@@ -736,20 +736,22 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$6CCF`: the chapter** (track 13, read at boot after the language
+- **`$6000–$6CF8`: the chapter** (track 13, read at boot after the language
   card is loaded, and resident from then on; `src/chapter.s`): the chapter
-  bank (`$6000–$6481`), its code (`$6482–$6673`: the cameras, the chamber's
-  second minute, the coffee, the page; 498 bytes), message chains and sounds,
-  and five **room patches** (`$66B8–$6CCF`, `tools/gen_chapter.py`): byte
+  bank (`$6000–$6481`), its code (`$6482–$667E`: the cameras, the chamber's
+  second minute, the coffee, the page; 509 bytes), message chains and sounds,
+  the HUD icons (fuse or lead, minute, page), and five **room patches**
+  (`$66E1–$6CF8`, `tools/gen_chapter.py`): byte
   rectangles copied over the room in `$8000` (and both pages, except where a
   sprite covers the old background): the monitor wall in snow and with its
   feeds (12 × 39 bytes each), and the coffee machine's falling drop (two
   frames) and its awake look (6 × 33 bytes each).
-- **`$6CD0–$7FFF` (4,912 bytes) is free main RAM.** Free RAM in all: **6,265
-  bytes** (4,912 at `$6CD0`, 233 + 133 + 442 in the language card, 361 in
+- **`$6CF9–$7FFF` (4,871 bytes) is free main RAM.** Free RAM in all: **6,254
+  bytes** (4,871 at `$6CF9`, 233 + 163 + 442 in the language card, 361 in
   the pool, 184 at `$BF48`). The substation story took 2,131 of them,
-  carrying time 845, and the second minute 3,306 (3,280 of them on the
-  chapter track). Before the language card the code area had 421 bytes free.
+  carrying time 845, and the second minute 3,317 (3,321 on the chapter
+  track, a few bytes of hooks in the language card, the HUD icons moved
+  out of it). Before the language card the code area had 421 bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
   aux, 12 wing B aux, 13 the chapter** (`src/layout.inc`). The complete disk
@@ -773,8 +775,17 @@ and II+ give the same numbers):
 | fitting the fuse (dark → lit) | | reads 2 tracks | **no disk read** |  |
 | power room (lit) → substation | | | **0.82 s** | 1.21 s |
 | substation → power room (lit) | | | **0.72 s** | 1.13 s |
-| security → wing B | | | **0.82 s** | 1.30 s |
-| wing B → security | | | **0.99 s** | ~1.4 s |
+| security → wing B | | | **0.83 s** | 1.30 s |
+| wing B → security | | | **1.00 s** | ~1.4 s |
+
+**The second minute** reads one more track at boot (the chapter, track 13,
+before the workshop's aux track, so the head ends where it did). A door into
+security while the monitor wall is in snow (guard awake, cable not yet
+reconnected) copies the snow patch into `$8000` on arrival, about 0.02 s
+(power room → security 0.97 s with snow, 0.95 s without). `door_timing.py`
+now wakes the guard only for its last three doors, so the first nine are
+measured in main's state: **−15,799 cycles** in all against `fedc2c8`, worst
+door **+2,634**.
 
 Adding the substation made no door slower: `MUTE=1 tests/door_timing.py`
 compares every door against main before it (`fedc2c8`) and allows one disk
