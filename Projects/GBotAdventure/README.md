@@ -16,6 +16,14 @@ The official title is **G-Bot: After Hours**; the stable project folder remains
 
 ## What's playable
 
+- **G-Bot thinks out loud, and T tells you the goal.** The puzzle chain was
+  hard to follow without the walkthrough, so at each milestone G-Bot now says
+  one short line about where to go next (**G-BOT: THE LAB CHAMBER! PLUG THIS
+  IN.**), and **T** shows his current goal for the night so far, worked out
+  from the game's own flags (thirteen goals, from **GOAL: FIX THE WORKBENCH.
+  LEFT BENCH.** to **GOAL: FIND THE OTHER NOTEBOOK PAGES**). After a Y rerun the
+  goal points back at the console and then at **N**: the N path never needs Y
+  first. See **Hints** below.
 - **Every room is stamp-built, and the game runs from the language card.**
   No room is an 8 KB picture on disk any more. At each door the engine draws
   the next room into `$8000` from a **room script and a stamp library**: text in
@@ -175,6 +183,10 @@ while playing: each room change reads that room from the disk.
 | Y / N | At the main breaker's prompt: restore full power, or leave it off |
 | Escape | Cancel inspection, tuning or the breaker prompt (walking away also cancels) |
 | M | Sound effects on / off (shows **SOUND ON** / **SOUND OFF** briefly; S is taken by walking) |
+| T | G-Bot's current goal (**GOAL: ...**, sometimes with a second line of directions). Works anywhere, except while a prompt is up (an inspection's R / Esc, the breaker's Y / N, the console's R, or while the scientist talks) |
+
+The controls line at the bottom of every room now reads
+**WASD/ARROWS WALK  SPACE PROBE  T TASK**.
 
 ### Sound
 
@@ -234,6 +246,60 @@ or tap to walk. II+ keyboards don't have all four arrow keys. This prototype
 supports one direction at a time, not simultaneous/diagonal movement, and does
 not latch the last key into endless motion. Blocked walks stop at the obstacle.
 
+### Hints (if you're stuck)
+
+These are light spoilers; the step-by-step walkthrough below has the rest.
+
+- **Press T.** G-Bot tells you his current goal for the night so far, one line
+  and sometimes a second with directions:
+
+  | Where you are in the night | T says |
+  | --- | --- |
+  | at boot | **GOAL: FIX THE WORKBENCH. LEFT BENCH.** |
+  | workbench fixed | **GOAL: FIND A FUSE. POWER ROOM, NORTH.** |
+  | carrying the fuse | **GOAL: FIT THE FUSE IN THE PANEL** |
+  | power restored | **GOAL: GET TO THE DESK IN SECURITY** / **G-BOT: WEST DOOR. WAIT FOR THE GUARD.** |
+  | lab door open | **GOAL: THE LAB, NORTH IN SECURITY** / **G-BOT: PROBE THE CONSOLES. TUNE THEM.** |
+  | she has warned you | **GOAL: THE SUBSTATION, EAST OF POWER** / **G-BOT: SHE SAID NO FULL POWER. SO: N.** |
+  | carrying the trickle lead | **GOAL: PUT THE LEAD IN THE LAB CHAMBER** |
+  | carrying the minute | **GOAL: TAKE THE MINUTE TO THE GUARD** / **G-BOT: IN SECURITY. JUST BUMP HIM.** |
+  | the guard awake | **GOAL: FIX THE GUARD'S DESK MONITORS** / **G-BOT: SPACE AT HIS DESK, THEN R.** |
+  | cameras fixed | **GOAL: LAB CHAMBER. ONE MORE MINUTE** |
+  | the second minute | **GOAL: WAKE THE COFFEE IN WING B** / **G-BOT: THAT'S SECURITY'S WEST DOOR.** |
+  | the coffee awake | **GOAL: THE COFFEE HAS A PAGE FOR ME** |
+  | the page | **GOAL: FIND THE OTHER NOTEBOOK PAGES** / **G-BOT: ...ON THE NEXT DISK, I GUESS.** |
+
+  After a rerun (Y) the night starts over, and so does the goal: the console,
+  then the substation and N. The repairs and the page are kept.
+- **G-Bot thinks out loud.** After each milestone he says where he is headed:
+
+  | After | G-Bot says |
+  | --- | --- |
+  | fixing the workbench | **G-BOT: THE BACK DOOR CLICKED. NORTH!** |
+  | probing the dead breaker panel | **G-BOT: THAT OLD LOCKER... A GLINT?** |
+  | power restored | **G-BOT: WEST DOOR. SECURITY. GULP.** |
+  | the guard catching him | **G-BOT: SNEAK BEHIND HIM TO THE DESK.** |
+  | her warning (and the substation nudge) | **G-BOT: BUT SHE SAID NO FULL POWER...** |
+  | waking up after a rerun | **G-BOT: NEXT TIME I LISTEN TO HER. N.** |
+  | taking the trickle lead (N) | **G-BOT: THE LAB CHAMBER! PLUG THIS IN.** |
+  | getting the carried minute | **G-BOT: THE GUARD IS STUCK. BUMP HIM!** |
+  | waking the guard | **G-BOT: HIS MONITORS DIED. HIS DESK?** |
+  | the empty chamber / the console's NO SIGNAL | **G-BOT: THE GUARD'S DESK. LOOSE CABLE?** |
+  | the frozen coffee, cameras still down | **G-BOT: FIRST, FIX THE GUARD'S DESK.** |
+  | the frozen coffee, cameras fixed | **G-BOT: THE LAB CHAMBER MUST BE READY!** |
+  | reconnecting the cameras | **G-BOT: BACK TO THE LAB CHAMBER, THEN.** |
+  | the second minute | **G-BOT: WING B. SECURITY'S WEST DOOR.** |
+
+  A nudge runs on after the line it follows, like the other chained lines, and
+  stays up a little longer than dialogue (about five seconds). Walking or
+  probing something else cuts it short; T brings the goal back.
+
+![T at boot: the first goal](screenshots/story_22_goal_at_boot_enhanced.png)
+
+![T once the guard is awake: his monitors](screenshots/story_23_goal_monitors_enhanced.png)
+
+![G-Bot thinks out loud with the carried minute](screenshots/story_24_think_aloud_guard_enhanced.png)
+
 ### Your first repair
 
 1. Walk **left**, then **up to the front of the left workbench**. The orange socket
@@ -241,7 +307,8 @@ not latch the last key into endless motion. Blocked walks stop at the obstacle.
    **WORKBENCH: SPACE TO INSPECT** when you are close enough.
 2. Tap **Space**. G-Bot finds a loose lead; the footer offers **R RECONNECT / ESC CANCEL**.
 3. Press **R** to reconnect it. Watch **RECONNECTING** and his probe for a short,
-   bounded pause, then **WORKSHOP ONLINE** and the room's powered-up details.
+   bounded pause, then **G-BOT: THE BACK DOOR CLICKED. NORTH!** and the
+   room's powered-up details (the footer then reads **WORKSHOP ONLINE**).
 4. Walk normally again. Probing the same terminal reports that it is already online.
 
 From the untouched starting position, eleven taps of **A** and five taps of **W**
@@ -265,7 +332,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    arrives at the lit doorway at the bottom of the power room, facing in.
 2. Walk **left and up** to the breaker panel on the back wall (top left). The
    footer changes to **BREAKER PANEL: SPACE TO PROBE**. Tap **Space**:
-   **NO POWER - FIND FUSE**. Space elsewhere reports that it is too dark.
+   **NO POWER - FIND FUSE**, then **G-BOT: THAT OLD LOCKER... A GLINT?**
+   Space elsewhere reports that it is too dark.
    The generator on the right is solid.
 3. To go back, walk to the **middle of the bottom edge** (the lit doorway) and keep
    walking **down**. G-Bot returns to the workshop facing out of the rear door, with
@@ -283,7 +351,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    The fuse icon appears at the end of the status line.
 2. Walk **left** along the back wall to the breaker panel. Tap **Space**:
    **FUSE FITS: R TO FIT / ESC CANCEL**. Press **R**. After **FITTING FUSE...**
-   the room reloads lit: **POWER RESTORED - WEST DOOR OPEN**.
+   the room reloads lit: **POWER RESTORED - WEST DOOR OPEN**, then
+   **G-BOT: WEST DOOR. SECURITY. GULP.**
 
 ![The fuse found: status-line icon](screenshots/power_fuse_enhanced.png)
 
@@ -300,7 +369,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 3. G-Bot is only caught when he is **on the lane** (roughly the middle band of
    the floor) and overlaps the guard. The back wall strip and the front strip are
    safe. Wait until the guard rolls away, then cross. If it touches him he's sent
-   back to the east door; nothing else is lost.
+   back to the east door (**GUARD: WORK ORDER NOT RECOGNIZED**, then
+   **G-BOT: SNEAK BEHIND HIM TO THE DESK.**); nothing else is lost.
 4. Visit the **security desk** (back left; the desk itself is solid). Its footer
    reads **SECURITY DESK: SPACE TO PROBE**. Space shows what the monitors see.
 5. Leave by walking **right** into the east door from the front strip. You arrive
@@ -358,7 +428,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    - **IT RUNS AGAIN-**. Mid-word, she flickers out.
    - **...FLICKERED OUT. CONSOLE STAYS ON.**
    - **CONSOLE: SUBSTATION UNSEALED. HMM.**
-   - **...THE SUBSTATION: EAST OF POWER ROOM**, the nudge toward what's next.
+   - **...THE SUBSTATION: EAST OF POWER ROOM**, the nudge toward what's next,
+   - and G-Bot, thinking out loud: **G-BOT: BUT SHE SAID NO FULL POWER...**
 4. The console stays in phase from then on, even after leaving the lab. Probing
    it again gives **CONSOLE: IN PHASE. NO FULL POWER!**, then
    **SUBSTATION OPEN: EAST OF POWER ROOM**, then
@@ -394,7 +465,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 - **G-BOT REBOOTING... 12:15 AGAIN**: he wakes facing you in the middle of
   the workshop, with a sad rewind instead of a motif, and says
   **G-BOT: ...THAT WAS A BAD IDEA. AGAIN.** (from the second rerun on:
-  **G-BOT: ...STILL A BAD IDEA. AGAIN.**).
+  **G-BOT: ...STILL A BAD IDEA. AGAIN.**), then
+  **G-BOT: NEXT TIME I LISTEN TO HER. N.**
 - **The machines remember G-Bot:** the workbench, the fuse, the lit power
   room and the lab door stay fixed. The night itself starts over: the lab
   console drifts again, the guard reboots, the trickle lead is back on its
@@ -409,7 +481,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 **N, leave it off:**
 - **G-BOT: NO. SHE SAID NO FULL POWER.**, then
   **...BUT THIS TRICKLE LEAD MIGHT HELP.** and
-  **NEW TASK: TRICKLE LEAD TO THE CHAMBER**. The HUD icon shows he is carrying
+  **NEW TASK: TRICKLE LEAD TO THE CHAMBER** and
+  **G-BOT: THE LAB CHAMBER! PLUG THIS IN.** The HUD icon shows he is carrying
   it. The substation then reads **BREAKER STAYS OFF. SHE WAS RIGHT.**
 - Back in the lab, at the time chamber: **CHAMBER: SPACE TO PLUG IN THE LEAD**.
   Press **Space**: **TRICKLE LEAD IN. THE RING TICKS ONCE.**, then
@@ -419,7 +492,8 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
 - **Carrying time.** The chamber charges G-Bot with one minute, with a tick,
   tock: **G-BOT: I'M... TICKING?**, then
   **SCIENTIST: TAKE IT TO SOMETHING STUCK** and
-  **NEW TASK: UNSTICK SOMETHING FROZEN**. The HUD shows a little clock instead
+  **NEW TASK: UNSTICK SOMETHING FROZEN**, and G-Bot works it out:
+  **G-BOT: THE GUARD IS STUCK. BUMP HIM!** The HUD shows a little clock instead
   of the lead. Meanwhile the console says
   **CONSOLE: LOOP HOLDS. 6:03 AND TICKING** and the chamber
   **CHAMBER: ONE MINUTE CARRIED. GO!** (Before the lead is plugged in, the
@@ -436,13 +510,15 @@ finishes. Resetting/rebooting starts with the fault again. No disk data is saved
    **GUARD: BEEP? WHERE DID THE NIGHT GO?**,
    **GUARD: G-BOT! YOU KEEP PASSING ME!**,
    **GUARD: WING B CODE IS 6-0-4. GO ON.** and
-   **THE MINUTE IS SPENT. WING B UNSEALED.** (with the unlock stinger).
+   **THE MINUTE IS SPENT. WING B UNSEALED.** (with the unlock stinger), and
+   **G-BOT: HIS MONITORS DIED. HIS DESK?**
    The HUD clock clears. The guard stands still for good and catches nobody;
    the room now reads **GUARD: OFF DUTY. WING B IS OPEN.**
 3. Back in the lab the HUD clock says **6:04**, the console
    **CONSOLE: 6:04! SOMETHING WOKE UP.** and then
    **CONSOLE: SECURITY MONITORS: NO SIGNAL**; the chamber says
    **CHAMBER: EMPTY. FIX SOMETHING NEARBY.** (and the same console line).
+   Both end with **G-BOT: THE GUARD'S DESK. LOOSE CABLE?**
 
 ### Wing B
 
@@ -453,7 +529,9 @@ a **loop log** whiteboard on the right. The east door leads back to security.
 - At the coffee machine (**COFFEE MACHINE: SPACE TO PROBE**), Space:
   **A DROP OF COFFEE, FROZEN IN MIDAIR.**,
   **G-BOT: THAT WILL TAKE ANOTHER MINUTE.** and the hint
-  **...MAYBE THE CHAMBER HAS ONE MORE?** (a chime).
+  **...MAYBE THE CHAMBER HAS ONE MORE?** (a chime), then
+  **G-BOT: FIRST, FIX THE GUARD'S DESK.** (once the cameras are fixed:
+  **G-BOT: THE LAB CHAMBER MUST BE READY!**).
 - At the whiteboard (**LOOP LOG: SPACE TO PROBE**), Space:
   **LOOP LOG: 4,817 TALLY MARKS. NEAT.** and
   **LAST ENTRY: DON'T FLIP THE BREAKER.**
@@ -466,11 +544,13 @@ a **loop log** whiteboard on the right. The east door leads back to security.
    away, cancels). **R**: **RECONNECTING CAMERAS... HOLD STILL**, a short
    bounded pause and the workshop's "fixed it!" tune. The feeds come back:
    **GUARD: I CAN SEE! THANKS, G-BOT.**, **GUARD: CAMERA 4... A FLOATING DROP?**
-   and **...FAR AWAY, THE CHAMBER RECHARGES.** (chime).
+   and **...FAR AWAY, THE CHAMBER RECHARGES.** (chime), then
+   **G-BOT: BACK TO THE LAB CHAMBER, THEN.**
 3. In the lab the console now says **CONSOLE: CAMERAS UP. CHAMBER CHARGED.**
    Space at the chamber: **CHAMBER: CHARGED! A SECOND MINUTE.** (tick, tock;
    the HUD clock is back), **G-BOT: TICKING AGAIN. COFFEE TIME?** and
-   **NEW TASK: WAKE THE COFFEE MACHINE**. While he carries it the console says
+   **NEW TASK: WAKE THE COFFEE MACHINE** and
+   **G-BOT: WING B. SECURITY'S WEST DOOR.** While he carries it the console says
    **CONSOLE: 6:04 AND TICKING. AGAIN!**
 
 ### The scientist's notes
@@ -720,7 +800,7 @@ required native build inputs, not modern images loaded by the game.
   the loader, which maps the ROM back in (`$C082`) and continues through the
   ROM's own vector (the game runs with interrupts off). Only the stamp
   interpreter switches to bank 1, and back, while it draws a room.
-  - bank 2 `$D000–$DF16`: engine code (free to `$DFFF`: **233 bytes**);
+  - bank 2 `$D000–$DF18`: engine code (free to `$DFFF`: **231 bytes**);
   - `$E000–$EC7F`: lookup tables and the 47-glyph status font;
   - `$EC80–$F75C`: the stamp interpreter, sound effects and tunes, and the
     story code (`src/story.s`: the breaker, the rerun, the lead);
@@ -728,7 +808,7 @@ required native build inputs, not modern images loaded by the game.
   - `$F800–$FE3F`: the story bank (1,600 bytes);
   - `$FE40–$FFF9`: **free, 442 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
-    **361 bytes** free).
+    **350 bytes** free).
 
   Both the IIe and a II+ need 64 KB (a II+ with a 16K language card in slot
   0); Bobbin emulates the card on both.
@@ -736,26 +816,30 @@ required native build inputs, not modern images loaded by the game.
   repair/status changes update it in RAM).
 - `$A000–$BF47`: 14 original 42 × 44 frames (8,008 bytes).
   `$BF48–$BFFF`: 184 spare bytes.
-- **`$6000–$6CF8`: the chapter** (track 13, read at boot after the language
-  card is loaded, and resident from then on; `src/chapter.s`): the chapter
-  bank (`$6000–$6481`), its code (`$6482–$667E`: the cameras, the chamber's
-  second minute, the coffee, the page; 509 bytes), message chains and sounds,
-  the HUD icons (fuse or lead, minute, page), and five **room patches**
-  (`$66E1–$6CF8`, `tools/gen_chapter.py`): byte
+- **`$6000–$72E4`: the chapter** (tracks 13–14, read at boot after the
+  language card is loaded, and resident from then on; `src/chapter.s`): the
+  chapter bank (`$6000–$696F`: the second minute's lines, G-Bot's nudges and
+  the T goals), its code (`$6970–$6C19`: the cameras, the chamber's second
+  minute, the coffee, the page, the T key and the goal per progress state, the
+  nudge after the workbench; 682 bytes), message chains and sounds, the goal
+  table, the HUD icons (fuse or lead, minute, page), and five **room patches**
+  (`$6CCD–$72E4`, `tools/gen_chapter.py`): byte
   rectangles copied over the room in `$8000` (and both pages, except where a
   sprite covers the old background): the monitor wall in snow and with its
   feeds (12 × 39 bytes each), and the coffee machine's falling drop (two
   frames) and its awake look (6 × 33 bytes each).
-- **`$6CF9–$7FFF` (4,871 bytes) is free main RAM.** Free RAM in all: **6,254
-  bytes** (4,871 at `$6CF9`, 233 + 163 + 442 in the language card, 361 in
+- **`$72E5–$7FFF` (3,355 bytes) is free main RAM.** Free RAM in all: **4,725
+  bytes** (3,355 at `$72E5`, 231 + 163 + 442 in the language card, 350 in
   the pool, 184 at `$BF48`). The substation story took 2,131 of them,
-  carrying time 845, and the second minute 3,317 (3,321 on the chapter
-  track, a few bytes of hooks in the language card, the HUD icons moved
-  out of it). Before the language card the code area had 421 bytes free.
+  carrying time 845, the second minute 3,317, and the hints 1,529 (34 lines:
+  1,262 bytes of bank, 173 of code, 81 of chains and goals on the chapter
+  tracks; 2 bytes
+  of hooks in the engine; 11 pool bytes for the longer controls line). Before
+  the language card the code area had 421 bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation
-  aux, 12 wing B aux, 13 the chapter** (`src/layout.inc`). The complete disk
-  is 143,360 bytes; **tracks 14–34 are free** (21 tracks).
+  aux, 12 wing B aux, 13–14 the chapter** (`src/layout.inc`). The complete disk
+  is 143,360 bytes; **tracks 15–34 are free** (20 tracks).
   It needs a 64 KB machine (language card); no auxiliary RAM or expansion
   sound hardware.
 
@@ -777,6 +861,9 @@ and II+ give the same numbers):
 | substation → power room (lit) | | | **0.72 s** | 1.13 s |
 | security → wing B | | | **0.83 s** | 1.30 s |
 | wing B → security | | | **1.00 s** | ~1.4 s |
+
+**The hints** made the chapter two tracks (13–14, both read at boot, about
+0.2 s more loading); doors are unchanged (see below).
 
 **The second minute** reads one more track at boot (the chapter, track 13,
 before the workshop's aux track, so the head ends where it did). A door into

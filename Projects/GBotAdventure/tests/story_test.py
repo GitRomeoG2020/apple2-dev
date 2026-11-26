@@ -17,7 +17,7 @@ SOUNDOFF,SPKCNT,JINGLES,LOOPS,CHOICE,REFUSED,LEAD,WAKE,HESIT,DEJA=0xB7,0xBF,0xC1
 NAMES=('workshop','power','security','lab','substation','wingb')
 MINUTE,GMET,GX,CAMJOB,PAGES=0xD2,0xD3,0x8F,0xD5,0xD6
 sys.path.insert(0,str(ROOT/'tools'))
-from gen_workshop import clock_icon,fuse_icon,page_icon,message_pixels
+from gen_workshop import clock_icon,fuse_icon,page_icon,message_pixels,CHAPTER,GOALS
 from gen_chapter import patches
 PATCH={n:(bx,bytes(d)) for n,bx,d in patches()}
 from gen_concept import row_offset
@@ -117,6 +117,29 @@ with tempfile.TemporaryDirectory() as tmp:
             except OSError:time.sleep(.05)
         q({'cmd':'break_set','addr':MAIN});until_paused()
         frames(3)
+        # 0) T: G-Bot's current goal, one per progress state (pokes; the
+        # workshop at boot). Some goals run on to a second line of directions.
+        def goal(want,why):
+            hide();step('T');frames(1);got=[b(MESSAGE)]
+            if len(want)>1:got=runs_to(want[-1],300)
+            ok(got==list(want),'T, %s: %s (%s)'%(why,' / '.join(CHAPTER[w] for w in want),[hex(g) for g in got]))
+        ok(b(MESSAGE)==0,'boot: WORKBENCH OFFLINE - CHECK LEFT BENCH (the controls line offers T TASK)')
+        TSTATES=[((0,0,0,0,0,0,0,0),(0xE0,),'at boot'),((3,0,0,0,0,0,0,0),(0xE1,),'workbench fixed'),
+                 ((3,1,0,0,0,0,0,0),(0xE2,),'carrying the fuse'),((3,2,0,0,0,0,0,0),(0xE3,0xE4),'power on'),
+                 ((3,2,1,0,0,0,0,0),(0xE5,0xE6),'lab door open'),((3,2,1,3,0,0,0,0),(0xE7,0xE8),'she warned him (points at N, no Y needed)'),
+                 ((3,2,1,3,1,0,0,0),(0xE9,),'carrying the lead'),((3,2,1,3,2,1,0,0),(0xEA,0xEB),'carrying the minute'),
+                 ((3,2,1,3,2,2,0,0),(0xEC,0xED),'the guard awake, monitors snowed'),((3,2,1,3,2,2,3,0),(0xEE,),'cameras fixed'),
+                 ((3,2,1,3,2,3,3,0),(0xEF,0xF0),'the second minute'),((3,2,1,3,2,4,3,0),(0xF1,),'the coffee awake'),
+                 ((3,2,1,3,2,4,3,1),(0xF2,0xF3),'the page'),((3,2,1,0,0,0,3,1),(0xE5,0xE6),'after a Y rerun (page kept)'),
+                 ((3,2,1,3,0,0,3,1),(0xE7,0xE8),'a rerun, warned again: still N')]
+        for st,want,why in TSTATES:
+            for a,v in zip((REPAIR,FUSE,LABOPEN,CONSOLE,LEAD,MINUTE,CAMJOB,PAGES),st):poke(a,[v])
+            goal(want,why)
+            if why=='at boot':frames(2);shot('22_goal_at_boot')
+        for a in (REPAIR,FUSE,LABOPEN,CONSOLE,LEAD,MINUTE,CAMJOB,PAGES):poke(a,[0])
+        hide();poke(REPAIR,[1]);step('T');frames(1)
+        ok(b(MESSAGE) not in GOALS and b(FEEDBACK)==0,'T with a prompt up (an inspected job) does nothing')
+        poke(REPAIR,[0]);frames(2)
         poke(REPAIR,[3]);poke(PANEL,[3]);poke(FUSE,[2]);poke(LABOPEN,[1])
         frames(2)
         door(1,122,120,3);ok(b(ROOM)==1,'to the lit power room')
@@ -142,13 +165,14 @@ with tempfile.TemporaryDirectory() as tmp:
         step(' ');frames(2);ok(b(CHOICE)==1 and b(HESIT)==0 and b(MESSAGE)==70,'the second probe in the same loop asks at once (no deja vu)');step('\x1b');frames(1)
         step(' ');frames(2);step('S');frames(6);ok(b(CHOICE)==0,'walking away cancels the choice')
         at(120,56,3);step(' ');frames(9)
-        for k in 'ABCQ':step(k)
-        ok(b(CHOICE)==1 and b(LOOPS)==0 and b(REFUSED)==0,'other keys do not answer it')
+        for k in 'ABCQT':step(k)
+        ok(b(CHOICE)==1 and b(LOOPS)==0 and b(REFUSED)==0 and b(MESSAGE)==70,'other keys (T too) do not answer it or hide it')
         # 3) REFUSE
         step('N');frames(1)
         ok(b(REFUSED)==1 and b(LEAD)==1 and b(MESSAGE)==75,'N: G-BOT: NO. SHE SAID NO FULL POWER. -- he takes the trickle lead');shot('4_refuse')
         seq=runs_to(77);shot('5_refuse_new_task');ok(seq[-2:]==[76,77],'...BUT THIS TRICKLE LEAD MIGHT HELP. -> NEW TASK: TRICKLE LEAD TO THE CHAMBER (%s)'%seq)
-        frames(70);at(200,104,1);ok(b(MESSAGE)==78,'away from the breaker: BREAKER STAYS OFF. SHE WAS RIGHT.')
+        seq=runs_to(0xD8,300);ok(seq==[77,0xD8],'G-Bot thinks out loud: G-BOT: THE LAB CHAMBER! PLUG THIS IN. (%s)'%seq)
+        frames(70);hide();at(200,104,1);ok(b(MESSAGE)==78,'away from the breaker: BREAKER STAYS OFF. SHE WAS RIGHT.')
         # back to the lab with the lead
         t_out=door(1,224,104,1)
         ok(b(ROOM)==1,'substation -> power room')
@@ -164,6 +188,7 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(b(MINUTE)==1,'the chamber charged him with one carried minute')
         frames(2);ok(hud()=='clock','the HUD shows a little clock (not the lead) on both pages')
         ok(labclock()=='3','the lab HUD clock now says 6:03');shot('6_carrying_time')
+        seq=runs_to(0xD9,300);ok(seq==[99,0xD9],'...G-BOT: THE GUARD IS STUCK. BUMP HIM! (%s)'%seq);frames(2);shot('24_think_aloud_guard')
         frames(60);hide();at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==93,'console while carrying: CONSOLE: LOOP HOLDS. 6:03 AND TICKING')
         frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==100,'chamber: CHAMBER: ONE MINUTE CARRIED. GO!')
         # 3b) CARRYING TIME: the guard remembers
@@ -176,10 +201,13 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(hud() is None,'the minute is spent: the HUD clock clears')
         seq=runs_to(106,600);ok(seq==[103,104,105,106],'GUARD: G-BOT! YOU KEEP PASSING ME! / WING B CODE IS 6-0-4. GO ON. / THE MINUTE IS SPENT. WING B UNSEALED. (%s)'%seq)
         ok(b(JINGLES)==j0+2,'the unseal plays the unlock stinger')
+        seq=runs_to(0xDA,300);ok(seq==[106,0xDA],'...G-BOT: HIS MONITORS DIED. HIS DESK? (%s)'%seq)
         gx=b(GX);frames(40);ok(b(GX)==gx,'the guard stays put')
         at(b(GX)*7,80,1);frames(6);ok(b(PX)==b(GX)*7 and b(PX+1)==80,'and catches nobody any more')
         frames(70);hide();at(150,104,1);frames(2);ok(b(MESSAGE)==0xB8,'security now: GUARD: MY MONITORS! ALL STATIC!')
         ok(shows('static',(0x8000,0x2000,0x4000)),'waking him turned his monitor wall to snow (room and both pages)')
+        hide();step('T');frames(2);ok(b(MESSAGE)==0xEC,"T in security, guard awake (real flags): GOAL: FIX THE GUARD'S DESK MONITORS");shot('23_goal_monitors')
+        frames(120);hide()
         # 3c) WING B
         n=len(door_msgs);at(14,110,1);t0=step('A');t_wing=t0;frames(4)
         ok(b(ROOM)==5 and tuple(peek(PX,3))==(224,110,1),'west door: into WING B (224,110 facing west)')
@@ -190,6 +218,7 @@ with tempfile.TemporaryDirectory() as tmp:
         j0=b(JINGLES);step(' ');frames(1);ok(b(MESSAGE)==114,'Space: A DROP OF COFFEE, FROZEN IN MIDAIR.')
         seq=runs_to(116,600);ok(seq==[114,115,116],'G-BOT: THAT WILL TAKE ANOTHER MINUTE. / ...MAYBE THE CHAMBER HAS ONE MORE? (the hint; %s)'%seq)
         ok(b(JINGLES)==j0 and b(0xC4)==2,'the hint chimes (no stinger: not the end any more)');at(56,60,2);shot('13_coffee_hint')
+        seq=runs_to(0xDB,300);ok(seq==[116,0xDB],"...G-BOT: FIRST, FIX THE GUARD'S DESK. (cameras still down; %s)"%seq)
         frames(70);hide();at(200,56,3);ok(b(0x84)==2 and b(MESSAGE)==113,'LOOP LOG: SPACE TO PROBE')
         step(' ');frames(1);seq=runs_to(118,300);ok(seq==[117,118],"LOOP LOG: 4,817 TALLY MARKS. NEAT. / LAST ENTRY: DON'T FLIP THE BREAKER. (%s)"%seq)
         frames(70);n=len(door_msgs);at(224,110,2);t_wback=step('D');frames(4)
@@ -198,7 +227,7 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(shows('static'),'security: the monitor wall is snow since the guard woke (arrival patch in $8000)')
         door(3,122,120,3);hide();frames(2);ok(labclock()=='4','the lab HUD clock now says 6:04')
         at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==101,'console: CONSOLE: 6:04! SOMETHING WOKE UP.')
-        seq=runs_to(0xB1,300);ok(seq==[101,0xB1],'...CONSOLE: SECURITY MONITORS: NO SIGNAL (%s)'%seq)
+        seq=runs_to(0xDD,400);ok(seq==[101,0xB1,0xDD],"...CONSOLE: SECURITY MONITORS: NO SIGNAL / G-BOT: THE GUARD'S DESK. LOOSE CABLE? (%s)"%seq)
         frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==0xB0 and b(MINUTE)==2,'chamber: CHAMBER: EMPTY. FIX SOMETHING NEARBY.')
         seq=runs_to(0xB1,300);ok(seq==[0xB0,0xB1],'...CONSOLE: SECURITY MONITORS: NO SIGNAL (%s)'%seq)
         frames(60);at(122,106,0);door(2,122,48,0);frames(2)
@@ -218,14 +247,14 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(shows('feeds'),'the feeds are back in the room ($8000)')
         at(150,104,1);frames(3);ok(shows('feeds',(0x8000,0x2000,0x4000)),'...and on both pages')
         at(40,60,1);shot('17_i_can_see')
-        seq=runs_to(0xBD,400);ok(seq==[0xBB,0xBC,0xBD],'GUARD: CAMERA 4... A FLOATING DROP? / ...FAR AWAY, THE CHAMBER RECHARGES. (%s)'%seq)
+        seq=runs_to(0xDE,500);ok(seq==[0xBB,0xBC,0xBD,0xDE],'GUARD: CAMERA 4... A FLOATING DROP? / ...FAR AWAY, THE CHAMBER RECHARGES. / G-BOT: BACK TO THE LAB CHAMBER, THEN. (%s)'%seq)
         frames(70);hide();at(150,104,1);frames(2);ok(b(MESSAGE)==108,'security now: GUARD: OFF DUTY. WING B IS OPEN.')
         door(3,122,120,3);hide();frames(2)
         at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==0xB5,'console: CONSOLE: CAMERAS UP. CHAMBER CHARGED.')
         frames(60);hide();at(122,60,3);j0=b(JINGLES);step(' ');frames(1)
         ok(b(MINUTE)==3 and b(MESSAGE)==0xB2 and b(JINGLES)==j0+1,'chamber: CHAMBER: CHARGED! A SECOND MINUTE. (tick)')
         frames(2);ok(hud()=='clock','the HUD clock is back');shot('18_second_minute')
-        seq=runs_to(0xB4,400);ok(seq==[0xB2,0xB3,0xB4],'G-BOT: TICKING AGAIN. COFFEE TIME? / NEW TASK: WAKE THE COFFEE MACHINE (%s)'%seq)
+        seq=runs_to(0xDF,500);ok(seq==[0xB2,0xB3,0xB4,0xDF],"G-BOT: TICKING AGAIN. COFFEE TIME? / NEW TASK: WAKE THE COFFEE MACHINE / G-BOT: WING B. SECURITY'S WEST DOOR. (%s)"%seq)
         frames(60);hide();at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==0xB6,'console: CONSOLE: 6:04 AND TICKING. AGAIN!')
         frames(60);hide();at(122,60,3);step(' ');frames(1);ok(b(MESSAGE)==100 and b(MINUTE)==3,'chamber: CHAMBER: ONE MINUTE CARRIED. GO!')
         # 3e) THE SCIENTIST'S NOTES: the coffee wakes
@@ -260,6 +289,8 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(b(ROOM)==0 and tuple(peek(PX,3))==(126,104,0),'the loop resets: G-Bot wakes in the workshop')
         ok(door_msgs[n:]==[72],'its door line: G-BOT REBOOTING... 12:15 AGAIN')
         ok(b(LOOPS)==1 and b(MESSAGE)==0xD1,'LOOPS=1; G-BOT: BAD IDEA. BUT I KEPT THE PAGE.');shot('8_restore_wake')
+        seq=runs_to(0xD7,400);ok(seq==[0xD1,0xD7],'...G-BOT: NEXT TIME I LISTEN TO HER. N. (%s)'%seq)
+        goal((0xE5,0xE6),'after the rerun (real flags)')
         ok((b(PAGES),b(CAMJOB))==(1,3) and hud()=='page','the page and the cameras survive the rerun (HUD: the page)')
         ok((b(REPAIR),b(PANEL),b(FUSE),b(LABOPEN))==(3,3,2,1),'the machines remember him: workbench, fuse and lab door stay fixed')
         ok((b(CONSOLE),b(GSTATE),b(LEAD),b(REFUSED),b(WAKE),b(MINUTE))==(0,0,0,0,0,0),'the console drifts again, the guard will reboot, the lead is back on its hook, the minute is lost')
@@ -273,7 +304,7 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(shows('feeds'),'next night, guard awake: no snow (the cameras stayed fixed)')
         door(5,224,110,1);frames(2);ok(not shows('awake'),'wing B: the drop is frozen again')
         at(120,56,3);step(' ');frames(1);ok(b(MESSAGE)==0xCD,'G-BOT: FROZEN AGAIN. I KEPT THE PAGE.')
-        seq=runs_to(116,600);ok(seq==[0xCD,115,116],'...THAT WILL TAKE ANOTHER MINUTE. / ...MAYBE THE CHAMBER HAS ONE MORE? (%s)'%seq)
+        seq=runs_to(0xDC,800);ok(seq==[0xCD,115,116,0xDC],'...THAT WILL TAKE ANOTHER MINUTE. / ...MAYBE THE CHAMBER HAS ONE MORE? / G-BOT: THE LAB CHAMBER MUST BE READY! (cameras fixed; %s)'%seq)
         frames(70);poke(MINUTE,[3]);hide();at(120,56,3);step(' ');frames(1)
         ok(b(MESSAGE)==0xCE and b(MINUTE)==4 and shows('awake'),'a second minute again: ...PLIP! THE DROP LANDS. AGAIN.')
         seq=runs_to(0xD0,600);ok(seq==[0xCE,0xCF,0xD0],'COFFEE: YOU AGAIN?! YOU GOT THE PAGE. / ANOTHER NIGHT. SHOO. (%s)'%seq)
@@ -284,7 +315,8 @@ with tempfile.TemporaryDirectory() as tmp:
         poke(CONSOLE,[2]);poke(TUNESTEP,[2]);poke(TUNEPOS,[9]);poke(FEEDBACK,[0]);step('R')
         ok(b(CONSOLE)==3 and b(TALK)==1 and b(MESSAGE)==81,'in phase again: SCIENTIST: G-BOT! WAIT. AGAIN?');shot('9_scientist_again')
         seq=runs_to(67,900);ok(seq==[81,82,83,55,56,57,67],'she remembers, warns again, is cut off again: %s'%seq)
-        seq=runs_to(96,300);ok(seq==[67,96],'the nudge: ...THE SUBSTATION: EAST OF POWER ROOM (%s)'%seq)
+        seq=runs_to(0xD6,500);ok(seq==[67,96,0xD6],'the nudge: ...THE SUBSTATION: EAST OF POWER ROOM / G-BOT: BUT SHE SAID NO FULL POWER... (%s)'%seq)
+        goal((0xE7,0xE8),'warned again (real flags): the substation, and N')
         frames(80);hide();at(30,56,3);step(' ');frames(1);ok(b(MESSAGE)==58,'console re-probe: CONSOLE: IN PHASE. NO FULL POWER!')
         seq=runs_to(97,300);ok(seq==[58,97],'...then SUBSTATION OPEN: EAST OF POWER ROOM (%s)'%seq);frames(2);shot('0_substation_hint')
         seq=runs_to(42,300);ok(seq==[97,42],'...then LAB CLOCK SAYS 6:02. NOBODY AGREES. (%s)'%seq)
