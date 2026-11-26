@@ -186,7 +186,8 @@ while playing: each room change reads that room from the disk.
 | T | G-Bot's current goal (**GOAL: ...**, sometimes with a second line of directions). Works anywhere, except while a prompt is up (an inspection's R / Esc, the breaker's Y / N, the console's R, or while the scientist talks) |
 
 The controls line at the bottom of every room now reads
-**WASD/ARROWS WALK  SPACE PROBE  T TASK**.
+**WASD/ARROWS SPACE:PROBE T:TASK** (the same 30 characters as the old
+**WASD/ARROWS WALK   SPACE PROBE**, so drawing a room costs exactly what it did).
 
 ### Sound
 
@@ -808,7 +809,7 @@ required native build inputs, not modern images loaded by the game.
   - `$F800–$FE3F`: the story bank (1,600 bytes);
   - `$FE40–$FFF9`: **free, 442 bytes**;
   - bank 1 `$D000–$DFFF`: the stamp pool (lit power room, the lab's overflow;
-    **350 bytes** free).
+    **361 bytes** free).
 
   Both the IIe and a II+ need 64 KB (a II+ with a 16K language card in slot
   0); Bobbin emulates the card on both.
@@ -828,13 +829,12 @@ required native build inputs, not modern images loaded by the game.
   sprite covers the old background): the monitor wall in snow and with its
   feeds (12 × 39 bytes each), and the coffee machine's falling drop (two
   frames) and its awake look (6 × 33 bytes each).
-- **`$72E5–$7FFF` (3,355 bytes) is free main RAM.** Free RAM in all: **4,725
-  bytes** (3,355 at `$72E5`, 231 + 163 + 442 in the language card, 350 in
+- **`$72E5–$7FFF` (3,355 bytes) is free main RAM.** Free RAM in all: **4,736
+  bytes** (3,355 at `$72E5`, 231 + 163 + 442 in the language card, 361 in
   the pool, 184 at `$BF48`). The substation story took 2,131 of them,
-  carrying time 845, the second minute 3,317, and the hints 1,529 (34 lines:
+  carrying time 845, the second minute 3,317, and the hints 1,518 (34 lines:
   1,262 bytes of bank, 173 of code, 81 of chains and goals on the chapter
-  tracks; 2 bytes
-  of hooks in the engine; 11 pool bytes for the longer controls line). Before
+  tracks; 2 bytes of hooks in the engine). Before
   the language card the code area had 421 bytes free.
 - Disk: track 0 boot; **1–3 code and tables, 4 stamp pool, 5–6 G-Bot's frames,
   7 workshop aux, 8 power aux, 9 security aux, 10 lab aux, 11 substation

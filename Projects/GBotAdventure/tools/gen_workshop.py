@@ -42,7 +42,7 @@ def clock_hands(p,cx,cy,name,rh,rm,c=T):
         a=math.radians(a)
         p.line([(cx,cy),(cx+round(r*math.sin(a)),cy-round(r*math.cos(a)))],c,2)
 
-CONTROLS='WASD/ARROWS WALK  SPACE PROBE  T TASK'   # the baked controls line
+CONTROLS='WASD/ARROWS SPACE:PROBE T:TASK'   # the baked controls line
 def finish(p,name):
     """Native room bytes plus the baked HUD: strip and controls line."""
     data=bytearray(encode(p.im))

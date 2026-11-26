@@ -123,7 +123,7 @@ with tempfile.TemporaryDirectory() as tmp:
             hide();step('T');frames(1);got=[b(MESSAGE)]
             if len(want)>1:got=runs_to(want[-1],300)
             ok(got==list(want),'T, %s: %s (%s)'%(why,' / '.join(CHAPTER[w] for w in want),[hex(g) for g in got]))
-        ok(b(MESSAGE)==0,'boot: WORKBENCH OFFLINE - CHECK LEFT BENCH (the controls line offers T TASK)')
+        ok(b(MESSAGE)==0,'boot: WORKBENCH OFFLINE - CHECK LEFT BENCH (the controls line offers T:TASK)')
         TSTATES=[((0,0,0,0,0,0,0,0),(0xE0,),'at boot'),((3,0,0,0,0,0,0,0),(0xE1,),'workbench fixed'),
                  ((3,1,0,0,0,0,0,0),(0xE2,),'carrying the fuse'),((3,2,0,0,0,0,0,0),(0xE3,0xE4),'power on'),
                  ((3,2,1,0,0,0,0,0),(0xE5,0xE6),'lab door open'),((3,2,1,3,0,0,0,0),(0xE7,0xE8),'she warned him (points at N, no Y needed)'),

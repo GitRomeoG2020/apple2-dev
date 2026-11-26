@@ -3,5 +3,5 @@
 auxend: .byte 10,12,16,15,7,9,7   ; aux sectors a door reads: auxfirst..auxend-1
 auxfirst: .byte 0,0,0,0,0,0,4   ; (0: the stamp script is in sectors 0-3)
 ; stamp header address; 0: full art
-stamplo: .byte $00,$00,$00,$00,$00,$00,$FA
+stamplo: .byte $00,$00,$00,$00,$00,$00,$F6
 stamphi: .byte $10,$10,$10,$10,$10,$10,$D5
