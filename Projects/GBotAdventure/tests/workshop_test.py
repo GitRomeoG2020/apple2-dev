@@ -335,7 +335,7 @@ def main():
             ok(state()[:2]==before and peek(0x83,1)==b'\x02','repair holds position briefly, cannot be interrupted by walk repeat')
             s0=spk();j0=jingles()
             for _ in range(18):frame()
-            ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\x04','repair completes: terminal waveform, conduit light and green door indicator')
+            ok(peek(0x83,1)==b'\x03' and peek(0x85,1)==b'\xd2','repair completes: terminal waveform, conduit light, green door indicator, and G-Bot thinks out loud: G-BOT: THE BACK DOOR CLICKED. NORTH!')
             n=clicks(s0);ok(jingles()==j0+1 and fxlast()==FX['rise'] and n>=150,'SFX repair done: rising jingle, played while G-Bot holds (%d clicks)'%n)
             frame();frame();capture('online')
             for _ in range(12):frame(' ')

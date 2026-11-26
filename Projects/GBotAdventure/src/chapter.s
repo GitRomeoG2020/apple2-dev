@@ -25,6 +25,10 @@ MSG_BREWING=$CC
 MSG_FROZENAGAIN=$CD
 MSG_PLIPAGAIN=$CE
 MSG_KEPTPAGE=$D1
+MSG_BACKDOOR=$D2
+MSG_FIXDESK=$DB
+MSG_LABREADY=$DC
+HINT_FIRST=$D2               ; G-Bot's nudges and goals: shown at full length
         .segment "CHAPTER"
 chapbank:
         .incbin "../art/chapter-bank.bin"
@@ -37,6 +41,13 @@ chain_of:
         cpx #CH_FIRST
         bcs @ch
         lda chain,x
+        cmp #MSG_FIXDESK       ; (116's nudge: the desk, or the chamber once fixed)
+        bne :+
+        ldy CAMJOB
+        cpy #3
+        bne :+
+        lda #MSG_LABREADY
+:       cmp #0
         rts
 @ch:    lda chchain-CH_FIRST,x
         cmp #MSG_GOTPAGE
@@ -316,8 +327,106 @@ coffee_wakes:
 
 fx_plip:    .byte NG6,4, NE6,4, 0,4, NC6,10, 0,0
 
+;; ---- a job finished (the engine, after REPAIR,x = 3): its room's next line.
+; A = ROOM on return.
+job_done:
+        lda ROOM
+        cmp #2
+        bne :+
+        jsr cams_fixed         ; security's cameras: the feeds come back
+        lda ROOM
+        rts
+:       cmp #0
+        bne @rts
+        lda #MSG_BACKDOOR      ; G-BOT: THE BACK DOOR CLICKED. NORTH!
+        sta MESSAGE
+        lda #96
+        sta FEEDBACK
+        lda ROOM
+@rts:   rts
+
+; ---- T: G-Bot's current goal. A = the key, X = the room's job (kept, C=0,
+; when it is not T or a prompt is up: an inspected job, the breaker's Y/N,
+; the console's R, her talking, the deja vu).
+task_key:
+        pha
+        and #$DF
+        cmp #'T'
+        bne @no
+        lda REPAIR,x
+        cmp #1
+        beq @no
+        lda CHOICE
+        ora TALK
+        ora HESIT
+        bne @no
+        lda ROOM
+        cmp #3
+        bne :+
+        lda CONSOLE
+        cmp #1
+        beq @no
+:       pla
+        jsr task_goal
+        sta MESSAGE
+        lda #96
+        sta FEEDBACK
+        sec
+        rts
+@no:    pla
+        clc
+        rts
+; A = the goal line for the night so far: the first step not yet done.
+task_goal:
+        ldx #0
+        lda REPAIR
+        cmp #3
+        bne @x                 ; the workbench
+        inx
+        lda FUSE
+        beq @x                 ; the fuse in the locker
+        inx
+        cmp #1
+        beq @x                 ; carried to the panel
+        inx
+        lda LABOPEN
+        beq @x                 ; security's desk
+        lda MINUTE
+        beq @night
+        ldx #11
+        cmp #4
+        bcc :+
+        lda PAGES              ; the coffee awake: its page, then the others
+        beq @x
+        inx
+        bne @x
+:       dex
+        cmp #3
+        beq @x                 ; wing B's coffee
+        dex
+        cmp #2
+        bne :+
+        lda CAMJOB
+        cmp #3
+        beq @x                 ; recharged: the lab chamber
+        dex                    ; the guard's monitors
+        bne @x
+:       ldx #7                 ; carrying the minute: the guard
+        bne @x
+@night: ldx #6
+        lda LEAD
+        cmp #1
+        beq @x                 ; carrying the lead: the chamber
+        ldx #4
+        lda CONSOLE
+        cmp #3
+        bne @x                 ; the lab's consoles
+        inx                    ; the substation (and N)
+@x:     lda goals,x
+        rts
+
         .include "chapter_msgs.inc"
         .include "icons.inc"   ; HUD icons: fuse/lead, minute, notebook page (hud_icon)
         .include "chapter_art.inc"
 chapter_end:
-.assert chapter_end <= $7000, lderror, "the chapter track holds 4K"
+.assert chapter_end <= $8000, lderror, "the chapter tracks hold 8K"

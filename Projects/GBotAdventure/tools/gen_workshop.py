@@ -42,12 +42,13 @@ def clock_hands(p,cx,cy,name,rh,rm,c=T):
         a=math.radians(a)
         p.line([(cx,cy),(cx+round(r*math.sin(a)),cy-round(r*math.cos(a)))],c,2)
 
+CONTROLS='WASD/ARROWS SPACE:PROBE T:TASK'   # the baked controls line
 def finish(p,name):
     """Native room bytes plus the baked HUD: strip and controls line."""
     data=bytearray(encode(p.im))
     t=CLOCKS[name]
     strip=' '+name+' '*(38-len(name)-len(t))+t+' '
-    for top,text in ((169,strip),(186,'WASD/ARROWS WALK   SPACE PROBE')):
+    for top,text in ((169,strip),(186,CONTROLS)):
         for row,values in enumerate(message_pixels(text)):
             data[row_offset(top+row):row_offset(top+row)+40]=values
     return bytes(data)
@@ -291,7 +292,7 @@ MESSAGES=[
     'LOOP LOG: SPACE TO PROBE',               # 113
     'A DROP OF COFFEE, FROZEN IN MIDAIR.',    # 114
     'G-BOT: THAT WILL TAKE ANOTHER MINUTE.',  # 115
-    '...MAYBE THE CHAMBER HAS ONE MORE?',     # 116 the hint (was the hook)
+    '...MAYBE THE CHAMBER HAS ONE MORE?',     # 116 the hint (runs on: 0xDB, or 0xDC with the desk fixed)
     'LOOP LOG: 4,817 TALLY MARKS. NEAT.',     # 117
     "LAST ENTRY: DON'T FLIP THE BREAKER.",    # 118
 ]
@@ -332,10 +333,51 @@ CHAPTER={
  0xCF:'COFFEE: YOU AGAIN?! YOU GOT THE PAGE.',
  0xD0:'COFFEE: ANOTHER NIGHT. SHOO.',
  0xD1:'G-BOT: BAD IDEA. BUT I KEPT THE PAGE.',  # waking from a rerun, page kept
+ # G-Bot thinks out loud: after each milestone, a nudge toward the next one.
+ 0xD2:'G-BOT: THE BACK DOOR CLICKED. NORTH!',   # workbench fixed
+ 0xD3:'G-BOT: THAT OLD LOCKER... A GLINT?',     # dead panel
+ 0xD4:'G-BOT: WEST DOOR. SECURITY. GULP.',      # power restored
+ 0xD5:'G-BOT: SNEAK BEHIND HIM TO THE DESK.',   # caught by the guard
+ 0xD6:'G-BOT: BUT SHE SAID NO FULL POWER...',   # after her warning: the N path
+ 0xD7:'G-BOT: NEXT TIME I LISTEN TO HER. N.',   # waking from a rerun
+ 0xD8:'G-BOT: THE LAB CHAMBER! PLUG THIS IN.',  # took the trickle lead
+ 0xD9:'G-BOT: THE GUARD IS STUCK. BUMP HIM!',   # carrying the minute
+ 0xDA:'G-BOT: HIS MONITORS DIED. HIS DESK?',    # the guard woke
+ 0xDB:"G-BOT: FIRST, FIX THE GUARD'S DESK.",   # coffee, no minute, desk unfixed
+ 0xDC:'G-BOT: THE LAB CHAMBER MUST BE READY!',   # coffee, no minute, desk fixed
+ 0xDD:"G-BOT: THE GUARD'S DESK. LOOSE CABLE?",   # empty chamber / console
+ 0xDE:'G-BOT: BACK TO THE LAB CHAMBER, THEN.',   # cameras fixed
+ 0xDF:"G-BOT: WING B. SECURITY'S WEST DOOR.",    # second minute
+ # T: the current goal (one per progress state; some run on to a second line)
+ 0xE0:'GOAL: FIX THE WORKBENCH. LEFT BENCH.',
+ 0xE1:'GOAL: FIND A FUSE. POWER ROOM, NORTH.',
+ 0xE2:'GOAL: FIT THE FUSE IN THE PANEL',
+ 0xE3:'GOAL: GET TO THE DESK IN SECURITY',
+ 0xE4:'G-BOT: WEST DOOR. WAIT FOR THE GUARD.',
+ 0xE5:'GOAL: THE LAB, NORTH IN SECURITY',
+ 0xE6:'G-BOT: PROBE THE CONSOLES. TUNE THEM.',
+ 0xE7:'GOAL: THE SUBSTATION, EAST OF POWER',
+ 0xE8:'G-BOT: SHE SAID NO FULL POWER. SO: N.',
+ 0xE9:'GOAL: PUT THE LEAD IN THE LAB CHAMBER',
+ 0xEA:'GOAL: TAKE THE MINUTE TO THE GUARD',
+ 0xEB:'G-BOT: IN SECURITY. JUST BUMP HIM.',
+ 0xEC:"GOAL: FIX THE GUARD'S DESK MONITORS",
+ 0xED:'G-BOT: SPACE AT HIS DESK, THEN R.',
+ 0xEE:'GOAL: LAB CHAMBER. ONE MORE MINUTE',
+ 0xEF:'GOAL: WAKE THE COFFEE IN WING B',
+ 0xF0:"G-BOT: THAT'S SECURITY'S WEST DOOR.",
+ 0xF1:'GOAL: THE COFFEE HAS A PAGE FOR ME',
+ 0xF2:'GOAL: FIND THE OTHER NOTEBOOK PAGES',
+ 0xF3:'G-BOT: ...ON THE NEXT DISK, I GUESS.',
 }
+# T's goal per progress state, in task_goal's order (src/chapter.s)
+GOALS=(0xE0,0xE1,0xE2,0xE3,0xE5,0xE7,0xE9,0xEA,0xEC,0xEE,0xEF,0xF1,0xF2)
 CH_CHAIN={0xB0:0xB1,0xB2:0xB3,0xB3:0xB4,0xBB:0xBC,0xBC:0xBD,0xC0:0xC1,0xC1:0xC2,0xC2:0xC3,
           0xC3:0xC4,0xC4:0xC5,0xC5:0xC6,0xC6:0xC7,0xC7:0xC8,0xC8:0xC9,0xC9:0xCA,0xCA:0xCB,
-          0xCD:115,0xCE:0xCF,0xCF:0xD0}
+          0xCD:115,0xCE:0xCF,0xCF:0xD0,
+          0xB1:0xDD,0xBD:0xDE,0xB4:0xDF,0xD1:0xD7,
+          0xE3:0xE4,0xE5:0xE6,0xE7:0xE8,0xE9:None,0xEA:0xEB,0xEC:0xED,0xEF:0xF0,0xF2:0xF3}
+CH_CHAIN={k:v for k,v in CH_CHAIN.items() if v}
 class _Messages(list):
     """MESSAGES[i]: ids 0-118 as listed, the chapter's from $B0."""
     def __getitem__(self,i):
@@ -366,7 +408,7 @@ ENTER_MSG=(59,60,61,62,65,109)
 METER=45; FIRST_DIALOG=49; RELEASE_LINE=56; DIALOG_TIME=56
 TUNE_TARGETS=(11,2,9); TUNE_START=7; TUNE_CELLS=15
 # A probe line that runs on: when its feedback time ends, the next one shows.
-CHAIN={101:0xB1,89:98,98:99,103:104,104:105,105:106,114:115,115:116,117:118,57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
+CHAIN={10:0xD3,18:0xD4,24:0xD5,96:0xD6,73:0xD7,74:0xD7,77:0xD8,99:0xD9,106:0xDA,116:0xDB,101:0xB1,89:98,98:99,103:104,104:105,105:106,114:115,115:116,117:118,57:67,67:96,97:42,75:76,76:77,81:82,82:83,83:55,84:83,85:86,86:87,87:88,88:89,27:30,33:43,35:36,38:39,58:97,49:50,50:51,51:52,52:53,53:54,54:55,55:56,56:57}
 
 def meter_text(step,pos):
     """The tuning meter the engine builds from template 45: phase number,
@@ -464,7 +506,8 @@ def interaction_art():
     n=max(CHAPTER)+1-CH_FIRST
     ch=['; Generated by tools/gen_workshop.py; do not hand edit.',f'CH_FIRST={CH_FIRST}',f'CH_LAST={max(CHAPTER)}',
         'chsfx:','.byte '+','.join(str(CH_SFX.get(CH_FIRST+i,0)) for i in range(n)),
-        'chchain:','.byte '+','.join(str(CH_CHAIN.get(CH_FIRST+i,0)) for i in range(n))]
+        'chchain:','.byte '+','.join(str(CH_CHAIN.get(CH_FIRST+i,0)) for i in range(n)),
+        'goals:','.byte '+','.join(str(g) for g in GOALS)]
     (ROOT/'src/chapter_msgs.inc').write_text('\n'.join(ch)+'\n')
     # Self-check: glyph lookup reproduces message_pixels exactly.
     for text in messages:
