@@ -120,7 +120,7 @@ def compile_room(target,name='SECURITY',lines=()):
     t=CLOCKS[name]
     for row,col,text in ((169,1,name),(169,39-len(t),t)):
         script+=bytes([1,row,col,len(text)])+bytes(GLYPHS.index(ch) for ch in text)
-    ctl='WASD/ARROWS WALK   SPACE PROBE'; col=(40-len(ctl))//2
+    from gen_workshop import CONTROLS as ctl; col=(40-len(ctl))//2
     script+=bytes([1,186,col,len(ctl)])+bytes(GLYPHS.index(ch) for ch in ctl)
     # 2. Long lines, ORed in.
     for (x0,y0,x1,y1,flags,*rep_) in lines:

@@ -9,5 +9,5 @@ GUARD_TRACK=9                 ; security aux: messages, guard frames, stamps
 SCI_TRACK=10                  ; lab aux: messages, scientist frames, stamps
 SUB_TRACK=11                  ; substation aux: messages, stamps
 WINGB_TRACK=12                ; wing B aux: messages, stamps
-CHAPTER_TRACK=13              ; the second minute: code, messages, patches (boot -> $6000)
-FREE_TRACK=14                 ; 14-34 free
+CHAPTER_TRACK=13              ; 13-14 the chapter: code, messages, hints, patches (boot -> $6000)
+FREE_TRACK=15                 ; 15-34 free

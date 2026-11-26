@@ -485,8 +485,8 @@ start:  cld
         ldx #2
         ldy #$A0
         jsr bootread
-        lda #CHAPTER_TRACK       ; the chapter (code, messages, patches) -> $6000
-        ldx #1
+        lda #CHAPTER_TRACK       ; the chapter (code, messages, hints, patches) -> $6000
+        ldx #2
         ldy #>GAME
         jsr bootread
         lda #WORKAUX_TRACK       ; workshop aux track (messages, stamps) -> $1000

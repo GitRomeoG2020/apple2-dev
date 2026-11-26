@@ -295,7 +295,9 @@ keyboard:
         bcs @used
         ldy ROOM               ; (labkeys keeps A and X otherwise)
         ldx jobx,y
-:        cmp #$1B
+:       jsr task_key           ; T: G-Bot's current goal (chapter.s); C=1 used
+        bcs @used
+        cmp #$1B
         beq @cancel
         cmp #$20
         beq @probe
@@ -1631,13 +1633,9 @@ interaction:
         lda #0
         sta PROBE
         sta FEEDBACK
-        ldx ROOM
-        cpx #2
-        bne :+
-        jsr cams_fixed         ; security's cameras: the feeds come back
-        ldx #0
-:       txa
-        bne :+
+        jsr job_done           ; (chapter.s) the room's next line; A = ROOM
+        cmp #1
+        beq :+
         lda #SFX_RISE          ; workbench (or cameras) fixed, G-Bot still holding
         jsr sfx_jingle
         lda ROOM
@@ -1671,6 +1669,8 @@ interaction:
         ldx #96
         cmp #FIRST_DIALOG      ; dialogue lines are a little quicker
         bcc @long
+        cmp #HINT_FIRST        ; (G-Bot's own nudges and goals: not)
+        bcs @long
         ldx #DIALOG_TIME
 @long:  stx FEEDBACK
         cmp #RELEASE_LINE
